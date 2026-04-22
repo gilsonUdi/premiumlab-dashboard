@@ -6,6 +6,8 @@ import { ptBR } from 'date-fns/locale'
 export const dynamic = 'force-dynamic'
 
 const LEAD_DAYS = 5
+const PAGE_SIZE = 1000
+const MAX_REQUI_ROWS = 20000
 
 function calcStatus(emissao, exitDate, now) {
   const expected = addDays(parseISO(emissao), LEAD_DAYS)
@@ -13,6 +15,23 @@ function calcStatus(emissao, exitDate, now) {
     return new Date(exitDate) <= expected ? 'completed' : 'delayed_completed'
   }
   return now > expected ? 'delayed' : 'in_progress'
+}
+
+async function fetchAllPages(queryFactory, { pageSize = PAGE_SIZE, maxRows = MAX_REQUI_ROWS } = {}) {
+  const rows = []
+
+  for (let from = 0; from < maxRows; from += pageSize) {
+    const to = Math.min(from + pageSize - 1, maxRows - 1)
+    const { data, error } = await queryFactory().range(from, to)
+    if (error) return { data: rows, error }
+
+    const page = data || []
+    rows.push(...page)
+
+    if (page.length < pageSize) break
+  }
+
+  return { data: rows, error: null }
 }
 
 export async function GET(request) {
@@ -31,18 +50,17 @@ export async function GET(request) {
 
     // Parallel fetches
     const [requiRes, cellsRes, empRes, rastreabRes, clientsRes] = await Promise.all([
-      (() => {
+      fetchAllPages(() => {
         let q = supabase
           .from('requi')
           .select('reqcodigo, reqdata, reqhora, pdccodigo, funcodigo, dptcodigo, reqentsai, reqtipo, reqvrtotal')
           .gte('reqdata', dateStart + 'T00:00:00')
           .lte('reqdata', dateEnd + 'T23:59:59')
           .order('reqdata', { ascending: false })
-          .limit(5000)
         if (pedcodigo) q = q.eq('pdccodigo', Number(pedcodigo))
         if (dptcodigo) q = q.eq('dptcodigo', Number(dptcodigo))
         return q
-      })(),
+      }),
       supabase.from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxperda').order('alxordem'),
       supabase.from('funcio').select('funcodigo, funnome').limit(300),
       supabase.from('rastreab').select('*').order('rascodigo', { ascending: false }).limit(2000),
@@ -215,7 +233,7 @@ export async function GET(request) {
       concluidos: completed,
     }
 
-    return NextResponse.json({ kpis, pontualidade, perdas, orders: orders.slice(0, 200), products: products.slice(0, 200), traceability: traceability.slice(0, 100), customers: customers.slice(0, 100) })
+    return NextResponse.json({ kpis, pontualidade, perdas, orders, products: products.slice(0, 200), traceability: traceability.slice(0, 100), customers: customers.slice(0, 100) })
   } catch (err) {
     console.error('[dashboard]', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
