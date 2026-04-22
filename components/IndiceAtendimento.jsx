@@ -19,15 +19,11 @@ function IndiceBar({ value }) {
   )
 }
 
-const PAGE_SIZE = 8
-
 export default function IndiceAtendimento({ data, selectedClient, onColumnClick, loading }) {
   const [sort, setSort] = useState({ col: 'indice', dir: 'desc' })
-  const [page, setPage] = useState(0)
 
   const toggleSort = (col) => {
     setSort(prev => ({ col, dir: prev.col === col && prev.dir === 'asc' ? 'desc' : 'asc' }))
-    setPage(0)
   }
 
   const rows = [...(data || [])].sort((a, b) => {
@@ -38,9 +34,6 @@ export default function IndiceAtendimento({ data, selectedClient, onColumnClick,
     if (va > vb) return sort.dir === 'asc' ? 1 : -1
     return 0
   })
-
-  const totalPages = Math.ceil(rows.length / PAGE_SIZE)
-  const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const cols = [
     { key: 'clinome',   label: 'Nome do Cliente'  },
@@ -64,9 +57,9 @@ export default function IndiceAtendimento({ data, selectedClient, onColumnClick,
         )}
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-auto" style={{ maxHeight: 420 }}>
         <table className="w-full text-xs">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr style={{ background: '#0d1f38' }}>
               {cols.map(c => (
                 <th
@@ -94,14 +87,14 @@ export default function IndiceAtendimento({ data, selectedClient, onColumnClick,
                   ))}
                 </tr>
               ))
-            ) : pageRows.length === 0 ? (
+            ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={cols.length} className="px-4 py-10 text-center" style={{ color: '#4a6b8a' }}>
                   Nenhum cliente encontrado
                 </td>
               </tr>
             ) : (
-              pageRows.map((row, i) => (
+              rows.map((row, i) => (
                 <tr
                   key={row.clicodigo + i}
                   className={`table-row-hover ${selectedClient === String(row.clicodigo) ? 'table-row-active' : ''}`}
@@ -123,16 +116,6 @@ export default function IndiceAtendimento({ data, selectedClient, onColumnClick,
           </tbody>
         </table>
       </div>
-
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-4 py-2" style={{ borderTop: '1px solid #1a3355' }}>
-          <span className="text-xs" style={{ color: '#4a6b8a' }}>Pág. {page + 1} de {totalPages}</span>
-          <div className="flex gap-1">
-            <button className="px-3 py-1 rounded text-xs disabled:opacity-30" style={{ background: '#0d1f38', color: '#7ba3cc', border: '1px solid #1a3355' }} disabled={page === 0} onClick={() => setPage(p => p - 1)}>← Ant</button>
-            <button className="px-3 py-1 rounded text-xs disabled:opacity-30" style={{ background: '#0d1f38', color: '#7ba3cc', border: '1px solid #1a3355' }} disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próx →</button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
