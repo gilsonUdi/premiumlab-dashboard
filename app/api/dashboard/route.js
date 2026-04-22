@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic'
 const LEAD_DAYS = 5
 const PAGE_SIZE = 1000
 const MAX_REQUI_ROWS = 20000
+const MAX_SALES_ROWS = 20000
 const LOSS_REQ_TYPES = new Set(['B', 'C'])
 
 function calcStatus(emissao, exitDate, now) {
@@ -44,12 +45,98 @@ async function fetchAllPages(queryFactory, { pageSize = PAGE_SIZE, maxRows = MAX
   return { data: rows, error: null }
 }
 
+function asSqlDate(value, fallback) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? value : fallback
+}
+
+function asSqlNumber(value) {
+  if (value === '' || value == null) return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
+async function execSql(supabase, sql) {
+  const compactSql = sql.replace(/\s+/g, ' ').trim()
+  const { data, error } = await supabase.rpc('exec_sql', { sql: compactSql })
+  if (error) throw new Error(`exec_sql: ${error.message}`)
+  return data || []
+}
+
+function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind = 'products' }) {
+  const clauses = [
+    `ped.peddtemis >= '${dateStart}T00:00:00'`,
+    `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
+    `ped.pedsitped <> 'C'`,
+  ]
+
+  const pedido = asSqlNumber(pedcodigo)
+  const cliente = asSqlNumber(clicodigo)
+  const grupo = asSqlNumber(gclcodigo)
+
+  if (pedido != null) clauses.push(`ped.id_pedido = ${pedido}`)
+  if (cliente != null) clauses.push(`ped.clicodigo = ${cliente}`)
+  if (grupo != null) clauses.push(`cli.gclcodigo = ${grupo}`)
+
+  const where = clauses.join('\n      and ')
+
+  const isService = kind === 'services'
+  const itemTable = isService ? 'pdser' : 'pdprd'
+  const itemAlias = isService ? 'pds' : 'prd'
+  const joinColumn = isService ? 'sercodigo' : 'procodigo'
+  const descriptionColumn = isService ? 'pdsdescricao' : 'pdpdescricao'
+  const quantityColumn = isService ? 'pdsqtdade' : 'pdpqtdade'
+  const productService = isService ? 'S' : 'P'
+
+  return `
+    select
+        ped.empcodigo as cod_empresa,
+        ped.peddtemis::date as data_venda,
+        ped.peddtsaida::date as data_saida,
+        ped.pedhrsaida::time as hora_saida,
+        ped.pedpzentre::date as data_prazo,
+        ped.pedhrentre::time as hora_prev,
+        (ped.peddtsaida::date + ped.pedhrsaida::time) as data_hora_saida,
+        (ped.pedpzentre::date + ped.pedhrentre::time) as data_hora_prevista,
+        floor(extract(epoch from (
+          coalesce((ped.peddtsaida::date + ped.pedhrsaida::time), current_timestamp)
+          - (ped.pedpzentre::date + ped.pedhrentre::time)
+        )) / 60)::integer as atraso_minutos,
+        case
+          when coalesce((ped.peddtsaida::date + ped.pedhrsaida::time), current_timestamp)
+            <= (ped.pedpzentre::date + ped.pedhrentre::time)
+          then 1 else 0
+        end as no_prazo,
+        ped.clicodigo as codigo_cliente,
+        coalesce(cli.clinomefant, cli.clirazsocial) as cliente,
+        cli.gclcodigo as gclcodigo,
+        ped.pedcodigo as numero_venda,
+        ped.id_pedido as pedido,
+        ped.pdfcodigo as finalidade,
+        ped.fiscodigo1 as cfop,
+        ${itemAlias}.${joinColumn}::text as codigo_produto,
+        ${itemAlias}.${descriptionColumn}::text as descricao_produto,
+        ${itemAlias}.${quantityColumn}::numeric as qtde_produtos,
+        ped.pedsitped::text as status,
+        tbf.fistpnatop::text as tpoperacao,
+        '${productService}'::text as produto_servico
+      from pedid ped
+      join ${itemTable} ${itemAlias} on ped.id_pedido = ${itemAlias}.id_pedido
+      left join tbfis tbf on tbf.fiscodigo = ${itemAlias}.fiscodigo
+      left join clien cli on ped.clicodigo = cli.clicodigo
+      where ${where}
+    order by data_venda desc, pedido desc
+    limit ${MAX_SALES_ROWS}
+  `
+}
+
 export async function GET(request) {
   try {
     const supabase = getSupabase()
     const { searchParams } = new URL(request.url)
-    const dateStart = searchParams.get('dateStart') || format(addDays(new Date(), -30), 'yyyy-MM-dd')
-    const dateEnd   = searchParams.get('dateEnd')   || format(new Date(), 'yyyy-MM-dd')
+    const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
+    const fallbackEnd = format(new Date(), 'yyyy-MM-dd')
+    const dateStart = asSqlDate(searchParams.get('dateStart'), fallbackStart)
+    const dateEnd = asSqlDate(searchParams.get('dateEnd'), fallbackEnd)
     const pedcodigo = searchParams.get('pedcodigo') || ''
     const dptcodigo = searchParams.get('dptcodigo') || ''
     const status    = searchParams.get('status')    || ''
@@ -104,6 +191,11 @@ export async function GET(request) {
     const clientsData = clientsRes.data || []
     const pedfoData = pedfoRes.data || []
     const localPedData = localPedRes.data || []
+    const [productSalesRows, serviceSalesRows] = await Promise.all([
+      execSql(supabase, buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind: 'products' })),
+      execSql(supabase, buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind: 'services' })),
+    ])
+    const salesRows = [...productSalesRows, ...serviceSalesRows]
 
     let traceRequiData = requiData
     if (pedcodigo) {
@@ -152,65 +244,63 @@ export async function GET(request) {
     }
 
     const salesOrderMap = {}
-    for (const p of pedfoData) {
-      if (!p.pefcodigo) continue
-      const emitted = p.pefdtemis ? parseISO(p.pefdtemis) : null
-      const expected = p.pefpzentre ? parseISO(p.pefpzentre) : (emitted ? addDays(emitted, LEAD_DAYS) : null)
-      const deliveredValue = p.pefdtbaixa || p.pefdtent
-      const delivered = deliveredValue ? parseISO(deliveredValue) : null
-      const compareDate = delivered || now
-      const atrasoMinutos = expected ? Math.round((compareDate.getTime() - expected.getTime()) / 60000) : 0
-      const lineOnTime = atrasoMinutos <= 0 ? 1 : 0
+    for (const row of salesRows) {
+      if (!row.pedido) continue
+      const key = String(row.pedido)
+      const emitted = row.data_venda ? parseISO(row.data_venda) : null
+      const expected = row.data_hora_prevista ? parseISO(row.data_hora_prevista) : null
+      const delivered = row.data_hora_saida ? parseISO(row.data_hora_saida) : null
+      const lineOnTime = Number(row.no_prazo) === 1 ? 1 : 0
+      const quantity = Number(row.qtde_produtos) || 0
 
-      if (!salesOrderMap[p.pefcodigo]) {
-        salesOrderMap[p.pefcodigo] = {
-          pedido: p.pefcodigo,
-          clicodigo: p.clicodigo,
+      if (!salesOrderMap[key]) {
+        salesOrderMap[key] = {
+          pedido: key,
+          clicodigo: row.codigo_cliente,
+          clinome: row.cliente,
+          gclcodigo: row.gclcodigo,
           emitted,
+          expected,
           delivered,
           noPrazo: lineOnTime,
           deliveredForAverage: delivered,
+          quantidade: quantity,
+          products: [],
+          statusRaw: row.status,
         }
       } else {
-        const item = salesOrderMap[p.pefcodigo]
+        const item = salesOrderMap[key]
         item.noPrazo = Math.min(item.noPrazo, lineOnTime)
+        item.quantidade += quantity
         if (emitted && (!item.emitted || emitted < item.emitted)) item.emitted = emitted
+        if (expected && (!item.expected || expected > item.expected)) item.expected = expected
         if (delivered && (!item.delivered || delivered > item.delivered)) item.delivered = delivered
         if (delivered && (!item.deliveredForAverage || delivered > item.deliveredForAverage)) item.deliveredForAverage = delivered
       }
+
+      salesOrderMap[key].products.push(row)
     }
     const salesOrders = Object.values(salesOrderMap)
 
     // â”€â”€â”€ ORDER HISTORY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const orderMap = {}
-    for (const r of requiData) {
-      if (!r.pdccodigo) continue
-      const key = String(r.pdccodigo)
-      if (!orderMap[key]) {
-        orderMap[key] = { pdccodigo: key, emissao: r.reqdata, exitDate: null, steps: [] }
-      }
-      const o = orderMap[key]
-      o.steps.push(r)
-      if (r.reqdata < o.emissao) o.emissao = r.reqdata
-      if (r.reqentsai === 'S') {
-        if (!o.exitDate || r.reqdata > o.exitDate) o.exitDate = r.reqdata
-      }
-    }
+    let orders = salesOrders.map(o => {
+      const expected = o.expected || (o.emitted ? addDays(o.emitted, LEAD_DAYS) : null)
+      const delivered = o.delivered
+      let s = 'in_progress'
+      if (delivered) s = o.noPrazo === 1 ? 'completed' : 'delayed_completed'
+      else if (expected && now > expected) s = 'delayed'
 
-    let orders = Object.values(orderMap).map(o => {
-      const indice = calcProductionIndex(o.steps)
-      const expected = addDays(parseISO(o.emissao), LEAD_DAYS)
-      const s = indice >= 100 ? calcStatus(o.emissao, o.exitDate, now) : (now > expected ? 'delayed' : 'in_progress')
-      const latestStep = o.steps.reduce((latest, step) => !latest || step.reqdata > latest.reqdata ? step : latest, null)
       return {
-        pedcodigo: o.pdccodigo,
-        emissao: o.emissao,
-        indice,
-        previsto: expected.toISOString(),
-        saida: latestStep?.reqdata || o.exitDate,
-        quantidade: o.steps.length,
+        pedcodigo: o.pedido,
+        emissao: o.emitted?.toISOString() || null,
+        indice: o.noPrazo === 1 ? 100 : 0,
+        previsto: expected?.toISOString() || null,
+        saida: delivered?.toISOString() || null,
+        quantidade: o.quantidade || o.products.length,
         status: s,
-        lastCell: cellByDpt[latestStep?.dptcodigo]?.alxdescricao || '-',
+        lastCell: o.statusRaw || '-',
+        clicodigo: o.clicodigo,
+        clinome: o.clinome,
       }
     })
 
@@ -220,32 +310,14 @@ export async function GET(request) {
     orders.sort((a, b) => new Date(b.emissao) - new Date(a.emissao))
 
     // â”€â”€â”€ PRODUCT DETAILS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Use rastreab if available, else build from requi
-    let products = []
-    if (rastreab.length > 0) {
-      products = rastreab.slice(0, 200).map(r => ({
-        pedcodigo: String(r.pedcodigo),
-        status: r.pedsitped || 'â€”',
-        procodigo: String(r.rascodigo),
-        prodescricao: cellByDpt[r.setcodigo]?.alxdescricao || `Etapa ${r.lpcodigo || ''}`,
-        quantidade: r.peddias || 1,
-        clinome: r.clinome,
-      }))
-    } else {
-      const latestSteps = requiData.slice(0, 300).map(r => ({
-        pedcodigo: String(r.pdccodigo),
-        status: r.reqentsai === 'S' ? 'SaÃ­da' : 'Entrada',
-        procodigo: String(r.reqcodigo),
-        prodescricao: cellByDpt[r.dptcodigo]?.alxdescricao || `Depto ${r.dptcodigo}`,
-        quantidade: Math.round(r.reqvrtotal) || 1,
-        clinome: 'â€”',
-      }))
-      if (pedcodigo) {
-        products = latestSteps.filter(p => p.pedcodigo === pedcodigo)
-      } else {
-        products = latestSteps
-      }
-    }
+    const products = salesRows.map(row => ({
+      pedcodigo: String(row.pedido),
+      status: row.data_hora_saida ? 'Saida' : 'Em Producao',
+      procodigo: String(row.codigo_produto || '').trim(),
+      prodescricao: String(row.descricao_produto || '').trim(),
+      quantidade: Number(row.qtde_produtos) || 0,
+      clinome: row.cliente,
+    }))
 
     // â”€â”€â”€ TRACEABILITY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let traceability = []
@@ -287,9 +359,10 @@ export async function GET(request) {
     const customerMap = {}
     for (const p of salesOrders) {
       const client = clientsByCode[p.clicodigo]
-      if (gclcodigo && client?.gclcodigo !== Number(gclcodigo)) continue
+      const groupCode = p.gclcodigo ?? client?.gclcodigo
+      if (gclcodigo && groupCode !== Number(gclcodigo)) continue
       if (!customerMap[p.clicodigo]) {
-        customerMap[p.clicodigo] = { clicodigo: p.clicodigo, client, total: 0, onTime: 0, daysTotal: 0, daysCount: 0 }
+        customerMap[p.clicodigo] = { clicodigo: p.clicodigo, client, clinome: p.clinome, gclcodigo: groupCode, total: 0, onTime: 0, daysTotal: 0, daysCount: 0 }
       }
 
       const item = customerMap[p.clicodigo]
@@ -304,10 +377,10 @@ export async function GET(request) {
 
     const customers = Object.values(customerMap).map(c => ({
       clicodigo: c.clicodigo,
-      clinome: c.client?.clinomefant || c.client?.clirazsocial || `Cliente ${c.clicodigo}`,
+      clinome: c.clinome || c.client?.clinomefant || c.client?.clirazsocial || `Cliente ${c.clicodigo}`,
       indice: c.total > 0 ? Math.round((c.onTime / c.total) * 100) : 0,
       mediaDias: c.daysCount > 0 ? Number((c.daysTotal / c.daysCount).toFixed(1)) : 0,
-      gclcodigo: c.client?.gclcodigo,
+      gclcodigo: c.gclcodigo,
     })).sort((a, b) => b.indice - a.indice)
 
     // â”€â”€â”€ PONTUALIDADE CHART â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -336,7 +409,7 @@ export async function GET(request) {
     const totalOrders = orders.length
     const completed = orders.filter(o => o.status === 'completed' || o.status === 'delayed_completed').length
     const onTime = orders.filter(o => o.status === 'completed').length
-    const pontRate = completed > 0 ? Number(((onTime / completed) * 100).toFixed(1)) : 0
+    const pontRate = totalOrders > 0 ? Number(((onTime / totalOrders) * 100).toFixed(1)) : 0
     const inProd = orders.filter(o => o.status === 'in_progress').length
 
     const kpis = {
