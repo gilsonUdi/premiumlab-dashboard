@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 import { addDays, differenceInDays, format, parseISO, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -42,11 +42,11 @@ export async function GET(request) {
         if (dptcodigo) q = q.eq('dptcodigo', Number(dptcodigo))
         return q
       })(),
-      supabase.from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxperda').order('alxordem'),
-      supabase.from('funcio').select('funcodigo, funnome').limit(300),
-      supabase.from('rastreab').select('*').order('rascodigo', { ascending: false }).limit(2000),
+      getSupabase().from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxperda').order('alxordem'),
+      getSupabase().from('funcio').select('funcodigo, funnome').limit(300),
+      getSupabase().from('rastreab').select('*').order('rascodigo', { ascending: false }).limit(2000),
       (() => {
-        let q = supabase.from('clien').select('clicodigo, clirazsocial, clinomefant, gclcodigo, clidiasatraso').eq('clicliente', 'S').limit(500)
+        let q = getSupabase().from('clien').select('clicodigo, clirazsocial, clinomefant, gclcodigo, clidiasatraso').eq('clicliente', 'S').limit(500)
         if (clicodigo) q = q.eq('clicodigo', Number(clicodigo))
         if (gclcodigo) q = q.eq('gclcodigo', Number(gclcodigo))
         return q

@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
     const [cellsRes, clientsRes, groupsRes, localPedRes, empRes] = await Promise.all([
-      supabase.from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxperda').order('alxordem'),
-      supabase.from('clien').select('clicodigo, clirazsocial, clinomefant, gclcodigo').eq('clicliente', 'S').order('clirazsocial').limit(500),
-      supabase.from('clien').select('gclcodigo').not('gclcodigo', 'is', null),
-      supabase.from('localped').select('lpcodigo, lpdescricao, lpfimprocesso, lpiniprocesso').order('lpordem'),
-      supabase.from('funcio').select('funcodigo, funnome').order('funnome').limit(200),
+      getSupabase().from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxperda').order('alxordem'),
+      getSupabase().from('clien').select('clicodigo, clirazsocial, clinomefant, gclcodigo').eq('clicliente', 'S').order('clirazsocial').limit(500),
+      getSupabase().from('clien').select('gclcodigo').not('gclcodigo', 'is', null),
+      getSupabase().from('localped').select('lpcodigo, lpdescricao, lpfimprocesso, lpiniprocesso').order('lpordem'),
+      getSupabase().from('funcio').select('funcodigo, funnome').order('funnome').limit(200),
     ])
 
     const cells = (cellsRes.data || []).map(c => ({
