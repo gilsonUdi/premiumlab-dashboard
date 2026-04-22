@@ -8,7 +8,7 @@ const CustomTooltip = ({ active, payload }) => {
   return (
     <div style={{ background: '#0a1628', border: '1px solid #1a3355', borderRadius: 8, padding: '10px 14px' }}>
       <p style={{ color: payload[0].color, fontWeight: 600, fontSize: 13 }}>{payload[0].name}</p>
-      <p style={{ color: '#e2e8f0', fontSize: 13 }}>{payload[0].value} pedidos</p>
+      <p style={{ color: '#e2e8f0', fontSize: 13 }}>{payload[0].value} movimentos</p>
     </div>
   )
 }
