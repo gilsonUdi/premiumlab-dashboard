@@ -59,7 +59,7 @@ export async function GET(request) {
     const now = new Date()
 
     // Parallel fetches
-    const [requiRes, cellsRes, empRes, rastreabRes, clientsRes, pedfoRes] = await Promise.all([
+    const [requiRes, cellsRes, empRes, rastreabRes, clientsRes, pedfoRes, localPedRes] = await Promise.all([
       fetchAllPages(() => {
         let q = supabase
           .from('requi')
@@ -90,9 +90,10 @@ export async function GET(request) {
         if (clicodigo) q = q.eq('clicodigo', Number(clicodigo))
         return q
       }, { maxRows: 10000 }),
+      supabase.from('localped').select('lpcodigo, lpdescricao').order('lpcodigo'),
     ])
 
-    for (const [name, res] of Object.entries({ requi: requiRes, almox: cellsRes, funcio: empRes, rastreab: rastreabRes, clien: clientsRes, pedfo: pedfoRes })) {
+    for (const [name, res] of Object.entries({ requi: requiRes, almox: cellsRes, funcio: empRes, rastreab: rastreabRes, clien: clientsRes, pedfo: pedfoRes, localped: localPedRes })) {
       if (res.error) throw new Error(`${name}: ${res.error.message}`)
     }
 
@@ -102,6 +103,7 @@ export async function GET(request) {
     const rastreab   = rastreabRes.data || []
     const clientsData = clientsRes.data || []
     const pedfoData = pedfoRes.data || []
+    const localPedData = localPedRes.data || []
 
     let traceRequiData = requiData
     if (pedcodigo) {
@@ -120,9 +122,18 @@ export async function GET(request) {
     const cellByDpt = Object.fromEntries(cellsData.map(c => [c.dptcodigo, c]))
     const empMap    = Object.fromEntries(empData.map(e => [e.funcodigo, e.funnome]))
     const clientsByCode = Object.fromEntries(clientsData.map(c => [c.clicodigo, c]))
-    const productionCellsDetailed = cellsData
-      .filter(c => c.dptcodigo != null && c.alxtipocel !== 'E')
-      .sort((a, b) => (a.alxordem || 0) - (b.alxordem || 0))
+    const localPedByCode = Object.fromEntries(localPedData.map(l => [l.lpcodigo, l.lpdescricao]))
+    const fallbackLocalPedByDpt = {
+      4: { E: 4, S: 5 },
+      5: { E: 2, S: 3 },
+      6: { E: 11, S: 12 },
+      7: { E: 9, S: 10 },
+      8: { E: 7, S: 8 },
+    }
+    const getFallbackStepDescription = (movement) => {
+      const code = fallbackLocalPedByDpt[movement.dptcodigo]?.[movement.reqentsai]
+      return localPedByCode[code] || (movement.reqentsai === 'S' ? 'Saida' : 'Entrada')
+    }
     const productionFlow = [...cellsData
       .filter(c => c.dptcodigo != null && c.alxtipocel !== 'E')
       .reduce((map, cell) => {
@@ -255,45 +266,22 @@ export async function GET(request) {
       const traceSource = pedcodigo
         ? traceRequiData.filter(r => String(r.pdccodigo) === pedcodigo)
         : traceRequiData.filter(r => r.pdccodigo).slice(0, 100)
-      if (pedcodigo) {
-        const movementsByDpt = traceSource.reduce((map, movement) => {
-          if (!map.has(movement.dptcodigo)) map.set(movement.dptcodigo, [])
-          map.get(movement.dptcodigo).push(movement)
-          return map
-        }, new Map())
-
-        traceability = productionCellsDetailed.map(cell => {
-          const movement = movementsByDpt.get(cell.dptcodigo)?.shift()
-          return {
-            estoque: cell.alxdescricao || `Depto ${cell.dptcodigo}`,
-            celula: movement ? (movement.reqentsai === 'S' ? 'Saida' : 'Entrada') : 'Pendente',
-            dataHora: movement?.reqdata || null,
-            usuario: movement ? (empMap[movement.funcodigo] || `Func ${movement.funcodigo}`) : '-',
-            pedcodigo,
-            clicodigo: null,
-            clinome: '-',
-          }
-        })
-      } else {
-        traceability = traceSource.map(r => ({
-          estoque: cellByDpt[r.dptcodigo]?.alxdescricao || `Depto ${r.dptcodigo}`,
-          celula: r.reqentsai === 'S' ? 'Saida' : 'Entrada',
-          dataHora: r.reqdata,
-          usuario: empMap[r.funcodigo] || `Func ${r.funcodigo}`,
-          pedcodigo: String(r.pdccodigo),
-          clicodigo: null,
-          clinome: '-',
-        }))
-      }
+      traceability = traceSource.map(r => ({
+        estoque: cellByDpt[r.dptcodigo]?.alxdescricao || `Depto ${r.dptcodigo}`,
+        celula: getFallbackStepDescription(r),
+        dataHora: r.reqdata,
+        usuario: empMap[r.funcodigo] || `Func ${r.funcodigo}`,
+        pedcodigo: String(r.pdccodigo),
+        clicodigo: null,
+        clinome: '-',
+      }))
     }
-    if (!pedcodigo || rastreab.length > 0) {
-      traceability.sort((a, b) => {
-        if (!a.dataHora && !b.dataHora) return 0
-        if (!a.dataHora) return 1
-        if (!b.dataHora) return -1
-        return new Date(a.dataHora) - new Date(b.dataHora)
-      })
-    }
+    traceability.sort((a, b) => {
+      if (!a.dataHora && !b.dataHora) return 0
+      if (!a.dataHora) return 1
+      if (!b.dataHora) return -1
+      return new Date(a.dataHora) - new Date(b.dataHora)
+    })
 
     // â”€â”€â”€ CUSTOMER INDEX â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const customerMap = {}
@@ -324,12 +312,12 @@ export async function GET(request) {
 
     // â”€â”€â”€ PONTUALIDADE CHART â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const weekMap = {}
-    for (const o of salesOrders) {
-      if (!o.emitted) continue
-      const week = format(startOfWeek(o.emitted, { locale: ptBR }), 'dd/MM', { locale: ptBR })
+    for (const o of orders) {
+      const week = format(startOfWeek(parseISO(o.emissao), { locale: ptBR }), 'dd/MM', { locale: ptBR })
       if (!weekMap[week]) weekMap[week] = { period: week, noPrazo: 0, atrasado: 0, producao: 0 }
-      if (o.noPrazo === 1) weekMap[week].noPrazo++
-      else weekMap[week].atrasado++
+      if (o.status === 'completed') weekMap[week].noPrazo++
+      else if (o.status === 'delayed' || o.status === 'delayed_completed') weekMap[week].atrasado++
+      else weekMap[week].producao++
     }
     const pontualidade = Object.values(weekMap).slice(-8)
 
@@ -347,8 +335,8 @@ export async function GET(request) {
     // â”€â”€â”€ KPIs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const totalOrders = orders.length
     const completed = orders.filter(o => o.status === 'completed' || o.status === 'delayed_completed').length
-    const onTimeSalesOrders = salesOrders.filter(o => o.noPrazo === 1).length
-    const pontRate = salesOrders.length > 0 ? Number(((onTimeSalesOrders / salesOrders.length) * 100).toFixed(1)) : 0
+    const onTime = orders.filter(o => o.status === 'completed').length
+    const pontRate = completed > 0 ? Number(((onTime / completed) * 100).toFixed(1)) : 0
     const inProd = orders.filter(o => o.status === 'in_progress').length
 
     const kpis = {
