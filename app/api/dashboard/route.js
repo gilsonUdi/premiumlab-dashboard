@@ -17,6 +17,7 @@ function calcStatus(emissao, exitDate, now) {
 
 export async function GET(request) {
   try {
+    const supabase = getSupabase()
     const { searchParams } = new URL(request.url)
     const dateStart = searchParams.get('dateStart') || format(addDays(new Date(), -30), 'yyyy-MM-dd')
     const dateEnd   = searchParams.get('dateEnd')   || format(new Date(), 'yyyy-MM-dd')
@@ -42,16 +43,20 @@ export async function GET(request) {
         if (dptcodigo) q = q.eq('dptcodigo', Number(dptcodigo))
         return q
       })(),
-      getSupabase().from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxperda').order('alxordem'),
-      getSupabase().from('funcio').select('funcodigo, funnome').limit(300),
-      getSupabase().from('rastreab').select('*').order('rascodigo', { ascending: false }).limit(2000),
+      supabase.from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxperda').order('alxordem'),
+      supabase.from('funcio').select('funcodigo, funnome').limit(300),
+      supabase.from('rastreab').select('*').order('rascodigo', { ascending: false }).limit(2000),
       (() => {
-        let q = getSupabase().from('clien').select('clicodigo, clirazsocial, clinomefant, gclcodigo, clidiasatraso').eq('clicliente', 'S').limit(500)
+        let q = supabase.from('clien').select('clicodigo, clirazsocial, clinomefant, gclcodigo, clidiasatraso').eq('clicliente', 'S').limit(500)
         if (clicodigo) q = q.eq('clicodigo', Number(clicodigo))
         if (gclcodigo) q = q.eq('gclcodigo', Number(gclcodigo))
         return q
       })(),
     ])
+
+    for (const [name, res] of Object.entries({ requi: requiRes, almox: cellsRes, funcio: empRes, rastreab: rastreabRes, clien: clientsRes })) {
+      if (res.error) throw new Error(`${name}: ${res.error.message}`)
+    }
 
     const requiData  = requiRes.data  || []
     const cellsData  = cellsRes.data  || []
