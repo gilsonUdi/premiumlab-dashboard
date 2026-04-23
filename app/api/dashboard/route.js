@@ -10,6 +10,7 @@ const PAGE_SIZE = 1000
 const MAX_REQUI_ROWS = 20000
 const MAX_SALES_ROWS = 20000
 const LOSS_REQ_TYPES = new Set(['B', 'C'])
+const PRODUCTION_TIME_ZONE = 'America/Cuiaba'
 
 function calcStatus(emissao, exitDate, now) {
   const expected = addDays(parseISO(emissao), LEAD_DAYS)
@@ -53,6 +54,29 @@ function localDateTimeText(value) {
 function orderIsDelayed(expected, delivered, now) {
   if (!expected) return false
   return (delivered && delivered > expected) || (!delivered && now > expected)
+}
+
+function nowInProductionTimeZone() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PRODUCTION_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date())
+
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]))
+  return new Date(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second)
+  )
 }
 
 async function fetchAllPages(queryFactory, { pageSize = PAGE_SIZE, maxRows = MAX_REQUI_ROWS } = {}) {
@@ -268,7 +292,7 @@ export async function GET(request) {
     const columnFilters = parseColumnFilters(searchParams.get('columnFilters'))
     const scopedColumnFilters = splitColumnFilters(columnFilters)
 
-    const now = new Date()
+    const now = nowInProductionTimeZone()
 
     // Parallel fetches
     const acopedQuery = () => {
