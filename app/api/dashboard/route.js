@@ -10,7 +10,7 @@ const PAGE_SIZE = 1000
 const MAX_REQUI_ROWS = 20000
 const MAX_SALES_ROWS = 20000
 const LOSS_REQ_TYPES = new Set(['B', 'C'])
-const PRODUCTION_TIME_ZONE = 'America/Cuiaba'
+const PRODUCTION_TIME_ZONE = 'America/Sao_Paulo'
 
 function calcStatus(emissao, exitDate, now) {
   const expected = addDays(parseISO(emissao), LEAD_DAYS)
