@@ -28,6 +28,33 @@ function combineDateTime(dateValue, timeValue) {
   return `${datePart}T${timePart}`
 }
 
+function parseLocalDateTime(value) {
+  if (!value) return null
+  if (value instanceof Date) return new Date(value.getFullYear(), value.getMonth(), value.getDate(), value.getHours(), value.getMinutes(), value.getSeconds())
+
+  const text = String(value).trim()
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/)
+  if (!match) {
+    const parsed = new Date(text)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+
+  const [, y, m, d, hh = '00', mm = '00', ss = '00'] = match
+  return new Date(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm), Number(ss))
+}
+
+function localDateTimeText(value) {
+  const parsed = parseLocalDateTime(value)
+  if (!parsed) return null
+  const pad = (number) => String(number).padStart(2, '0')
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:${pad(parsed.getSeconds())}`
+}
+
+function orderIsDelayed(expected, delivered, now) {
+  if (!expected) return false
+  return (delivered && delivered > expected) || (!delivered && now > expected)
+}
+
 async function fetchAllPages(queryFactory, { pageSize = PAGE_SIZE, maxRows = MAX_REQUI_ROWS } = {}) {
   const rows = []
 
@@ -43,6 +70,22 @@ async function fetchAllPages(queryFactory, { pageSize = PAGE_SIZE, maxRows = MAX
   }
 
   return { data: rows, error: null }
+}
+
+async function fetchOptionalPages(queryFactory, options) {
+  const result = await fetchAllPages(queryFactory, options)
+  if (!result.error) return result
+
+  const message = result.error.message || ''
+  if (
+    message.includes('Could not find the table') ||
+    message.includes('relation') ||
+    message.includes('does not exist')
+  ) {
+    return { data: [], error: null }
+  }
+
+  return result
 }
 
 function asSqlDate(value, fallback) {
@@ -228,6 +271,16 @@ export async function GET(request) {
     const now = new Date()
 
     // Parallel fetches
+    const acopedQuery = () => {
+      let q = supabase
+        .from('acoped')
+        .select('alxcodigo, apdata, empcodigo, aphora, usucodigo, id_pedido, id_roteiro, lpcodigo')
+        .order('apdata', { ascending: true })
+        .order('aphora', { ascending: true })
+      if (pedcodigo) return q.eq('id_pedido', Number(pedcodigo))
+      return q.gte('apdata', dateStart).lte('apdata', dateEnd)
+    }
+
     const rastreabQuery = () => {
       let q = supabase
         .from('rastreab')
@@ -238,7 +291,7 @@ export async function GET(request) {
       return q.gte('peddtemis', dateStart + 'T00:00:00').lte('peddtemis', dateEnd + 'T23:59:59')
     }
 
-    const [requiRes, cellsRes, empRes, rastreabRes, clientsRes, pedfoRes, localPedRes] = await Promise.all([
+    const [requiRes, cellsRes, empRes, userRes, acopedRes, rastreabRes, clientsRes, pedfoRes, localPedRes] = await Promise.all([
       fetchAllPages(() => {
         let q = supabase
           .from('requi')
@@ -250,9 +303,11 @@ export async function GET(request) {
         if (dptcodigo) q = q.eq('dptcodigo', Number(dptcodigo))
         return q
       }),
-      supabase.from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxordem, alxtipocel, alxperda').order('alxordem'),
+      supabase.from('almox').select('empcodigo, alxcodigo, alxdescricao, dptcodigo, alxordem, alxtipocel, alxperda').order('alxordem'),
       supabase.from('funcio').select('funcodigo, funnome').limit(300),
-      fetchAllPages(rastreabQuery, { maxRows: pedcodigo ? 10000 : 2000 }),
+      supabase.from('usuario').select('usucodigo, usunome').limit(300),
+      fetchOptionalPages(acopedQuery, { maxRows: pedcodigo ? 10000 : 2000 }),
+      fetchOptionalPages(rastreabQuery, { maxRows: pedcodigo ? 10000 : 2000 }),
       fetchAllPages(() => {
         let q = supabase.from('clien').select('clicodigo, clirazsocial, clinomefant, gclcodigo, clidiasatraso').eq('clicliente', 'S').order('clicodigo')
         if (clicodigo) q = q.eq('clicodigo', Number(clicodigo))
@@ -272,13 +327,15 @@ export async function GET(request) {
       supabase.from('localped').select('lpcodigo, lpdescricao').order('lpcodigo'),
     ])
 
-    for (const [name, res] of Object.entries({ requi: requiRes, almox: cellsRes, funcio: empRes, rastreab: rastreabRes, clien: clientsRes, pedfo: pedfoRes, localped: localPedRes })) {
+    for (const [name, res] of Object.entries({ requi: requiRes, almox: cellsRes, funcio: empRes, usuario: userRes, acoped: acopedRes, rastreab: rastreabRes, clien: clientsRes, pedfo: pedfoRes, localped: localPedRes })) {
       if (res.error) throw new Error(`${name}: ${res.error.message}`)
     }
 
     const requiData  = requiRes.data  || []
     const cellsData  = cellsRes.data  || []
     const empData    = empRes.data    || []
+    const userData   = userRes.data   || []
+    const acoped     = acopedRes.data || []
     const rastreab   = rastreabRes.data || []
     const clientsData = clientsRes.data || []
     const pedfoData = pedfoRes.data || []
@@ -305,7 +362,14 @@ export async function GET(request) {
 
     // Build lookup maps
     const cellByDpt = Object.fromEntries(cellsData.map(c => [c.dptcodigo, c]))
+    const cellByAlx = new Map()
+    for (const cell of cellsData) {
+      if (cell.alxcodigo == null) continue
+      cellByAlx.set(String(cell.alxcodigo), cell)
+      if (cell.empcodigo != null) cellByAlx.set(`${cell.empcodigo}:${cell.alxcodigo}`, cell)
+    }
     const empMap    = Object.fromEntries(empData.map(e => [e.funcodigo, e.funnome]))
+    const userMap   = Object.fromEntries(userData.map(u => [u.usucodigo, u.usunome]))
     const clientsByCode = Object.fromEntries(clientsData.map(c => [c.clicodigo, c]))
     const localPedByCode = Object.fromEntries(localPedData.map(l => [l.lpcodigo, l.lpdescricao]))
     const fallbackLocalPedByDpt = {
@@ -340,9 +404,9 @@ export async function GET(request) {
     for (const row of salesOrdersRaw) {
       if (!row.pedido) continue
       const key = String(row.pedido)
-      const emitted = row.data_venda ? parseISO(row.data_venda) : null
-      const expected = row.data_hora_prevista ? parseISO(row.data_hora_prevista) : null
-      const delivered = row.data_hora_saida ? parseISO(row.data_hora_saida) : null
+      const emitted = parseLocalDateTime(row.data_venda)
+      const expected = parseLocalDateTime(row.data_hora_prevista)
+      const delivered = parseLocalDateTime(row.data_hora_saida)
 
       salesOrderMap[key] = {
         pedido: key,
@@ -350,11 +414,11 @@ export async function GET(request) {
         clinome: row.cliente,
         gclcodigo: row.gclcodigo,
         emitted,
-        emittedText: row.data_venda ? `${row.data_venda}T00:00:00` : null,
+        emittedText: localDateTimeText(row.data_venda),
         expected,
-        expectedText: row.data_hora_prevista || null,
+        expectedText: localDateTimeText(row.data_hora_prevista),
         delivered,
-        deliveredText: row.data_hora_saida || null,
+        deliveredText: localDateTimeText(row.data_hora_saida),
         atrasoMinutos: Number(row.atraso_minutos) || 0,
         deliveredForAverage: delivered,
         quantidade: 0,
@@ -376,7 +440,7 @@ export async function GET(request) {
     let orders = salesOrders.map(o => {
       const expected = o.expected || (o.emitted ? addDays(o.emitted, LEAD_DAYS) : null)
       const delivered = o.delivered
-      const isDelayed = expected && ((delivered && delivered > expected) || (!delivered && now > expected))
+      const isDelayed = orderIsDelayed(expected, delivered, now)
       let s = 'in_progress'
       if (delivered) s = isDelayed ? 'delayed_completed' : 'completed'
       else if (isDelayed) s = 'delayed'
@@ -412,7 +476,24 @@ export async function GET(request) {
 
     // â”€â”€â”€ TRACEABILITY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let traceability = []
-    if (rastreab.length > 0) {
+    if (acoped.length > 0) {
+      const traceData = pedcodigo
+        ? acoped.filter(r => String(r.id_pedido) === pedcodigo)
+        : acoped.slice(0, 100)
+      traceability = traceData.map(r => {
+        const stock = cellByAlx.get(`${r.empcodigo}:${r.alxcodigo}`) || cellByAlx.get(String(r.alxcodigo))
+
+        return {
+          estoque: stock ? `${r.alxcodigo} - ${stock.alxdescricao}` : `Estoque ${r.alxcodigo || ''}`,
+          celula: localPedByCode[r.lpcodigo] || `Etapa ${r.lpcodigo || ''}`,
+          dataHora: combineDateTime(r.apdata, r.aphora),
+          usuario: userMap[r.usucodigo] || `Usuario ${r.usucodigo || ''}`,
+          pedcodigo: String(r.id_pedido),
+          clicodigo: null,
+          clinome: '-',
+        }
+      })
+    } else if (rastreab.length > 0) {
       const traceData = pedcodigo
         ? rastreab.filter(r => String(r.id_pedido || r.pedcodigo) === pedcodigo)
         : rastreab.slice(0, 100)
@@ -489,7 +570,7 @@ export async function GET(request) {
 
       const item = customerMap[p.clicodigo]
       item.total++
-      item.onTime += p.expected && ((p.delivered && p.delivered > p.expected) || (!p.delivered && now > p.expected)) ? 0 : 1
+      item.onTime += orderIsDelayed(p.expected, p.delivered, now) ? 0 : 1
 
       if (p.emitted && p.deliveredForAverage) {
         item.daysTotal += Math.max(0, differenceInDays(p.deliveredForAverage, p.emitted))
