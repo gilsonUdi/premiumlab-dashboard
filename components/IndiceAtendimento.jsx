@@ -108,10 +108,10 @@ export default function IndiceAtendimento({ data, selectedClient, onColumnClick,
                   <td onClick={(event) => filterBy(event, 'clicodigo', String(row.clicodigo))} className="px-4 py-2.5" style={{ color: '#e2e8f0', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {row.clinome}
                   </td>
-                  <td onClick={(event) => filterBy(event, 'indice', row.indice)} className="px-4 py-2.5" style={{ minWidth: 140 }}>
+                  <td onClick={(event) => filterBy(event, 'customers.indice', row.indice)} className="px-4 py-2.5" style={{ minWidth: 140 }}>
                     <IndiceBar value={row.indice} />
                   </td>
-                  <td onClick={(event) => filterBy(event, 'mediaDias', row.mediaDias)} className="px-4 py-2.5 text-right font-mono" style={{ color: '#7ba3cc' }}>
+                  <td onClick={(event) => filterBy(event, 'customers.mediaDias', row.mediaDias)} className="px-4 py-2.5 text-right font-mono" style={{ color: '#7ba3cc' }}>
                     {row.mediaDias} dias
                   </td>
                 </tr>

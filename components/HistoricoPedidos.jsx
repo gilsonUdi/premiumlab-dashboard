@@ -127,9 +127,9 @@ export default function HistoricoPedidos({ data, selectedOrder, onColumnClick, l
                   className={`table-row-hover ${selectedOrder === row.pedcodigo ? 'table-row-active' : ''}`}
                   style={{ borderTop: '1px solid #0d1f38' }}
                 >
-                  <td onClick={(event) => filterBy(event, 'emissao', row.emissao)} className="px-4 py-2.5 font-mono" style={{ color: '#7ba3cc' }}>{fmtDt(row.emissao)}</td>
+                  <td onClick={(event) => filterBy(event, 'orders.emissao', row.emissao)} className="px-4 py-2.5 font-mono" style={{ color: '#7ba3cc' }}>{fmtDt(row.emissao)}</td>
                   <td onClick={(event) => filterBy(event, 'pedcodigo', row.pedcodigo)} className="px-4 py-2.5 font-mono font-medium" style={{ color: '#60a5fa' }}>{row.pedcodigo}</td>
-                  <td onClick={(event) => filterBy(event, 'indice', row.indice)} className="px-4 py-2.5">
+                  <td onClick={(event) => filterBy(event, 'orders.indice', row.indice)} className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
                       <div className="h-1.5 rounded-full flex-1" style={{ background: '#1a3355', maxWidth: 60 }}>
                         <div
@@ -143,10 +143,10 @@ export default function HistoricoPedidos({ data, selectedOrder, onColumnClick, l
                       <span style={{ color: '#e2e8f0', minWidth: 32, textAlign: 'right' }}>{row.indice}%</span>
                     </div>
                   </td>
-                  <td onClick={(event) => filterBy(event, 'previsto', row.previsto)} className="px-4 py-2.5 font-mono" style={{ color: '#7ba3cc' }}>{fmtDt(row.previsto)}</td>
-                  <td onClick={(event) => filterBy(event, 'saida', row.saida)} className="px-4 py-2.5 font-mono" style={{ color: '#7ba3cc' }}>{fmtDt(row.saida)}</td>
-                  <td onClick={(event) => filterBy(event, 'quantidade', row.quantidade)} className="px-4 py-2.5 text-right" style={{ color: '#e2e8f0' }}>{row.quantidade}</td>
-                  <td onClick={(event) => filterBy(event, 'status', row.status)} className="px-4 py-2.5"><StatusBadge status={row.status} /></td>
+                  <td onClick={(event) => filterBy(event, 'orders.previsto', row.previsto)} className="px-4 py-2.5 font-mono" style={{ color: '#7ba3cc' }}>{fmtDt(row.previsto)}</td>
+                  <td onClick={(event) => filterBy(event, 'orders.saida', row.saida)} className="px-4 py-2.5 font-mono" style={{ color: '#7ba3cc' }}>{fmtDt(row.saida)}</td>
+                  <td onClick={(event) => filterBy(event, 'orders.quantidade', row.quantidade)} className="px-4 py-2.5 text-right" style={{ color: '#e2e8f0' }}>{row.quantidade}</td>
+                  <td onClick={(event) => filterBy(event, 'orders.status', row.status)} className="px-4 py-2.5"><StatusBadge status={row.status} /></td>
                 </tr>
               ))
             )}

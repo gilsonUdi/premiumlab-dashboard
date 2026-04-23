@@ -103,14 +103,14 @@ export default function DetalhesProdutos({ data, selectedOrder, onColumnClick, l
                     style={{ borderTop: '1px solid #0d1f38' }}
                   >
                     <td onClick={(event) => filterBy(event, 'pedcodigo', row.pedcodigo)} className="px-4 py-2.5 font-mono font-medium" style={{ color: '#60a5fa' }}>{row.pedcodigo}</td>
-                    <td onClick={(event) => filterBy(event, 'status', row.status)} className="px-4 py-2.5">
+                    <td onClick={(event) => filterBy(event, 'products.status', row.status)} className="px-4 py-2.5">
                       <span className="badge" style={{ background: sc.bg, color: sc.color, border: `1px solid ${sc.color}40` }}>
                         {row.status}
                       </span>
                     </td>
-                    <td onClick={(event) => filterBy(event, 'procodigo', row.procodigo)} className="px-4 py-2.5 font-mono" style={{ color: '#7ba3cc' }}>{row.procodigo}</td>
-                    <td onClick={(event) => filterBy(event, 'prodescricao', row.prodescricao)} className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>{row.prodescricao}</td>
-                    <td onClick={(event) => filterBy(event, 'quantidade', row.quantidade)} className="px-4 py-2.5 text-right" style={{ color: '#e2e8f0' }}>{row.quantidade}</td>
+                    <td onClick={(event) => filterBy(event, 'products.procodigo', row.procodigo)} className="px-4 py-2.5 font-mono" style={{ color: '#7ba3cc' }}>{row.procodigo}</td>
+                    <td onClick={(event) => filterBy(event, 'products.prodescricao', row.prodescricao)} className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>{row.prodescricao}</td>
+                    <td onClick={(event) => filterBy(event, 'products.quantidade', row.quantidade)} className="px-4 py-2.5 text-right" style={{ color: '#e2e8f0' }}>{row.quantidade}</td>
                   </tr>
                 )
               })

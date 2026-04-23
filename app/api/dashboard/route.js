@@ -78,6 +78,18 @@ function rowMatchesFilter(row, field, value) {
   return normalizeFilterValue(row[field], field) === normalizeFilterValue(value, field)
 }
 
+function splitColumnFilters(columnFilters) {
+  const scoped = { orders: {}, products: {}, customers: {}, global: {} }
+
+  for (const [rawField, value] of Object.entries(columnFilters)) {
+    const [scope, field] = rawField.includes('.') ? rawField.split('.', 2) : ['global', rawField]
+    if (scoped[scope]) scoped[scope][field] = value
+    else scoped.global[rawField] = value
+  }
+
+  return scoped
+}
+
 async function execSql(supabase, sql) {
   const compactSql = sql.replace(/\s+/g, ' ').trim()
   const { data, error } = await supabase.rpc('exec_sql', { sql: compactSql })
@@ -211,6 +223,7 @@ export async function GET(request) {
     const clicodigo = searchParams.get('clicodigo') || ''
     const gclcodigo = searchParams.get('gclcodigo') || ''
     const columnFilters = parseColumnFilters(searchParams.get('columnFilters'))
+    const scopedColumnFilters = splitColumnFilters(columnFilters)
 
     const now = new Date()
 
@@ -433,7 +446,7 @@ export async function GET(request) {
       return new Date(a.dataHora) - new Date(b.dataHora)
     })
 
-    for (const [field, value] of Object.entries(columnFilters)) {
+    for (const [field, value] of Object.entries(scopedColumnFilters.global)) {
       if (field === 'pedcodigo') {
         orders = orders.filter(row => rowMatchesFilter(row, field, value))
         products = products.filter(row => rowMatchesFilter(row, field, value))
@@ -450,6 +463,16 @@ export async function GET(request) {
         const orderIds = new Set(products.map(row => row.pedcodigo))
         orders = orders.filter(row => orderIds.has(row.pedcodigo))
       }
+    }
+
+    for (const [field, value] of Object.entries(scopedColumnFilters.orders)) {
+      orders = orders.filter(row => rowMatchesFilter(row, field, value))
+    }
+
+    for (const [field, value] of Object.entries(scopedColumnFilters.products)) {
+      products = products.filter(row => rowMatchesFilter(row, field, value))
+      const orderIds = new Set(products.map(row => row.pedcodigo))
+      orders = orders.filter(row => orderIds.has(row.pedcodigo))
     }
 
     const visibleOrderIds = new Set(orders.map(row => row.pedcodigo))
@@ -482,12 +505,10 @@ export async function GET(request) {
       gclcodigo: c.gclcodigo,
     })).sort((a, b) => b.indice - a.indice)
 
-    for (const [field, value] of Object.entries(columnFilters)) {
-      if (customers.some(row => field in row)) {
-        customers = customers.filter(row => rowMatchesFilter(row, field, value))
-        const clientIds = new Set(customers.map(row => String(row.clicodigo)))
-        orders = orders.filter(row => clientIds.has(String(row.clicodigo)))
-      }
+    for (const [field, value] of Object.entries(scopedColumnFilters.customers)) {
+      customers = customers.filter(row => rowMatchesFilter(row, field, value))
+      const clientIds = new Set(customers.map(row => String(row.clicodigo)))
+      orders = orders.filter(row => clientIds.has(String(row.clicodigo)))
     }
 
     const finalOrderIds = new Set(orders.map(row => row.pedcodigo))
