@@ -169,6 +169,7 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, ki
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
     `ped.pedsitped <> 'C'`,
+    `ped.empcodigo::text = '1'`,
   ]
 
   const pedido = asSqlNumber(pedcodigo)
@@ -196,16 +197,16 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, ki
         ped.peddtsaida::date as data_saida,
         ped.pedhrsaida::time as hora_saida,
         ped.pedpzentre::date as data_prazo,
-        ped.pedhrentre::time as hora_prev,
+        date_trunc('hour', ped.pedhrentre::time)::time as hora_prev,
         (ped.peddtsaida::date + ped.pedhrsaida::time) as data_hora_saida,
-        (ped.pedpzentre::date + ped.pedhrentre::time) as data_hora_prevista,
+        (ped.pedpzentre::date + date_trunc('hour', ped.pedhrentre::time)::time) as data_hora_prevista,
         floor(extract(epoch from (
           coalesce((ped.peddtsaida::date + ped.pedhrsaida::time), current_timestamp)
-          - (ped.pedpzentre::date + ped.pedhrentre::time)
+          - (ped.pedpzentre::date + date_trunc('hour', ped.pedhrentre::time)::time)
         )) / 60)::integer as atraso_minutos,
         case
           when coalesce((ped.peddtsaida::date + ped.pedhrsaida::time), current_timestamp)
-            <= (ped.pedpzentre::date + ped.pedhrentre::time)
+            <= (ped.pedpzentre::date + date_trunc('hour', ped.pedhrentre::time)::time)
           then 1 else 0
         end as no_prazo,
         ped.clicodigo as codigo_cliente,
@@ -236,6 +237,7 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
     `ped.pedsitped <> 'C'`,
+    `ped.empcodigo::text = '1'`,
   ]
 
   const pedido = asSqlNumber(pedcodigo)
@@ -255,12 +257,12 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
       ped.peddtsaida::date as data_saida,
       ped.pedhrsaida::time as hora_saida,
       ped.pedpzentre::date as data_prazo,
-      ped.pedhrentre::time as hora_prev,
+      date_trunc('hour', ped.pedhrentre::time)::time as hora_prev,
       (ped.peddtsaida::date + ped.pedhrsaida::time) as data_hora_saida,
-      (ped.pedpzentre::date + ped.pedhrentre::time) as data_hora_prevista,
+      (ped.pedpzentre::date + date_trunc('hour', ped.pedhrentre::time)::time) as data_hora_prevista,
       floor(extract(epoch from (
         coalesce((ped.peddtsaida::date + ped.pedhrsaida::time), current_timestamp)
-        - (ped.pedpzentre::date + ped.pedhrentre::time)
+        - (ped.pedpzentre::date + date_trunc('hour', ped.pedhrentre::time)::time)
       )) / 60)::integer as atraso_minutos,
       ped.clicodigo as codigo_cliente,
       coalesce(cli.clinomefant, cli.clirazsocial) as cliente,
@@ -484,7 +486,7 @@ export async function GET(request) {
     })
 
     // Filter by status
-    if (status) orders = orders.filter(o => o.status === status || (status === 'completed' && o.status === 'delayed_completed'))
+    if (status) orders = orders.filter(o => o.status === status)
 
     orders.sort((a, b) => new Date(b.emissao) - new Date(a.emissao))
 

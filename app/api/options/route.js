@@ -43,8 +43,9 @@ export async function GET() {
 
     const statuses = [
       { value: 'in_progress', label: 'Em Produção' },
+      { value: 'delayed', label: 'Em Produção (atraso)' },
       { value: 'completed', label: 'Concluído' },
-      { value: 'delayed', label: 'Atrasado' },
+      { value: 'delayed_completed', label: 'Entregue (atraso)' },
       { value: 'pending', label: 'Aguardando' },
     ]
 

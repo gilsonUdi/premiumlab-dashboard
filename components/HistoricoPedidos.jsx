@@ -7,7 +7,7 @@ import { ptBR } from 'date-fns/locale'
 const STATUS_MAP = {
   completed:         { label: 'Concluído',        cls: 'badge-success' },
   delayed_completed: { label: 'Entregue (atraso)', cls: 'badge-warning' },
-  delayed:           { label: 'Atrasado',          cls: 'badge-danger'  },
+  delayed:           { label: 'Em Produção (atraso)', cls: 'badge-danger'  },
   in_progress:       { label: 'Em Produção',       cls: 'badge-blue'    },
   pending:           { label: 'Aguardando',         cls: 'badge-gray'    },
 }
