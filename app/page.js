@@ -29,6 +29,7 @@ export default function Dashboard() {
   const [filters, setFilters]           = useState(defaultFilters)
   const [selectedOrder, setSelectedOrder]   = useState(null)
   const [selectedClient, setSelectedClient] = useState(null)
+  const [columnFilters, setColumnFilters] = useState({})
   const [data, setData]     = useState(null)
   const [options, setOptions] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -48,6 +49,7 @@ export default function Dashboard() {
     setLoading(true)
     const params = new URLSearchParams()
     Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v) })
+    if (Object.keys(columnFilters).length > 0) params.set('columnFilters', JSON.stringify(columnFilters))
     if (selectedOrder)  params.set('pedcodigo', selectedOrder)
     if (selectedClient) params.set('clicodigo', selectedClient)
     try {
@@ -60,7 +62,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }, [filters, selectedOrder, selectedClient])
+  }, [filters, selectedOrder, selectedClient, columnFilters])
 
   useEffect(() => {
     clearTimeout(debounceRef.current)
@@ -71,10 +73,28 @@ export default function Dashboard() {
   const handleColumnClick = (field, value) => {
     if (field === 'pedcodigo') {
       setSelectedOrder(prev => prev === value || value === null ? null : value)
+      setColumnFilters(prev => {
+        const next = { ...prev }
+        delete next.pedcodigo
+        return next
+      })
     } else if (field === 'clicodigo') {
       setSelectedClient(prev => prev === value || value === null ? null : value)
+      setColumnFilters(prev => {
+        const next = { ...prev }
+        delete next.clicodigo
+        return next
+      })
     } else {
-      setFilters(prev => ({ ...prev, [field]: prev[field] === value ? '' : value }))
+      setColumnFilters(prev => {
+        const normalized = value == null ? '' : String(value)
+        if (String(prev[field] || '') === normalized) {
+          const next = { ...prev }
+          delete next[field]
+          return next
+        }
+        return { ...prev, [field]: normalized }
+      })
     }
   }
 
@@ -82,11 +102,20 @@ export default function Dashboard() {
     setFilters(defaultFilters())
     setSelectedOrder(null)
     setSelectedClient(null)
+    setColumnFilters({})
   }
 
   const activeChips = [
     selectedOrder  && { label: `Pedido: ${selectedOrder}`,     onRemove: () => setSelectedOrder(null)  },
     selectedClient && { label: `Cliente: ${selectedClient}`,   onRemove: () => setSelectedClient(null) },
+    ...Object.entries(columnFilters).map(([field, value]) => ({
+      label: `${field}: ${value}`,
+      onRemove: () => setColumnFilters(prev => {
+        const next = { ...prev }
+        delete next[field]
+        return next
+      }),
+    })),
   ].filter(Boolean)
 
   return (

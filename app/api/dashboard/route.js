@@ -55,6 +55,29 @@ function asSqlNumber(value) {
   return Number.isFinite(number) ? number : null
 }
 
+function parseColumnFilters(value) {
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return Object.fromEntries(Object.entries(parsed).filter(([, v]) => v !== '' && v != null))
+  } catch {
+    return {}
+  }
+}
+
+function normalizeFilterValue(value, field) {
+  if (value == null) return ''
+  const text = String(value)
+  if (['emissao', 'previsto', 'saida', 'dataHora'].includes(field)) return text.slice(0, 10)
+  return text.trim().toLowerCase()
+}
+
+function rowMatchesFilter(row, field, value) {
+  if (!(field in row)) return true
+  return normalizeFilterValue(row[field], field) === normalizeFilterValue(value, field)
+}
+
 async function execSql(supabase, sql) {
   const compactSql = sql.replace(/\s+/g, ' ').trim()
   const { data, error } = await supabase.rpc('exec_sql', { sql: compactSql })
@@ -129,6 +152,51 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, ki
   `
 }
 
+function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo }) {
+  const clauses = [
+    `ped.peddtemis >= '${dateStart}T00:00:00'`,
+    `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
+    `ped.pedsitped <> 'C'`,
+  ]
+
+  const pedido = asSqlNumber(pedcodigo)
+  const cliente = asSqlNumber(clicodigo)
+  const grupo = asSqlNumber(gclcodigo)
+
+  if (pedido != null) clauses.push(`ped.id_pedido = ${pedido}`)
+  if (cliente != null) clauses.push(`ped.clicodigo = ${cliente}`)
+  if (grupo != null) clauses.push(`cli.gclcodigo = ${grupo}`)
+
+  const where = clauses.join(' and ')
+
+  return `
+    select
+      ped.empcodigo as cod_empresa,
+      ped.peddtemis::date as data_venda,
+      ped.peddtsaida::date as data_saida,
+      ped.pedhrsaida::time as hora_saida,
+      ped.pedpzentre::date as data_prazo,
+      ped.pedhrentre::time as hora_prev,
+      (ped.peddtsaida::date + ped.pedhrsaida::time) as data_hora_saida,
+      (ped.pedpzentre::date + ped.pedhrentre::time) as data_hora_prevista,
+      floor(extract(epoch from (
+        coalesce((ped.peddtsaida::date + ped.pedhrsaida::time), current_timestamp)
+        - (ped.pedpzentre::date + ped.pedhrentre::time)
+      )) / 60)::integer as atraso_minutos,
+      ped.clicodigo as codigo_cliente,
+      coalesce(cli.clinomefant, cli.clirazsocial) as cliente,
+      cli.gclcodigo as gclcodigo,
+      ped.pedcodigo as numero_venda,
+      ped.id_pedido as pedido,
+      ped.pedsitped::text as status
+    from pedid ped
+    left join clien cli on ped.clicodigo = cli.clicodigo
+    where ${where}
+    order by data_venda desc, pedido desc
+    limit ${MAX_SALES_ROWS}
+  `
+}
+
 export async function GET(request) {
   try {
     const supabase = getSupabase()
@@ -142,10 +210,21 @@ export async function GET(request) {
     const status    = searchParams.get('status')    || ''
     const clicodigo = searchParams.get('clicodigo') || ''
     const gclcodigo = searchParams.get('gclcodigo') || ''
+    const columnFilters = parseColumnFilters(searchParams.get('columnFilters'))
 
     const now = new Date()
 
     // Parallel fetches
+    const rastreabQuery = () => {
+      let q = supabase
+        .from('rastreab')
+        .select('*')
+        .order('apdata', { ascending: true })
+        .order('aphora', { ascending: true })
+      if (pedcodigo) return q.eq('id_pedido', Number(pedcodigo))
+      return q.gte('peddtemis', dateStart + 'T00:00:00').lte('peddtemis', dateEnd + 'T23:59:59')
+    }
+
     const [requiRes, cellsRes, empRes, rastreabRes, clientsRes, pedfoRes, localPedRes] = await Promise.all([
       fetchAllPages(() => {
         let q = supabase
@@ -160,7 +239,7 @@ export async function GET(request) {
       }),
       supabase.from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxordem, alxtipocel, alxperda').order('alxordem'),
       supabase.from('funcio').select('funcodigo, funnome').limit(300),
-      supabase.from('rastreab').select('*').order('rascodigo', { ascending: false }).limit(2000),
+      fetchAllPages(rastreabQuery, { maxRows: pedcodigo ? 10000 : 2000 }),
       fetchAllPages(() => {
         let q = supabase.from('clien').select('clicodigo, clirazsocial, clinomefant, gclcodigo, clidiasatraso').eq('clicliente', 'S').order('clicodigo')
         if (clicodigo) q = q.eq('clicodigo', Number(clicodigo))
@@ -191,7 +270,8 @@ export async function GET(request) {
     const clientsData = clientsRes.data || []
     const pedfoData = pedfoRes.data || []
     const localPedData = localPedRes.data || []
-    const [productSalesRows, serviceSalesRows] = await Promise.all([
+    const [salesOrdersRaw, productSalesRows, serviceSalesRows] = await Promise.all([
+      execSql(supabase, buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })),
       execSql(supabase, buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind: 'products' })),
       execSql(supabase, buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind: 'services' })),
     ])
@@ -244,41 +324,38 @@ export async function GET(request) {
     }
 
     const salesOrderMap = {}
-    for (const row of salesRows) {
+    for (const row of salesOrdersRaw) {
       if (!row.pedido) continue
       const key = String(row.pedido)
       const emitted = row.data_venda ? parseISO(row.data_venda) : null
       const expected = row.data_hora_prevista ? parseISO(row.data_hora_prevista) : null
       const delivered = row.data_hora_saida ? parseISO(row.data_hora_saida) : null
-      const lineOnTime = Number(row.no_prazo) === 1 ? 1 : 0
-      const quantity = Number(row.qtde_produtos) || 0
 
-      if (!salesOrderMap[key]) {
-        salesOrderMap[key] = {
-          pedido: key,
-          clicodigo: row.codigo_cliente,
-          clinome: row.cliente,
-          gclcodigo: row.gclcodigo,
-          emitted,
-          expected,
-          delivered,
-          noPrazo: lineOnTime,
-          deliveredForAverage: delivered,
-          quantidade: quantity,
-          products: [],
-          statusRaw: row.status,
-        }
-      } else {
-        const item = salesOrderMap[key]
-        item.noPrazo = Math.min(item.noPrazo, lineOnTime)
-        item.quantidade += quantity
-        if (emitted && (!item.emitted || emitted < item.emitted)) item.emitted = emitted
-        if (expected && (!item.expected || expected > item.expected)) item.expected = expected
-        if (delivered && (!item.delivered || delivered > item.delivered)) item.delivered = delivered
-        if (delivered && (!item.deliveredForAverage || delivered > item.deliveredForAverage)) item.deliveredForAverage = delivered
+      salesOrderMap[key] = {
+        pedido: key,
+        clicodigo: row.codigo_cliente,
+        clinome: row.cliente,
+        gclcodigo: row.gclcodigo,
+        emitted,
+        emittedText: row.data_venda ? `${row.data_venda}T00:00:00` : null,
+        expected,
+        expectedText: row.data_hora_prevista || null,
+        delivered,
+        deliveredText: row.data_hora_saida || null,
+        atrasoMinutos: Number(row.atraso_minutos) || 0,
+        deliveredForAverage: delivered,
+        quantidade: 0,
+        products: [],
+        statusRaw: row.status,
       }
+    }
 
-      salesOrderMap[key].products.push(row)
+    for (const row of salesRows) {
+      const item = salesOrderMap[String(row.pedido)]
+      if (item) {
+        item.products.push(row)
+        item.quantidade += Number(row.qtde_produtos) || 0
+      }
     }
     const salesOrders = Object.values(salesOrderMap)
 
@@ -286,16 +363,17 @@ export async function GET(request) {
     let orders = salesOrders.map(o => {
       const expected = o.expected || (o.emitted ? addDays(o.emitted, LEAD_DAYS) : null)
       const delivered = o.delivered
+      const isDelayed = expected && ((delivered && delivered > expected) || (!delivered && now > expected))
       let s = 'in_progress'
-      if (delivered) s = o.noPrazo === 1 ? 'completed' : 'delayed_completed'
-      else if (expected && now > expected) s = 'delayed'
+      if (delivered) s = isDelayed ? 'delayed_completed' : 'completed'
+      else if (isDelayed) s = 'delayed'
 
       return {
         pedcodigo: o.pedido,
-        emissao: o.emitted?.toISOString() || null,
-        indice: o.noPrazo === 1 ? 100 : 0,
-        previsto: expected?.toISOString() || null,
-        saida: delivered?.toISOString() || null,
+        emissao: o.emittedText,
+        indice: isDelayed ? 0 : 100,
+        previsto: o.expectedText,
+        saida: o.deliveredText,
         quantidade: o.quantidade || o.products.length,
         status: s,
         lastCell: o.statusRaw || '-',
@@ -310,7 +388,7 @@ export async function GET(request) {
     orders.sort((a, b) => new Date(b.emissao) - new Date(a.emissao))
 
     // â”€â”€â”€ PRODUCT DETAILS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const products = salesRows.map(row => ({
+    let products = salesRows.map(row => ({
       pedcodigo: String(row.pedido),
       status: row.data_hora_saida ? 'Saida' : 'Em Producao',
       procodigo: String(row.codigo_produto || '').trim(),
@@ -323,14 +401,14 @@ export async function GET(request) {
     let traceability = []
     if (rastreab.length > 0) {
       const traceData = pedcodigo
-        ? rastreab.filter(r => String(r.pedcodigo) === pedcodigo)
+        ? rastreab.filter(r => String(r.id_pedido || r.pedcodigo) === pedcodigo)
         : rastreab.slice(0, 100)
       traceability = traceData.map(r => ({
         estoque: r.setdescricao || cellByDpt[r.setcodigo]?.alxdescricao || `Estoque ${r.setcodigo || ''}`,
         celula: r.lpdescricao || `Etapa ${r.lpcodigo || ''}`,
         dataHora: combineDateTime(r.apdata || r.peddtemis, r.aphora) || r.peddtemis || null,
         usuario: r.usunome || r.funnome || empMap[r.funcodigo] || `Func ${r.funcodigo || ''}`,
-        pedcodigo: String(r.pedcodigo),
+        pedcodigo: String(r.id_pedido || r.pedcodigo),
         clicodigo: r.clicodigo,
         clinome: r.clinome,
       }))
@@ -355,9 +433,30 @@ export async function GET(request) {
       return new Date(a.dataHora) - new Date(b.dataHora)
     })
 
+    for (const [field, value] of Object.entries(columnFilters)) {
+      if (field === 'pedcodigo') {
+        orders = orders.filter(row => rowMatchesFilter(row, field, value))
+        products = products.filter(row => rowMatchesFilter(row, field, value))
+        traceability = traceability.filter(row => rowMatchesFilter(row, field, value))
+        continue
+      }
+
+      if (orders.some(row => field in row)) {
+        orders = orders.filter(row => rowMatchesFilter(row, field, value))
+      }
+
+      if (products.some(row => field in row)) {
+        products = products.filter(row => rowMatchesFilter(row, field, value))
+        const orderIds = new Set(products.map(row => row.pedcodigo))
+        orders = orders.filter(row => orderIds.has(row.pedcodigo))
+      }
+    }
+
+    const visibleOrderIds = new Set(orders.map(row => row.pedcodigo))
+
     // â”€â”€â”€ CUSTOMER INDEX â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const customerMap = {}
-    for (const p of salesOrders) {
+    for (const p of salesOrders.filter(order => visibleOrderIds.has(order.pedido))) {
       const client = clientsByCode[p.clicodigo]
       const groupCode = p.gclcodigo ?? client?.gclcodigo
       if (gclcodigo && groupCode !== Number(gclcodigo)) continue
@@ -367,7 +466,7 @@ export async function GET(request) {
 
       const item = customerMap[p.clicodigo]
       item.total++
-      item.onTime += p.noPrazo
+      item.onTime += p.expected && ((p.delivered && p.delivered > p.expected) || (!p.delivered && now > p.expected)) ? 0 : 1
 
       if (p.emitted && p.deliveredForAverage) {
         item.daysTotal += Math.max(0, differenceInDays(p.deliveredForAverage, p.emitted))
@@ -375,13 +474,24 @@ export async function GET(request) {
       }
     }
 
-    const customers = Object.values(customerMap).map(c => ({
+    let customers = Object.values(customerMap).map(c => ({
       clicodigo: c.clicodigo,
       clinome: c.clinome || c.client?.clinomefant || c.client?.clirazsocial || `Cliente ${c.clicodigo}`,
       indice: c.total > 0 ? Math.round((c.onTime / c.total) * 100) : 0,
       mediaDias: c.daysCount > 0 ? Number((c.daysTotal / c.daysCount).toFixed(1)) : 0,
       gclcodigo: c.gclcodigo,
     })).sort((a, b) => b.indice - a.indice)
+
+    for (const [field, value] of Object.entries(columnFilters)) {
+      if (customers.some(row => field in row)) {
+        customers = customers.filter(row => rowMatchesFilter(row, field, value))
+        const clientIds = new Set(customers.map(row => String(row.clicodigo)))
+        orders = orders.filter(row => clientIds.has(String(row.clicodigo)))
+      }
+    }
+
+    const finalOrderIds = new Set(orders.map(row => row.pedcodigo))
+    products = products.filter(row => finalOrderIds.has(row.pedcodigo))
 
     // â”€â”€â”€ PONTUALIDADE CHART â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const weekMap = {}
@@ -408,7 +518,7 @@ export async function GET(request) {
     // â”€â”€â”€ KPIs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const totalOrders = orders.length
     const completed = orders.filter(o => o.status === 'completed' || o.status === 'delayed_completed').length
-    const onTime = orders.filter(o => o.status === 'completed').length
+    const onTime = orders.filter(o => o.status === 'completed' || o.status === 'in_progress').length
     const pontRate = totalOrders > 0 ? Number(((onTime / totalOrders) * 100).toFixed(1)) : 0
     const inProd = orders.filter(o => o.status === 'in_progress').length
 
@@ -417,7 +527,7 @@ export async function GET(request) {
       pontualidade: pontRate,
       emProducao: inProd,
       perdas: perdas.percentage,
-      atrasados: orders.filter(o => o.status === 'delayed').length,
+      atrasados: orders.filter(o => o.status === 'delayed' || o.status === 'delayed_completed').length,
       concluidos: completed,
     }
 

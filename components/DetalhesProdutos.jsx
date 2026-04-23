@@ -36,6 +36,11 @@ export default function DetalhesProdutos({ data, selectedOrder, onColumnClick, l
     { key: 'quantidade',  label: 'Qtd.'            },
   ]
 
+  const filterBy = (event, field, value) => {
+    event.stopPropagation()
+    onColumnClick(field, value)
+  }
+
   return (
     <div className="card mb-4">
       <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #1a3355' }}>
@@ -96,17 +101,16 @@ export default function DetalhesProdutos({ data, selectedOrder, onColumnClick, l
                     key={row.procodigo + i}
                     className={`table-row-hover ${selectedOrder === row.pedcodigo ? 'table-row-active' : ''}`}
                     style={{ borderTop: '1px solid #0d1f38' }}
-                    onClick={() => onColumnClick('pedcodigo', row.pedcodigo)}
                   >
-                    <td className="px-4 py-2.5 font-mono font-medium" style={{ color: '#60a5fa' }}>{row.pedcodigo}</td>
-                    <td className="px-4 py-2.5">
+                    <td onClick={(event) => filterBy(event, 'pedcodigo', row.pedcodigo)} className="px-4 py-2.5 font-mono font-medium" style={{ color: '#60a5fa' }}>{row.pedcodigo}</td>
+                    <td onClick={(event) => filterBy(event, 'status', row.status)} className="px-4 py-2.5">
                       <span className="badge" style={{ background: sc.bg, color: sc.color, border: `1px solid ${sc.color}40` }}>
                         {row.status}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 font-mono" style={{ color: '#7ba3cc' }}>{row.procodigo}</td>
-                    <td className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>{row.prodescricao}</td>
-                    <td className="px-4 py-2.5 text-right" style={{ color: '#e2e8f0' }}>{row.quantidade}</td>
+                    <td onClick={(event) => filterBy(event, 'procodigo', row.procodigo)} className="px-4 py-2.5 font-mono" style={{ color: '#7ba3cc' }}>{row.procodigo}</td>
+                    <td onClick={(event) => filterBy(event, 'prodescricao', row.prodescricao)} className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>{row.prodescricao}</td>
+                    <td onClick={(event) => filterBy(event, 'quantidade', row.quantidade)} className="px-4 py-2.5 text-right" style={{ color: '#e2e8f0' }}>{row.quantidade}</td>
                   </tr>
                 )
               })

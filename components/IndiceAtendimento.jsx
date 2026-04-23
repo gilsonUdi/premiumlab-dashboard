@@ -41,6 +41,11 @@ export default function IndiceAtendimento({ data, selectedClient, onColumnClick,
     { key: 'mediaDias', label: 'Média Dias'        },
   ]
 
+  const filterBy = (event, field, value) => {
+    event.stopPropagation()
+    onColumnClick(field, value)
+  }
+
   return (
     <div className="card">
       <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #1a3355' }}>
@@ -99,15 +104,14 @@ export default function IndiceAtendimento({ data, selectedClient, onColumnClick,
                   key={row.clicodigo + i}
                   className={`table-row-hover ${selectedClient === String(row.clicodigo) ? 'table-row-active' : ''}`}
                   style={{ borderTop: '1px solid #0d1f38' }}
-                  onClick={() => onColumnClick('clicodigo', String(row.clicodigo))}
                 >
-                  <td className="px-4 py-2.5" style={{ color: '#e2e8f0', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <td onClick={(event) => filterBy(event, 'clicodigo', String(row.clicodigo))} className="px-4 py-2.5" style={{ color: '#e2e8f0', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {row.clinome}
                   </td>
-                  <td className="px-4 py-2.5" style={{ minWidth: 140 }}>
+                  <td onClick={(event) => filterBy(event, 'indice', row.indice)} className="px-4 py-2.5" style={{ minWidth: 140 }}>
                     <IndiceBar value={row.indice} />
                   </td>
-                  <td className="px-4 py-2.5 text-right font-mono" style={{ color: '#7ba3cc' }}>
+                  <td onClick={(event) => filterBy(event, 'mediaDias', row.mediaDias)} className="px-4 py-2.5 text-right font-mono" style={{ color: '#7ba3cc' }}>
                     {row.mediaDias} dias
                   </td>
                 </tr>
