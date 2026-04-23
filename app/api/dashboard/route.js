@@ -171,7 +171,6 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, ki
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
     `ped.pedsitped <> 'C'`,
-    `ped.empcodigo::text = '1'`,
   ]
 
   const pedido = asSqlNumber(pedcodigo)
@@ -239,7 +238,6 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
     `ped.pedsitped <> 'C'`,
-    `ped.empcodigo::text = '1'`,
   ]
 
   const pedido = asSqlNumber(pedcodigo)
