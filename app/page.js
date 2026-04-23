@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
-import { format, subDays } from 'date-fns'
+import { format, startOfMonth } from 'date-fns'
 import { RefreshCw, Microscope, X } from 'lucide-react'
 import Filters from '@/components/Filters'
 import KPICards from '@/components/KPICards'
@@ -15,7 +15,7 @@ const PontualidadeChart = dynamic(() => import('@/components/PontualidadeChart')
 const PerdasChart = dynamic(() => import('@/components/PerdasChart'), { ssr: false })
 
 const defaultFilters = () => ({
-  dateStart: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+  dateStart: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
   dateEnd:   format(new Date(), 'yyyy-MM-dd'),
   dptcodigo: '',
   clicodigo: '',
