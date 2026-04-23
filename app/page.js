@@ -64,6 +64,13 @@ export default function Dashboard() {
     }
   }, [filters, selectedOrder, selectedClient, columnFilters])
 
+  const handleFiltersChange = useCallback((updater) => {
+    setFilters(prev => (typeof updater === 'function' ? updater(prev) : updater))
+    setSelectedOrder(null)
+    setSelectedClient(null)
+    setColumnFilters({})
+  }, [])
+
   useEffect(() => {
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(fetchData, 350)
@@ -161,7 +168,7 @@ export default function Dashboard() {
         <Filters
           filters={filters}
           options={options}
-          onChange={setFilters}
+          onChange={handleFiltersChange}
           onReset={handleReset}
         />
 
