@@ -649,13 +649,17 @@ export async function GET(request) {
     const onTime = orders.filter(o => o.status === 'completed' || o.status === 'in_progress').length
     const pontRate = totalOrders > 0 ? Number(((onTime / totalOrders) * 100).toFixed(1)) : 0
     const inProd = orders.filter(o => o.status === 'in_progress').length
+    const inProdDelayed = orders.filter(o => o.status === 'delayed').length
+    const deliveredDelayed = orders.filter(o => o.status === 'delayed_completed').length
 
     const kpis = {
       totalOrders,
       pontualidade: pontRate,
       emProducao: inProd,
+      emProducaoAtraso: inProdDelayed,
       perdas: perdas.percentage,
-      atrasados: orders.filter(o => o.status === 'delayed' || o.status === 'delayed_completed').length,
+      atrasados: deliveredDelayed,
+      entregueAtraso: deliveredDelayed,
       concluidos: completed,
     }
 

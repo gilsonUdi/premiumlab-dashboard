@@ -1,5 +1,5 @@
 'use client'
-import { Package, Clock, TrendingUp, AlertTriangle, CheckCircle2, Activity } from 'lucide-react'
+import { Package, TrendingUp, AlertTriangle, CheckCircle2, Activity, Truck } from 'lucide-react'
 
 function KPICard({ icon: Icon, label, value, sub, color, loading }) {
   return (
@@ -22,14 +22,16 @@ function KPICard({ icon: Icon, label, value, sub, color, loading }) {
 
 export default function KPICards({ data, loading }) {
   const d = data || {}
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4">
-      <KPICard icon={Package}       label="Total de Pedidos"  value={d.totalOrders ?? '—'}   sub="no período"                           color="#3b82f6" loading={loading} />
-      <KPICard icon={TrendingUp}    label="Pontualidade"      value={d.pontualidade != null ? `${d.pontualidade}%` : '—'} sub="no prazo"          color="#22c55e" loading={loading} />
-      <KPICard icon={Activity}      label="Em Produção"       value={d.emProducao ?? '—'}     sub="pedidos ativos"                        color="#06b6d4" loading={loading} />
-      <KPICard icon={CheckCircle2}  label="Concluídos"        value={d.concluidos ?? '—'}     sub="no período"                           color="#a78bfa" loading={loading} />
-      <KPICard icon={AlertTriangle} label="Atrasados"         value={d.atrasados ?? '—'}      sub="fora do prazo"                        color="#f59e0b" loading={loading} />
-      <KPICard icon={TrendingUp}    label="% Perdas"          value={d.perdas != null ? `${d.perdas}%` : '—'} sub="em quantidade"          color="#ef4444" loading={loading} />
+    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-4">
+      <KPICard icon={Package} label="Total de Pedidos" value={d.totalOrders ?? '-'} sub="no periodo" color="#3b82f6" loading={loading} />
+      <KPICard icon={TrendingUp} label="Pontualidade" value={d.pontualidade != null ? `${d.pontualidade}%` : '-'} sub="no prazo" color="#22c55e" loading={loading} />
+      <KPICard icon={Activity} label="Em Producao" value={d.emProducao ?? '-'} sub="pedidos ativos" color="#06b6d4" loading={loading} />
+      <KPICard icon={AlertTriangle} label="Em Producao (atraso)" value={d.emProducaoAtraso ?? '-'} sub="ainda em aberto" color="#f59e0b" loading={loading} />
+      <KPICard icon={CheckCircle2} label="Concluidos" value={d.concluidos ?? '-'} sub="no periodo" color="#a78bfa" loading={loading} />
+      <KPICard icon={Truck} label="Entregue (atraso)" value={d.entregueAtraso ?? d.atrasados ?? '-'} sub="entregues fora do prazo" color="#fb7185" loading={loading} />
+      <KPICard icon={TrendingUp} label="% Perdas" value={d.perdas != null ? `${d.perdas}%` : '-'} sub="em quantidade" color="#ef4444" loading={loading} />
     </div>
   )
 }
