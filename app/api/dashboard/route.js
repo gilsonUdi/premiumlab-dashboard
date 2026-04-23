@@ -11,6 +11,7 @@ const MAX_REQUI_ROWS = 20000
 const MAX_SALES_ROWS = 20000
 const LOSS_REQ_TYPES = new Set(['B', 'C'])
 const PRODUCTION_TIME_ZONE = 'America/Sao_Paulo'
+const EXPECTED_TIME_SQL = `(date_trunc('hour', ped.pedhrentre::time) - interval '3 hours')::time`
 
 function calcStatus(emissao, exitDate, now) {
   const expected = addDays(parseISO(emissao), LEAD_DAYS)
@@ -197,16 +198,16 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, ki
         ped.peddtsaida::date as data_saida,
         ped.pedhrsaida::time as hora_saida,
         ped.pedpzentre::date as data_prazo,
-        date_trunc('hour', ped.pedhrentre::time)::time as hora_prev,
+        ${EXPECTED_TIME_SQL} as hora_prev,
         (ped.peddtsaida::date + ped.pedhrsaida::time) as data_hora_saida,
-        (ped.pedpzentre::date + date_trunc('hour', ped.pedhrentre::time)::time) as data_hora_prevista,
+        (ped.pedpzentre::date + ${EXPECTED_TIME_SQL}) as data_hora_prevista,
         floor(extract(epoch from (
           coalesce((ped.peddtsaida::date + ped.pedhrsaida::time), current_timestamp)
-          - (ped.pedpzentre::date + date_trunc('hour', ped.pedhrentre::time)::time)
+          - (ped.pedpzentre::date + ${EXPECTED_TIME_SQL})
         )) / 60)::integer as atraso_minutos,
         case
           when coalesce((ped.peddtsaida::date + ped.pedhrsaida::time), current_timestamp)
-            <= (ped.pedpzentre::date + date_trunc('hour', ped.pedhrentre::time)::time)
+            <= (ped.pedpzentre::date + ${EXPECTED_TIME_SQL})
           then 1 else 0
         end as no_prazo,
         ped.clicodigo as codigo_cliente,
@@ -257,12 +258,12 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
       ped.peddtsaida::date as data_saida,
       ped.pedhrsaida::time as hora_saida,
       ped.pedpzentre::date as data_prazo,
-      date_trunc('hour', ped.pedhrentre::time)::time as hora_prev,
+      ${EXPECTED_TIME_SQL} as hora_prev,
       (ped.peddtsaida::date + ped.pedhrsaida::time) as data_hora_saida,
-      (ped.pedpzentre::date + date_trunc('hour', ped.pedhrentre::time)::time) as data_hora_prevista,
+      (ped.pedpzentre::date + ${EXPECTED_TIME_SQL}) as data_hora_prevista,
       floor(extract(epoch from (
         coalesce((ped.peddtsaida::date + ped.pedhrsaida::time), current_timestamp)
-        - (ped.pedpzentre::date + date_trunc('hour', ped.pedhrentre::time)::time)
+        - (ped.pedpzentre::date + ${EXPECTED_TIME_SQL})
       )) / 60)::integer as atraso_minutos,
       ped.clicodigo as codigo_cliente,
       coalesce(cli.clinomefant, cli.clirazsocial) as cliente,
