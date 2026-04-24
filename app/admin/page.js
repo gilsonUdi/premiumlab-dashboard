@@ -10,10 +10,12 @@ import {
   Plus,
   ShieldCheck,
   SquareArrowOutUpRight,
+  Trash2,
 } from 'lucide-react'
 import {
   ADMIN_CREDENTIALS,
   clearPortalSession,
+  deleteCompany,
   ensurePremiumLabTenant,
   getCurrentPortalSession,
   loadPortalState,
@@ -37,6 +39,7 @@ export default function AdminPage() {
   const [state, setState] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [message, setMessage] = useState('')
+  const [deletingCompanyId, setDeletingCompanyId] = useState('')
 
   useEffect(() => {
     let active = true
@@ -97,6 +100,27 @@ export default function AdminPage() {
   const handleLogout = async () => {
     await clearPortalSession()
     router.push('/login')
+  }
+
+  const handleDeleteCompany = async company => {
+    if (!state || company.isPremiumLab) return
+
+    const confirmed = window.confirm(`Excluir a empresa ${company.name}? Essa acao remove o tenant do portal.`)
+    if (!confirmed) return
+
+    try {
+      setDeletingCompanyId(company.id)
+      const nextState = await deleteCompany(state, company.id)
+      setState(nextState)
+      setMessage('Empresa excluida com sucesso.')
+      window.setTimeout(() => setMessage(''), 2500)
+    } catch (error) {
+      console.error(error)
+      setMessage('Nao foi possivel excluir a empresa.')
+      window.setTimeout(() => setMessage(''), 3500)
+    } finally {
+      setDeletingCompanyId('')
+    }
   }
 
   if (!state) {
@@ -322,6 +346,17 @@ export default function AdminPage() {
                         Dashboard
                         <SquareArrowOutUpRight size={15} />
                       </Link>
+                      {!company.isPremiumLab ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCompany(company)}
+                          disabled={deletingCompanyId === company.id}
+                          className="inline-flex h-11 items-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 text-sm font-medium text-red-200 transition hover:border-red-400/35 hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Trash2 size={15} />
+                          {deletingCompanyId === company.id ? 'Excluindo...' : 'Excluir'}
+                        </button>
+                      ) : null}
                     </div>
                   </div>
 
