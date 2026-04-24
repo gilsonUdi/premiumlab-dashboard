@@ -232,7 +232,7 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, ki
   const cliente = asSqlNumber(clicodigo)
   const grupo = asSqlNumber(gclcodigo)
 
-  if (pedido != null) clauses.push(`ped.id_pedido = ${pedido}`)
+  if (pedido != null) clauses.push(`ped.pedcodigo = ${pedido}`)
   if (cliente != null) clauses.push(`ped.clicodigo = ${cliente}`)
   if (grupo != null) clauses.push(`cli.gclcodigo = ${grupo}`)
 
@@ -288,7 +288,7 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
   const cliente = asSqlNumber(clicodigo)
   const grupo = asSqlNumber(gclcodigo)
 
-  if (pedido != null) clauses.push(`ped.id_pedido = ${pedido}`)
+  if (pedido != null) clauses.push(`ped.pedcodigo = ${pedido}`)
   if (cliente != null) clauses.push(`ped.clicodigo = ${cliente}`)
   if (grupo != null) clauses.push(`cli.gclcodigo = ${grupo}`)
 
@@ -304,6 +304,7 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
       ped.clicodigo as codigo_cliente,
       coalesce(cli.clinomefant, cli.clirazsocial) as cliente,
       cli.gclcodigo as gclcodigo,
+      ped.pedcodigo as numero_venda,
       ped.id_pedido as pedido,
       ped.pedsitped::text as status
     from pedid ped
@@ -363,7 +364,6 @@ export async function GET(request) {
         .select('alxcodigo, apdata, empcodigo, aphora, usucodigo, id_pedido, lpcodigo')
         .order('apdata', { ascending: true })
         .order('aphora', { ascending: true })
-      if (pedcodigo) return query.eq('id_pedido', Number(pedcodigo))
       return query.gte('apdata', dateStart).lte('apdata', dateEnd)
     }
 
@@ -373,7 +373,6 @@ export async function GET(request) {
         .select('*')
         .order('apdata', { ascending: true })
         .order('aphora', { ascending: true })
-      if (pedcodigo) return query.eq('id_pedido', Number(pedcodigo))
       return query.gte('peddtemis', `${dateStart}T00:00:00`).lte('peddtemis', `${dateEnd}T23:59:59`)
     }
 
@@ -490,6 +489,7 @@ export async function GET(request) {
       if (!row.pedido) continue
       salesOrderMap[String(row.pedido)] = {
         pedido: String(row.pedido),
+        numeroVenda: String(row.numero_venda),
         clicodigo: row.codigo_cliente,
         clinome: row.cliente,
         gclcodigo: row.gclcodigo,
@@ -513,9 +513,11 @@ export async function GET(request) {
     }
 
     const salesOrders = Object.values(salesOrderMap)
+    const orderNumberById = Object.fromEntries(salesOrders.map(order => [order.pedido, order.numeroVenda]))
 
     let products = salesRows.map(row => ({
-      pedcodigo: String(row.pedido),
+      pedcodigo: String(row.numero_venda || row.pedido),
+      pedidoId: String(row.pedido),
       status: row.data_hora_saida ? 'Saida' : 'Em Producao',
       procodigo: String(row.codigo_produto || '').trim(),
       prodescricao: normalizeText(row.descricao_produto),
@@ -532,7 +534,8 @@ export async function GET(request) {
           celula: normalizeText(localPedByCode[row.lpcodigo]) || `Etapa ${row.lpcodigo || ''}`,
           dataHora: combineDateTime(row.apdata, row.aphora),
           usuario: normalizeText(userMap[row.usucodigo]) || `Usuario ${row.usucodigo || ''}`,
-          pedcodigo: String(row.id_pedido),
+          pedcodigo: orderNumberById[String(row.id_pedido)] || String(row.id_pedido),
+          pedidoId: String(row.id_pedido),
           clicodigo: null,
           clinome: '-',
         }
@@ -543,7 +546,8 @@ export async function GET(request) {
         celula: normalizeText(row.lpdescricao) || `Etapa ${row.lpcodigo || ''}`,
         dataHora: combineDateTime(row.apdata || row.peddtemis, row.aphora) || row.peddtemis || null,
         usuario: normalizeText(row.usunome) || normalizeText(row.funnome) || normalizeText(empMap[row.funcodigo]) || `Func ${row.funcodigo || ''}`,
-        pedcodigo: String(row.id_pedido || row.pedcodigo),
+        pedcodigo: orderNumberById[String(row.id_pedido || row.pedcodigo)] || String(row.id_pedido || row.pedcodigo),
+        pedidoId: String(row.id_pedido || row.pedcodigo),
         clicodigo: row.clicodigo,
         clinome: normalizeText(row.clinome),
       }))
@@ -555,7 +559,8 @@ export async function GET(request) {
           celula: normalizeText(getFallbackStepDescription(row)),
           dataHora: combineDateTime(row.reqdata, row.reqhora),
           usuario: normalizeText(empMap[row.funcodigo]) || `Func ${row.funcodigo}`,
-          pedcodigo: String(row.pdccodigo),
+          pedcodigo: orderNumberById[String(row.pdccodigo)] || String(row.pdccodigo),
+          pedidoId: String(row.pdccodigo),
           clicodigo: null,
           clinome: '-',
         }))
@@ -570,8 +575,8 @@ export async function GET(request) {
 
     const latestTraceByOrder = {}
     for (const row of traceability) {
-      if (!row.pedcodigo) continue
-      latestTraceByOrder[row.pedcodigo] = row
+      if (!row.pedidoId) continue
+      latestTraceByOrder[row.pedidoId] = row
     }
 
     let orders = salesOrders.map(order => {
@@ -581,7 +586,8 @@ export async function GET(request) {
       const currentTrace = latestTraceByOrder[order.pedido]
 
       return {
-        pedcodigo: order.pedido,
+        pedcodigo: order.numeroVenda,
+        pedidoId: order.pedido,
         emissao: order.emittedText,
         indice: orderIsDelayed(expected, delivered, now) ? 0 : 100,
         previsto: order.expectedText,
@@ -612,9 +618,9 @@ export async function GET(request) {
     orders.sort((a, b) => b.delayRank - a.delayRank)
 
     let customerMap = {}
-    const visibleOrderIds = new Set(orders.map(row => row.pedcodigo))
-    products = products.filter(row => visibleOrderIds.has(row.pedcodigo))
-    traceability = traceability.filter(row => visibleOrderIds.has(row.pedcodigo))
+    const visibleOrderIds = new Set(orders.map(row => row.pedidoId))
+    products = products.filter(row => visibleOrderIds.has(row.pedidoId))
+    traceability = traceability.filter(row => visibleOrderIds.has(row.pedidoId))
 
     for (const order of salesOrders.filter(item => visibleOrderIds.has(item.pedido))) {
       const client = clientsByCode[order.clicodigo]
@@ -660,9 +666,9 @@ export async function GET(request) {
       orders = orders.filter(row => filteredClientIds.has(String(row.clicodigo)))
     }
 
-    const finalOrderIds = new Set(orders.map(row => row.pedcodigo))
-    products = products.filter(row => finalOrderIds.has(row.pedcodigo))
-    traceability = traceability.filter(row => finalOrderIds.has(row.pedcodigo))
+    const finalOrderIds = new Set(orders.map(row => row.pedidoId))
+    products = products.filter(row => finalOrderIds.has(row.pedidoId))
+    traceability = traceability.filter(row => finalOrderIds.has(row.pedidoId))
 
     const weekMap = {}
     for (const order of orders) {
