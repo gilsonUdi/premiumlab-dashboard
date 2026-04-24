@@ -7,7 +7,7 @@ import { resolveAuthorizedCompany } from '@/lib/server-auth'
 export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 1000
-const MAX_REQUI_ROWS = 100000
+const MAX_REQUI_ROWS = 20000
 const MAX_SALES_ROWS = 20000
 const LOSS_REQ_TYPES = new Set(['B', 'C'])
 const PRODUCTION_TIME_ZONE = 'America/Sao_Paulo'
@@ -193,15 +193,6 @@ function resolveRowTone(status, expected, delivered, now) {
 function buildDelayRank(expected, delivered, now) {
   if (!expected) return Number.MIN_SAFE_INTEGER
   return differenceInMinutes(delivered || now, expected)
-}
-
-function isNewerTrace(currentValue, nextValue) {
-  if (!nextValue) return false
-  if (!currentValue) return true
-
-  const currentTime = parseLocalDateTime(currentValue)?.getTime() || 0
-  const nextTime = parseLocalDateTime(nextValue)?.getTime() || 0
-  return nextTime >= currentTime
 }
 
 async function fetchAllPages(queryFactory, { pageSize = PAGE_SIZE, maxRows = MAX_REQUI_ROWS } = {}) {
@@ -425,8 +416,8 @@ export async function GET(request) {
       supabase.from('almox').select('empcodigo, alxcodigo, alxdescricao, dptcodigo, alxordem, alxtipocel').order('alxordem'),
       supabase.from('funcio').select('funcodigo, funnome').limit(300),
       supabase.from('usuario').select('usucodigo, usunome').limit(300),
-      fetchOptionalPages(acopedQuery, { maxRows: pedcodigo ? 20000 : 100000 }),
-      fetchOptionalPages(rastreabQuery, { maxRows: pedcodigo ? 20000 : 100000 }),
+      fetchOptionalPages(acopedQuery, { maxRows: pedcodigo ? 10000 : 20000 }),
+      fetchOptionalPages(rastreabQuery, { maxRows: pedcodigo ? 10000 : 20000 }),
       fetchAllPages(() => {
         let query = supabase
           .from('clien')
@@ -559,41 +550,6 @@ export async function GET(request) {
       clinome: normalizeText(row.cliente),
     }))
 
-    const latestCellByOrderId = {}
-
-    for (const row of acoped) {
-      const pedidoId = String(row.id_pedido || '')
-      if (!pedidoId) continue
-
-      const cellLabel = normalizeText(localPedByCode[row.lpcodigo]) || `Etapa ${row.lpcodigo || ''}`
-      const stamp = combineDateTime(row.apdata, row.aphora)
-      if (isNewerTrace(latestCellByOrderId[pedidoId]?.stamp, stamp)) {
-        latestCellByOrderId[pedidoId] = { stamp, cell: cellLabel }
-      }
-    }
-
-    for (const row of rastreab) {
-      const pedidoId = String(row.id_pedido || row.pedcodigo || '')
-      if (!pedidoId) continue
-
-      const cellLabel = normalizeText(row.lpdescricao) || `Etapa ${row.lpcodigo || ''}`
-      const stamp = combineDateTime(row.apdata || row.peddtemis, row.aphora) || row.peddtemis || null
-      if (isNewerTrace(latestCellByOrderId[pedidoId]?.stamp, stamp)) {
-        latestCellByOrderId[pedidoId] = { stamp, cell: cellLabel }
-      }
-    }
-
-    for (const row of requiData.filter(item => item.pdccodigo)) {
-      const pedidoId = String(row.pdccodigo || '')
-      if (!pedidoId) continue
-
-      const cellLabel = normalizeText(getFallbackStepDescription(row))
-      const stamp = combineDateTime(row.reqdata, row.reqhora)
-      if (isNewerTrace(latestCellByOrderId[pedidoId]?.stamp, stamp)) {
-        latestCellByOrderId[pedidoId] = { stamp, cell: cellLabel }
-      }
-    }
-
     let traceability = []
     if (acoped.length > 0) {
       traceability = acoped.map(row => {
@@ -642,13 +598,17 @@ export async function GET(request) {
       return new Date(a.dataHora) - new Date(b.dataHora)
     })
 
+    const latestTraceByOrder = {}
+    for (const row of traceability) {
+      if (!row.pedidoId) continue
+      latestTraceByOrder[row.pedidoId] = row
+    }
+
     let orders = salesOrders.map(order => {
       const expected = order.expected || (order.emitted ? addDays(order.emitted, 5) : null)
       const delivered = order.delivered
       const resolvedStatus = resolveStatus(expected, delivered, now)
-      const currentCell =
-        normalizeText(latestCellByOrderId[order.pedido]?.cell) ||
-        (delivered ? normalizeText(localPedByCode[28]) || 'PEDIDO FATURADO' : '-')
+      const currentTrace = latestTraceByOrder[order.pedido]
 
       return {
         pedcodigo: order.numeroVenda,
@@ -659,7 +619,7 @@ export async function GET(request) {
         saida: order.deliveredText,
         quantidade: order.quantidade || order.products.length,
         status: resolvedStatus,
-        currentCell,
+        currentCell: normalizeText(currentTrace?.celula) || '-',
         delayRank: buildDelayRank(expected, delivered, now),
         rowTone: resolveRowTone(resolvedStatus, expected, delivered, now),
         clicodigo: order.clicodigo,
