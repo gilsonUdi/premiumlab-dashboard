@@ -8,6 +8,8 @@ import {
   Database,
   LogOut,
   Plus,
+  UserPlus,
+  Users,
   ShieldCheck,
   SquareArrowOutUpRight,
   Trash2,
@@ -15,6 +17,7 @@ import {
 import {
   ADMIN_CREDENTIALS,
   clearPortalSession,
+  createCompanyUser,
   deleteCompany,
   ensurePremiumLabTenant,
   getCurrentPortalSession,
@@ -34,10 +37,17 @@ const emptyForm = {
   isPremiumLab: false,
 }
 
+const emptyUserForm = {
+  name: '',
+  email: '',
+  password: '',
+}
+
 export default function AdminPage() {
   const router = useRouter()
   const [state, setState] = useState(null)
   const [form, setForm] = useState(emptyForm)
+  const [userForms, setUserForms] = useState({})
   const [message, setMessage] = useState('')
   const [deletingCompanyId, setDeletingCompanyId] = useState('')
 
@@ -72,6 +82,16 @@ export default function AdminPage() {
     () => (state?.companies || []).some(company => company.isPremiumLab),
     [state]
   )
+
+  const companyUsers = useMemo(() => {
+    const grouped = {}
+    for (const user of state?.users || []) {
+      if (!user.companyId) continue
+      if (!grouped[user.companyId]) grouped[user.companyId] = []
+      grouped[user.companyId].push(user)
+    }
+    return grouped
+  }, [state?.users])
 
   const handleSaveCompany = async event => {
     event.preventDefault()
@@ -120,6 +140,38 @@ export default function AdminPage() {
       window.setTimeout(() => setMessage(''), 3500)
     } finally {
       setDeletingCompanyId('')
+    }
+  }
+
+  const handleCompanyUserFormChange = (companyId, field, value) => {
+    setUserForms(previous => ({
+      ...previous,
+      [companyId]: {
+        ...(previous[companyId] || emptyUserForm),
+        [field]: value,
+      },
+    }))
+  }
+
+  const handleCreateCompanyUser = async (event, company) => {
+    event.preventDefault()
+    if (!state) return
+
+    const formState = userForms[company.id] || emptyUserForm
+
+    try {
+      const nextState = await createCompanyUser(company, formState)
+      setState(nextState)
+      setUserForms(previous => ({
+        ...previous,
+        [company.id]: emptyUserForm,
+      }))
+      setMessage(`Usuario adicionado em ${company.name}.`)
+      window.setTimeout(() => setMessage(''), 2500)
+    } catch (error) {
+      console.error(error)
+      setMessage('Nao foi possivel criar o usuario da empresa.')
+      window.setTimeout(() => setMessage(''), 3500)
     }
   }
 
@@ -391,6 +443,76 @@ export default function AdminPage() {
                       <p className="text-xs uppercase tracking-[0.18em] text-[#9f9a90]">Credencial Supabase</p>
                       <p className="mt-2 text-sm text-white">{company.hasServiceRoleKey ? 'Configurada' : 'Nao configurada'}</p>
                     </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+                    <div className="rounded-2xl border border-white/6 bg-white/[0.03] p-4">
+                      <div className="mb-3 flex items-center gap-2">
+                        <Users size={16} className="text-[#e3ad5a]" />
+                        <p className="text-sm font-semibold text-white">Usuarios da empresa</p>
+                      </div>
+                      <div className="space-y-3">
+                        {(companyUsers[company.id] || [])
+                          .sort((a, b) => {
+                            if (a.uid === company.authUid) return -1
+                            if (b.uid === company.authUid) return 1
+                            return a.email.localeCompare(b.email)
+                          })
+                          .map(user => (
+                            <div key={user.uid} className="rounded-2xl border border-white/6 bg-[#15131a] px-4 py-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-medium text-white">{user.name || user.email}</span>
+                                {user.uid === company.authUid ? <span className="portal-pill">Principal</span> : null}
+                              </div>
+                              <p className="mt-1 text-sm text-[#b7b0a6]">{user.email}</p>
+                            </div>
+                          ))}
+                        {(companyUsers[company.id] || []).length === 0 ? (
+                          <div className="rounded-2xl border border-dashed border-white/10 bg-[#15131a] px-4 py-3 text-sm text-[#b7b0a6]">
+                            Nenhum usuario extra cadastrado.
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <form
+                      onSubmit={event => handleCreateCompanyUser(event, company)}
+                      className="rounded-2xl border border-white/6 bg-white/[0.03] p-4"
+                    >
+                      <div className="mb-3 flex items-center gap-2">
+                        <UserPlus size={16} className="text-[#e3ad5a]" />
+                        <p className="text-sm font-semibold text-white">Adicionar usuario</p>
+                      </div>
+                      <div className="grid gap-3">
+                        <input
+                          className="portal-input"
+                          placeholder="Nome do usuario"
+                          value={(userForms[company.id] || emptyUserForm).name}
+                          onChange={event => handleCompanyUserFormChange(company.id, 'name', event.target.value)}
+                          required
+                        />
+                        <input
+                          className="portal-input"
+                          type="email"
+                          placeholder="usuario@empresa.com"
+                          value={(userForms[company.id] || emptyUserForm).email}
+                          onChange={event => handleCompanyUserFormChange(company.id, 'email', event.target.value)}
+                          required
+                        />
+                        <input
+                          className="portal-input"
+                          type="text"
+                          placeholder="Senha de acesso"
+                          value={(userForms[company.id] || emptyUserForm).password}
+                          onChange={event => handleCompanyUserFormChange(company.id, 'password', event.target.value)}
+                          required
+                        />
+                        <button type="submit" className="portal-primary-button justify-center">
+                          <UserPlus size={16} />
+                          Salvar usuario
+                        </button>
+                      </div>
+                    </form>
                   </div>
                 </article>
               ))}

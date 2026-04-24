@@ -180,10 +180,13 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'A Premium Lab nao pode ser excluida por esta tela.' }, { status: 400 })
     }
 
-    if (company.authUid) {
-      await db.collection(USERS_COLLECTION).doc(company.authUid).delete()
+    const usersSnapshot = await db.collection(USERS_COLLECTION).where('companyId', '==', companyId).get()
+    const auth = getFirebaseAdminAuth()
+
+    for (const userDoc of usersSnapshot.docs) {
+      await db.collection(USERS_COLLECTION).doc(userDoc.id).delete()
       try {
-        await getFirebaseAdminAuth().deleteUser(company.authUid)
+        await auth.deleteUser(userDoc.id)
       } catch (error) {
         if (error.code !== 'auth/user-not-found') throw error
       }

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BarChart3, Building2, LogOut, Settings2 } from 'lucide-react'
+import { ArrowLeft, BarChart3, LogOut, Settings2 } from 'lucide-react'
 import {
   clearPortalSession,
   getCompanyById,
@@ -105,40 +105,6 @@ export default function CompanyHomePage({ slug }) {
             </button>
           </div>
         </header>
-
-        <section className="mb-6 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-[30px] border border-white/8 bg-[#1c191d] p-7">
-            <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Workspace da empresa</p>
-            <h2 className="mt-4 max-w-[760px] text-5xl font-semibold leading-tight">
-              Ferramentas liberadas para a operacao da {company.name}.
-            </h2>
-            <p className="mt-5 max-w-[720px] text-lg leading-8 text-[#bdb7ae]">
-              O tenant mostra as ferramentas que a administracao liberou. Com o banco configurado, a empresa acessa o
-              dashboard operacional no proprio ambiente. Os proximos modulos podem ser adicionados sem refazer o portal.
-            </p>
-          </div>
-
-          <div className="rounded-[30px] border border-white/8 bg-[#1c191d] p-7">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e3ad5a]/15 text-[#e3ad5a]">
-                <Building2 size={18} />
-              </div>
-              <div>
-                <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Tenant</p>
-                <h3 className="text-xl font-semibold">{company.slug}</h3>
-              </div>
-            </div>
-
-            <div className="space-y-3 text-sm text-[#cbc4ba]">
-              <div className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3">
-                Dashboard operacional: {company.hasServiceRoleKey || company.isPremiumLab ? 'ativo para este tenant' : 'aguardando service role do Supabase'}
-              </div>
-              <div className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3">
-                Ferramentas liberadas: {company.tools.join(', ')}
-              </div>
-            </div>
-          </div>
-        </section>
 
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {company.tools.includes('dashboard') ? (
