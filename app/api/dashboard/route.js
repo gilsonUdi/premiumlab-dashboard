@@ -340,6 +340,14 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
       cli.gclcodigo as gclcodigo,
       ped.pedcodigo as numero_venda,
       ped.id_pedido as pedido,
+      (
+        select lp.lpdescricao
+        from acoped ac
+        left join localped lp on lp.lpcodigo = ac.lpcodigo
+        where ac.id_pedido = ped.id_pedido
+        order by ac.apdata desc, ac.aphora desc
+        limit 1
+      ) as current_cell,
       ped.pedsitped::text as status
     from pedid ped
     left join clien cli on ped.clicodigo = cli.clicodigo
@@ -489,6 +497,7 @@ export async function GET(request) {
     const normalizedSalesOrdersRaw = salesOrdersRaw.map(row => ({
       ...row,
       cliente: normalizeText(row.cliente),
+      current_cell: normalizeText(row.current_cell),
       status: normalizeText(row.status),
     }))
 
@@ -533,6 +542,7 @@ export async function GET(request) {
         expectedText: localDateTimeText(row.data_hora_prevista),
         delivered: parseLocalDateTime(row.data_hora_saida),
         deliveredText: localDateTimeText(row.data_hora_saida),
+        currentCell: normalizeText(row.current_cell),
         quantidade: 0,
         products: [],
         statusRaw: row.status,
@@ -647,6 +657,7 @@ export async function GET(request) {
       const delivered = order.delivered
       const resolvedStatus = resolveStatus(expected, delivered, now)
       const currentCell =
+        normalizeText(order.currentCell) ||
         normalizeText(latestCellByOrderId[order.pedido]?.cell) ||
         (delivered ? normalizeText(localPedByCode[28]) || 'PEDIDO FATURADO' : '-')
 
