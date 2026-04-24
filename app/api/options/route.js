@@ -30,6 +30,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const tenantSlug = searchParams.get('tenant') || ''
     const supabase = await getTenantSupabase(request, tenantSlug)
+
     const [cellsRes, clientsRes, groupsRes, localPedRes, empRes] = await Promise.all([
       supabase.from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxperda').order('alxordem'),
       supabase.from('clien').select('clicodigo, clirazsocial, clinomefant, gclcodigo').eq('clicliente', 'S').order('clirazsocial').limit(500),
@@ -38,45 +39,45 @@ export async function GET(request) {
       supabase.from('funcio').select('funcodigo, funnome').order('funnome').limit(200),
     ])
 
-    const cells = (cellsRes.data || []).map(c => ({
-      value: c.dptcodigo,
-      label: c.alxdescricao,
-      alxcodigo: c.alxcodigo,
-      alxperda: c.alxperda,
+    const cells = (cellsRes.data || []).map(cell => ({
+      value: cell.dptcodigo,
+      label: cell.alxdescricao,
+      alxcodigo: cell.alxcodigo,
+      alxperda: cell.alxperda,
     }))
 
-    const clients = (clientsRes.data || []).map(c => ({
-      clicodigo: c.clicodigo,
-      label: c.clinomefant || c.clirazsocial,
-      razaoSocial: c.clirazsocial,
-      gclcodigo: c.gclcodigo,
+    const clients = (clientsRes.data || []).map(client => ({
+      clicodigo: client.clicodigo,
+      label: client.clinomefant || client.clirazsocial,
+      razaoSocial: client.clirazsocial,
+      gclcodigo: client.gclcodigo,
     }))
 
-    const groupCodes = [...new Set((groupsRes.data || []).map(r => r.gclcodigo).filter(Boolean))]
-    const clientGroups = groupCodes.map(g => ({ value: g, label: `Grupo ${g}` }))
+    const groupCodes = [...new Set((groupsRes.data || []).map(row => row.gclcodigo).filter(Boolean))]
+    const clientGroups = groupCodes.map(groupCode => ({ value: groupCode, label: `Grupo ${groupCode}` }))
 
-    const stages = (localPedRes.data || []).map(l => ({
-      value: l.lpcodigo,
-      label: l.lpdescricao,
-      isFinal: l.lpfimprocesso === 'S',
-      isStart: l.lpiniprocesso === 'S',
+    const stages = (localPedRes.data || []).map(stage => ({
+      value: stage.lpcodigo,
+      label: stage.lpdescricao,
+      isFinal: stage.lpfimprocesso === 'S',
+      isStart: stage.lpiniprocesso === 'S',
     }))
 
     const employees = (empRes.data || [])
-      .filter(e => !e.funnome?.includes('INATIVO'))
-      .map(e => ({ value: e.funcodigo, label: e.funnome }))
+      .filter(employee => !employee.funnome?.includes('INATIVO'))
+      .map(employee => ({ value: employee.funcodigo, label: employee.funnome }))
 
     const statuses = [
-      { value: 'in_progress', label: 'Em Produção' },
-      { value: 'delayed', label: 'Em Produção (atraso)' },
-      { value: 'completed', label: 'Concluído' },
+      { value: 'in_progress', label: 'Em Producao' },
+      { value: 'delayed', label: 'Em Producao (atraso)' },
+      { value: 'completed', label: 'Concluido' },
       { value: 'delayed_completed', label: 'Entregue (atraso)' },
       { value: 'pending', label: 'Aguardando' },
     ]
 
     return NextResponse.json({ cells, clients, clientGroups, stages, employees, statuses })
-  } catch (err) {
-    console.error('[options]', err)
-    return NextResponse.json({ error: err.message }, { status: getErrorStatus(err) })
+  } catch (error) {
+    console.error('[options]', error)
+    return NextResponse.json({ error: error.message }, { status: getErrorStatus(error) })
   }
 }

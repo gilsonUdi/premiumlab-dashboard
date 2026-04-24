@@ -24,7 +24,7 @@ function PlaceholderTool({ company }) {
   )
 }
 
-export default function CompanyDashboardPage({ slug }) {
+export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
   const router = useRouter()
   const [state, setState] = useState(null)
   const [session, setSession] = useState(null)
@@ -42,7 +42,7 @@ export default function CompanyDashboardPage({ slug }) {
         }
 
         if (currentSession.type === 'company' && currentSession.companySlug !== slug) {
-          router.replace(`/empresa/${currentSession.companySlug}/dashboard`)
+          router.replace(`/empresa/${currentSession.companySlug}/${mode === 'pps' ? 'pps' : 'dashboard'}`)
           return
         }
 
@@ -62,7 +62,7 @@ export default function CompanyDashboardPage({ slug }) {
     return () => {
       active = false
     }
-  }, [router, slug])
+  }, [mode, router, slug])
 
   const company = useMemo(() => {
     if (!state) return null
@@ -83,12 +83,15 @@ export default function CompanyDashboardPage({ slug }) {
     return <PlaceholderTool company={company} />
   }
 
+  const backHref = `/empresa/${company.slug}`
+
   return (
     <ProductionDashboard
       companyName={company.name}
-      companySubtitle="Dashboard de Producao"
-      backHref={`/empresa/${company.slug}`}
+      companySubtitle={mode === 'pps' ? 'PPS' : 'Analise de Dados'}
+      backHref={backHref}
       tenantSlug={company.slug}
+      mode={mode}
     />
   )
 }

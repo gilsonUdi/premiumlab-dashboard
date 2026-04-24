@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BarChart3, LogOut, Settings2 } from 'lucide-react'
+import { ArrowLeft, BarChart3, LayoutPanelTop, LogOut, Settings2 } from 'lucide-react'
 import {
   clearPortalSession,
   getCompanyById,
@@ -11,6 +11,23 @@ import {
   getCurrentPortalSession,
   loadCompanyState,
 } from '@/lib/portal-store'
+
+const TOOL_CARDS = [
+  {
+    key: 'analysis',
+    href: slug => `/empresa/${slug}/dashboard`,
+    title: 'Analise de Dados',
+    description: 'Indicadores, historico, rastreabilidade e exportacao das tabelas em Excel.',
+    icon: BarChart3,
+  },
+  {
+    key: 'pps',
+    href: slug => `/empresa/${slug}/pps`,
+    title: 'PPS',
+    description: 'Modo enxuto com foco operacional no historico de pedidos e leitura rapida da producao.',
+    icon: LayoutPanelTop,
+  },
+]
 
 export default function CompanyHomePage({ slug }) {
   const router = useRouter()
@@ -72,6 +89,8 @@ export default function CompanyHomePage({ slug }) {
     )
   }
 
+  const enabledTools = company.tools.includes('dashboard') ? TOOL_CARDS : []
+
   return (
     <main className="min-h-screen bg-[#141216] px-6 py-6 text-white">
       <div className="mx-auto max-w-[1380px]">
@@ -82,9 +101,6 @@ export default function CompanyHomePage({ slug }) {
             <div>
               <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Portal da empresa</p>
               <h1 className="mt-1 text-3xl font-semibold">{company.name}</h1>
-              <p className="mt-1 text-sm text-[#b7b0a6]">
-                {company.email} • {company.supabaseLabel || 'Banco aguardando descricao'}
-              </p>
             </div>
           </div>
 
@@ -107,21 +123,27 @@ export default function CompanyHomePage({ slug }) {
         </header>
 
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {company.tools.includes('dashboard') ? (
-            <Link href={`/empresa/${company.slug}/dashboard`} className="group rounded-[28px] border border-white/8 bg-[#1c191d] p-6 transition hover:border-[#e3ad5a]/40 hover:bg-[#221e22]">
-              <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e3ad5a]/15 text-[#e3ad5a]">
-                <BarChart3 size={22} />
-              </div>
-              <h3 className="text-2xl font-semibold">Dashboard</h3>
-              <p className="mt-3 text-sm leading-7 text-[#bdb7ae]">
-                Acompanhe indicadores, historico de pedidos, rastreabilidade e perda com o mesmo dashboard operacional
-                que usamos na Premium Lab.
-              </p>
-              <div className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[#f1b867]">
-                Abrir ferramenta
-                <ArrowLeft size={15} className="rotate-180 transition group-hover:translate-x-1" />
-              </div>
-            </Link>
+          {enabledTools.length > 0 ? (
+            enabledTools.map(tool => {
+              const Icon = tool.icon
+              return (
+                <Link
+                  key={tool.key}
+                  href={tool.href(company.slug)}
+                  className="group rounded-[28px] border border-white/8 bg-[#1c191d] p-6 transition hover:border-[#e3ad5a]/40 hover:bg-[#221e22]"
+                >
+                  <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e3ad5a]/15 text-[#e3ad5a]">
+                    <Icon size={22} />
+                  </div>
+                  <h3 className="text-2xl font-semibold">{tool.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-[#bdb7ae]">{tool.description}</p>
+                  <div className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[#f1b867]">
+                    Abrir ferramenta
+                    <ArrowLeft size={15} className="rotate-180 transition group-hover:translate-x-1" />
+                  </div>
+                </Link>
+              )
+            })
           ) : (
             <div className="rounded-[28px] border border-dashed border-white/10 bg-[#1c191d] p-6">
               <h3 className="text-2xl font-semibold">Sem ferramentas liberadas</h3>

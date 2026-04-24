@@ -23,6 +23,9 @@ function KPICard({ icon: Icon, label, value, sub, color, loading }) {
 export default function KPICards({ data, loading }) {
   const d = data || {}
 
+  const lossColor = d.perdas > 10 ? '#ef4444' : d.perdas > 5 ? '#f59e0b' : '#22c55e'
+  const lossAngle = Math.max(0, Math.min(360, Number(d.perdas || 0) * 3.6))
+
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-4">
       <KPICard icon={Package} label="Total de Pedidos" value={d.totalOrders ?? '-'} sub="no periodo" color="#3b82f6" loading={loading} />
@@ -32,6 +35,42 @@ export default function KPICards({ data, loading }) {
       <KPICard icon={CheckCircle2} label="Concluidos" value={d.concluidos ?? '-'} sub="no periodo" color="#a78bfa" loading={loading} />
       <KPICard icon={Truck} label="Entregue (atraso)" value={d.entregueAtraso ?? d.atrasados ?? '-'} sub="entregues fora do prazo" color="#fb7185" loading={loading} />
       <KPICard icon={TrendingUp} label="% Perdas" value={d.perdas != null ? `${d.perdas}%` : '-'} sub="em quantidade" color="#ef4444" loading={loading} />
+    </div>
+  )
+}
+
+export function CompactPpsKpis({ data, loading }) {
+  const d = data || {}
+  const lossColor = d.perdas > 10 ? '#ef4444' : d.perdas > 5 ? '#f59e0b' : '#22c55e'
+  const lossAngle = Math.max(0, Math.min(360, Number(d.perdas || 0) * 3.6))
+
+  return (
+    <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <KPICard icon={Package} label="Total" value={d.totalOrders ?? '-'} sub="pedidos" color="#3b82f6" loading={loading} />
+      <KPICard icon={Activity} label="Em Producao" value={d.emProducao ?? '-'} sub="ativos" color="#06b6d4" loading={loading} />
+      <KPICard icon={AlertTriangle} label="Prod. atraso" value={d.emProducaoAtraso ?? '-'} sub="em aberto" color="#f59e0b" loading={loading} />
+      <KPICard icon={Truck} label="Entregue atraso" value={d.entregueAtraso ?? d.atrasados ?? '-'} sub="fora do prazo" color="#fb7185" loading={loading} />
+      <div className="card flex items-center gap-4 p-4" style={{ borderColor: `${lossColor}33` }}>
+        {loading ? (
+          <div className="skeleton h-14 w-14 rounded-full" />
+        ) : (
+          <div
+            className="relative flex h-14 w-14 items-center justify-center rounded-full"
+            style={{
+              background: `conic-gradient(${lossColor} ${lossAngle}deg, #1a3355 ${lossAngle}deg 360deg)`,
+            }}
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#081423] text-[10px] font-bold text-[#e2e8f0]">
+              {d.perdas ?? 0}%
+            </div>
+          </div>
+        )}
+        <div>
+          <p className="text-xs font-medium text-[#7ba3cc]">% Perdas</p>
+          <p className="text-2xl font-bold text-[#e2e8f0]">{loading ? '-' : `${d.perdas ?? 0}%`}</p>
+          <p className="text-xs text-[#4a6b8a]">em quantidade</p>
+        </div>
+      </div>
     </div>
   )
 }

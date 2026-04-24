@@ -1,11 +1,11 @@
 'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { format, startOfMonth } from 'date-fns'
-import { ArrowLeft, Building2, RefreshCw, X } from 'lucide-react'
+import { ArrowLeft, Building2, Download, RefreshCw, X } from 'lucide-react'
 import Filters from '@/components/Filters'
-import KPICards from '@/components/KPICards'
+import KPICards, { CompactPpsKpis } from '@/components/KPICards'
 import HistoricoPedidos from '@/components/HistoricoPedidos'
 import DetalhesProdutos from '@/components/DetalhesProdutos'
 import RastreabilidadePedido from '@/components/RastreabilidadePedido'
@@ -24,23 +24,91 @@ const defaultFilters = () => ({
   pedcodigo: '',
   gclcodigo: '',
   status: '',
+  emissao: '',
+  indice: '',
+  previsto: '',
+  saida: '',
+  quantidade: '',
+  currentCell: '',
+  productStatus: '',
+  procodigo: '',
+  prodescricao: '',
+  productQuantidade: '',
+  customerIndice: '',
+  customerMediaDias: '',
 })
+
+const FILTER_LABELS = {
+  pedcodigo: 'Pedido',
+  clicodigo: 'Cliente',
+  status: 'Status',
+  emissao: 'Emissao',
+  indice: 'Indice',
+  previsto: 'Dt. Prevista',
+  saida: 'Dt. Saida',
+  quantidade: 'Quantidade',
+  currentCell: 'Celula',
+  productStatus: 'Status Produto',
+  procodigo: 'Cod. Produto',
+  prodescricao: 'Descricao',
+  productQuantidade: 'Qtd. Produto',
+  customerIndice: 'Indice Cliente',
+  customerMediaDias: 'Media Dias',
+}
+
+const INTERACTIVE_FIELD_MAP = {
+  pedcodigo: 'pedcodigo',
+  clicodigo: 'clicodigo',
+  'orders.emissao': 'emissao',
+  'orders.indice': 'indice',
+  'orders.previsto': 'previsto',
+  'orders.saida': 'saida',
+  'orders.quantidade': 'quantidade',
+  'orders.status': 'status',
+  'orders.currentCell': 'currentCell',
+  'products.status': 'productStatus',
+  'products.procodigo': 'procodigo',
+  'products.prodescricao': 'prodescricao',
+  'products.quantidade': 'productQuantidade',
+  'customers.indice': 'customerIndice',
+  'customers.mediaDias': 'customerMediaDias',
+}
+
+const STATUS_LABELS = {
+  completed: 'Concluido',
+  delayed_completed: 'Entregue (atraso)',
+  delayed: 'Em Producao (atraso)',
+  in_progress: 'Em Producao',
+  pending: 'Aguardando',
+}
+
+function formatDateTimeLabel(value) {
+  if (!value) return ''
+  try {
+    return format(new Date(value), 'dd/MM/yyyy HH:mm')
+  } catch {
+    return String(value)
+  }
+}
 
 export default function ProductionDashboard({
   companyName = 'Premium Lab',
   companySubtitle = 'Dashboard de Producao',
   backHref = null,
   tenantSlug,
+  mode = 'analysis',
 }) {
+  const isPpsMode = mode === 'pps'
   const [filters, setFilters] = useState(defaultFilters)
-  const [selectedOrder, setSelectedOrder] = useState(null)
-  const [selectedClient, setSelectedClient] = useState(null)
-  const [columnFilters, setColumnFilters] = useState({})
   const [data, setData] = useState(null)
   const [options, setOptions] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
   const debounceRef = useRef(null)
+
+  const selectedOrder = filters.pedcodigo || null
+  const selectedClient = filters.clicodigo || null
 
   const getAuthorizedHeaders = useCallback(async () => {
     const { auth } = getFirebaseServices()
@@ -77,9 +145,6 @@ export default function ProductionDashboard({
       if (value) params.set(key, value)
     })
     if (tenantSlug) params.set('tenant', tenantSlug)
-    if (Object.keys(columnFilters).length > 0) params.set('columnFilters', JSON.stringify(columnFilters))
-    if (selectedOrder) params.set('pedcodigo', selectedOrder)
-    if (selectedClient) params.set('clicodigo', selectedClient)
 
     try {
       const response = await fetch(`/api/dashboard?${params}`, {
@@ -93,13 +158,10 @@ export default function ProductionDashboard({
     } finally {
       setLoading(false)
     }
-  }, [columnFilters, filters, getAuthorizedHeaders, selectedClient, selectedOrder, tenantSlug])
+  }, [filters, getAuthorizedHeaders, tenantSlug])
 
   const handleFiltersChange = useCallback(updater => {
     setFilters(previous => (typeof updater === 'function' ? updater(previous) : updater))
-    setSelectedOrder(null)
-    setSelectedClient(null)
-    setColumnFilters({})
   }, [])
 
   useEffect(() => {
@@ -108,61 +170,99 @@ export default function ProductionDashboard({
     return () => clearTimeout(debounceRef.current)
   }, [fetchData])
 
-  const handleColumnClick = (field, value) => {
-    if (field === 'pedcodigo') {
-      setSelectedOrder(previous => (previous === value || value === null ? null : value))
-      setColumnFilters(previous => {
-        const next = { ...previous }
-        delete next.pedcodigo
-        return next
-      })
-      return
-    }
+  const handleColumnClick = useCallback((field, value) => {
+    const filterKey = INTERACTIVE_FIELD_MAP[field]
+    if (!filterKey) return
 
-    if (field === 'clicodigo') {
-      setSelectedClient(previous => (previous === value || value === null ? null : value))
-      setColumnFilters(previous => {
-        const next = { ...previous }
-        delete next.clicodigo
-        return next
-      })
-      return
-    }
-
-    setColumnFilters(previous => {
+    setFilters(previous => {
       const normalized = value == null ? '' : String(value)
-      if (String(previous[field] || '') === normalized) {
-        const next = { ...previous }
-        delete next[field]
-        return next
+      return {
+        ...previous,
+        [filterKey]: String(previous[filterKey] || '') === normalized ? '' : normalized,
       }
-      return { ...previous, [field]: normalized }
     })
-  }
+  }, [])
 
   const handleReset = () => {
     setFilters(defaultFilters())
-    setSelectedOrder(null)
-    setSelectedClient(null)
-    setColumnFilters({})
   }
 
-  const activeChips = [
-    selectedOrder && { label: `Pedido: ${selectedOrder}`, onRemove: () => setSelectedOrder(null) },
-    selectedClient && { label: `Cliente: ${selectedClient}`, onRemove: () => setSelectedClient(null) },
-    ...Object.entries(columnFilters).map(([field, value]) => ({
-      label: `${field}: ${value}`,
-      onRemove: () =>
-        setColumnFilters(previous => {
-          const next = { ...previous }
-          delete next[field]
-          return next
-        }),
-    })),
-  ].filter(Boolean)
+  const activeChips = useMemo(() => {
+    return Object.entries(filters)
+      .filter(([key, value]) => !['dateStart', 'dateEnd', 'dptcodigo', 'clicodigo', 'clinome', 'pedcodigo', 'gclcodigo', 'status'].includes(key) && value)
+      .map(([key, value]) => ({
+        key,
+        label: `${FILTER_LABELS[key] || key}: ${value}`,
+        onRemove: () => setFilters(previous => ({ ...previous, [key]: '' })),
+      }))
+      .concat(
+        filters.pedcodigo
+          ? [{ key: 'pedcodigo', label: `Pedido: ${filters.pedcodigo}`, onRemove: () => setFilters(previous => ({ ...previous, pedcodigo: '' })) }]
+          : [],
+        filters.clicodigo
+          ? [{ key: 'clicodigo', label: `Cliente: ${filters.clicodigo}`, onRemove: () => setFilters(previous => ({ ...previous, clicodigo: '', clinome: '' })) }]
+          : []
+      )
+  }, [filters])
+
+  const handleExport = useCallback(async () => {
+    if (!data) return
+
+    try {
+      setExporting(true)
+      const XLSX = await import('xlsx')
+      const workbook = XLSX.utils.book_new()
+
+      const orderRows = (data.orders || []).map(row => ({
+        'Data Emissao': formatDateTimeLabel(row.emissao),
+        'Cod. Pedido': row.pedcodigo,
+        'Indice %': row.indice,
+        Celula: row.currentCell || '-',
+        'Dt. Prevista': formatDateTimeLabel(row.previsto),
+        'Dt. Saida': formatDateTimeLabel(row.saida),
+        Quantidade: row.quantidade,
+        Status: STATUS_LABELS[row.status] || row.status,
+      }))
+
+      const productRows = (data.products || []).map(row => ({
+        'Cod. Pedido': row.pedcodigo,
+        Status: row.status,
+        'Cod. Produto': row.procodigo,
+        Descricao: row.prodescricao,
+        Quantidade: row.quantidade,
+      }))
+
+      const traceRows = (data.traceability || []).map(row => ({
+        Estoque: row.estoque,
+        Celula: row.celula,
+        'Data e Hora': formatDateTimeLabel(row.dataHora),
+        Usuario: row.usuario,
+        Pedido: row.pedcodigo,
+      }))
+
+      const customerRows = (data.customers || []).map(row => ({
+        Cliente: row.clinome,
+        Indice: row.indice,
+        'Media Dias': row.mediaDias,
+      }))
+
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(orderRows), 'Historico')
+      if (!isPpsMode) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(productRows), 'Produtos')
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(traceRows), 'Rastreabilidade')
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(customerRows), 'Clientes')
+      }
+
+      XLSX.writeFile(workbook, `${companyName.replace(/\s+/g, '-').toLowerCase()}-${isPpsMode ? 'pps' : 'analise'}-${format(new Date(), 'yyyyMMdd-HHmm')}.xlsx`)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setExporting(false)
+    }
+  }, [companyName, data, isPpsMode])
 
   return (
-    <div className="min-h-screen bg-[#030b1a]">
+    <div className={`bg-[#030b1a] ${isPpsMode ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       <header style={{ background: '#050f1e', borderBottom: '1px solid #1a3355' }}>
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-3">
@@ -188,6 +288,15 @@ export default function ProductionDashboard({
               <span className="hidden text-xs text-[#4a6b8a] md:block">Atualizado as {format(lastUpdated, 'HH:mm:ss')}</span>
             ) : null}
             <button
+              onClick={handleExport}
+              disabled={loading || exporting}
+              className="flex items-center gap-1.5 rounded-lg border border-[#1a3355] bg-[#0d1f38] px-3 py-1.5 text-xs font-medium text-[#7ba3cc] transition-all disabled:opacity-60"
+              title="Exportar tabelas"
+            >
+              <Download size={13} />
+              <span className="hidden md:inline">{exporting ? 'Exportando' : 'Excel'}</span>
+            </button>
+            <button
               onClick={fetchData}
               disabled={loading}
               className="flex items-center gap-1.5 rounded-lg border border-[#1a3355] bg-[#0d1f38] px-3 py-1.5 text-xs font-medium text-[#7ba3cc] transition-all"
@@ -200,14 +309,22 @@ export default function ProductionDashboard({
         </div>
       </header>
 
-      <main className="mx-auto max-w-screen-2xl px-4 py-4">
-        <Filters filters={filters} options={options} onChange={handleFiltersChange} onReset={handleReset} />
+      <main className={`mx-auto max-w-screen-2xl px-4 py-4 ${isPpsMode ? 'flex h-[calc(100vh-72px)] flex-col overflow-hidden' : ''}`}>
+        <Filters
+          filters={filters}
+          options={options}
+          onChange={handleFiltersChange}
+          onReset={handleReset}
+          defaultOpen={!isPpsMode}
+          compact={isPpsMode}
+          showDateFilters={!isPpsMode}
+        />
 
         {activeChips.length > 0 ? (
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className="text-xs text-[#4a6b8a]">Filtros ativos:</span>
-            {activeChips.map((chip, index) => (
-              <button key={index} className="filter-chip" onClick={chip.onRemove}>
+            {activeChips.map(chip => (
+              <button key={chip.key} className="filter-chip" onClick={chip.onRemove}>
                 {chip.label}
                 <X size={10} />
               </button>
@@ -215,45 +332,62 @@ export default function ProductionDashboard({
           </div>
         ) : null}
 
-        <KPICards data={data?.kpis} loading={loading} />
+        {isPpsMode ? <CompactPpsKpis data={data?.kpis} loading={loading} /> : <KPICards data={data?.kpis} loading={loading} />}
 
-        <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <PontualidadeChart data={data?.pontualidade} loading={loading} />
-          <PerdasChart data={data?.perdas} loading={loading} />
-        </div>
+        {isPpsMode ? (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <HistoricoPedidos
+              data={data?.orders}
+              selectedOrder={selectedOrder}
+              onColumnClick={handleColumnClick}
+              loading={loading}
+              compact
+              fillHeight
+            />
+          </div>
+        ) : (
+          <>
+            <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <PontualidadeChart data={data?.pontualidade} loading={loading} />
+              <PerdasChart data={data?.perdas} loading={loading} />
+            </div>
 
-        <HistoricoPedidos
-          data={data?.orders}
-          selectedOrder={selectedOrder}
-          onColumnClick={handleColumnClick}
-          loading={loading}
-        />
+            <HistoricoPedidos
+              data={data?.orders}
+              selectedOrder={selectedOrder}
+              onColumnClick={handleColumnClick}
+              loading={loading}
+            />
 
-        <DetalhesProdutos
-          data={data?.products}
-          selectedOrder={selectedOrder}
-          onColumnClick={handleColumnClick}
-          loading={loading}
-        />
+            <DetalhesProdutos
+              data={data?.products}
+              selectedOrder={selectedOrder}
+              onColumnClick={handleColumnClick}
+              loading={loading}
+            />
 
-        <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <RastreabilidadePedido
-            data={data?.traceability}
-            selectedOrder={selectedOrder}
-            onColumnClick={handleColumnClick}
-            loading={loading}
-          />
-          <IndiceAtendimento
-            data={data?.customers}
-            selectedClient={selectedClient}
-            onColumnClick={handleColumnClick}
-            loading={loading}
-          />
-        </div>
+            <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <RastreabilidadePedido
+                data={data?.traceability}
+                selectedOrder={selectedOrder}
+                onColumnClick={handleColumnClick}
+                loading={loading}
+              />
+              <IndiceAtendimento
+                data={data?.customers}
+                selectedClient={selectedClient}
+                onColumnClick={handleColumnClick}
+                loading={loading}
+              />
+            </div>
+          </>
+        )}
 
-        <div className="py-4 text-center text-[11px] text-[#1a3355]">
-          {companyName} © {new Date().getFullYear()} - Dashboard de Producao
-        </div>
+        {!isPpsMode ? (
+          <div className="py-4 text-center text-[11px] text-[#1a3355]">
+            {companyName} © {new Date().getFullYear()} - {companySubtitle}
+          </div>
+        ) : null}
       </main>
     </div>
   )

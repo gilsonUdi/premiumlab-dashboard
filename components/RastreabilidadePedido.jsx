@@ -1,13 +1,16 @@
 'use client'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react'
 
-const fmtDt = (v) => {
-  if (!v) return '—'
-  try { return format(parseISO(v), 'dd/MM/yy HH:mm', { locale: ptBR }) }
-  catch { return v }
+function fmtDt(value) {
+  if (!value) return '-'
+  try {
+    return format(parseISO(value), 'dd/MM/yyyy HH:mm', { locale: ptBR })
+  } catch {
+    return value
+  }
 }
 
 function SortIcon({ col, sort }) {
@@ -18,24 +21,23 @@ function SortIcon({ col, sort }) {
 export default function RastreabilidadePedido({ data, selectedOrder, onColumnClick, loading }) {
   const [sort, setSort] = useState({ col: 'dataHora', dir: 'asc' })
 
-  const toggleSort = (col) => {
-    setSort(prev => ({ col, dir: prev.col === col && prev.dir === 'asc' ? 'desc' : 'asc' }))
-  }
-
-  const rows = [...(data || [])].sort((a, b) => {
-    let va = a[sort.col], vb = b[sort.col]
-    if (typeof va === 'string') va = va.toLowerCase()
-    if (typeof vb === 'string') vb = vb.toLowerCase()
-    if (va < vb) return sort.dir === 'asc' ? -1 : 1
-    if (va > vb) return sort.dir === 'asc' ? 1 : -1
-    return 0
-  })
+  const rows = useMemo(() => {
+    return [...(data || [])].sort((a, b) => {
+      let valueA = a[sort.col]
+      let valueB = b[sort.col]
+      if (typeof valueA === 'string') valueA = valueA.toLowerCase()
+      if (typeof valueB === 'string') valueB = valueB.toLowerCase()
+      if (valueA < valueB) return sort.dir === 'asc' ? -1 : 1
+      if (valueA > valueB) return sort.dir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [data, sort])
 
   const cols = [
-    { key: 'estoque', label: 'Estoque'     },
-    { key: 'celula',  label: 'Célula'      },
-    { key: 'dataHora',label: 'Data e Hora' },
-    { key: 'usuario', label: 'Usuário'     },
+    { key: 'estoque', label: 'Estoque' },
+    { key: 'celula', label: 'Celula' },
+    { key: 'dataHora', label: 'Data e Hora' },
+    { key: 'usuario', label: 'Usuario' },
   ]
 
   return (
@@ -44,25 +46,23 @@ export default function RastreabilidadePedido({ data, selectedOrder, onColumnCli
         <h2 className="text-sm font-semibold" style={{ color: '#e2e8f0' }}>
           Rastreabilidade do Pedido
         </h2>
-        {selectedOrder && (
-          <span className="filter-chip" style={{ cursor: 'default' }}>Pedido #{selectedOrder}</span>
-        )}
+        {selectedOrder ? <span className="filter-chip">Pedido #{selectedOrder}</span> : null}
       </div>
 
       <div className="overflow-auto" style={{ maxHeight: 420 }}>
         <table className="w-full text-xs">
           <thead className="sticky top-0 z-10">
             <tr style={{ background: '#0d1f38' }}>
-              {cols.map(c => (
+              {cols.map(col => (
                 <th
-                  key={c.key}
+                  key={col.key}
                   className="col-sortable px-4 py-3 text-left font-medium"
-                  style={{ color: sort.col === c.key ? '#3b9fd4' : '#7ba3cc', whiteSpace: 'nowrap' }}
-                  onClick={() => toggleSort(c.key)}
+                  style={{ color: sort.col === col.key ? '#3b9fd4' : '#7ba3cc', whiteSpace: 'nowrap' }}
+                  onClick={() => setSort(previous => ({ col: col.key, dir: previous.col === col.key && previous.dir === 'asc' ? 'desc' : 'asc' }))}
                 >
                   <span className="flex items-center gap-1">
-                    {c.label}
-                    <SortIcon col={c.key} sort={sort} />
+                    {col.label}
+                    <SortIcon col={col.key} sort={sort} />
                   </span>
                 </th>
               ))}
@@ -70,10 +70,10 @@ export default function RastreabilidadePedido({ data, selectedOrder, onColumnCli
           </thead>
           <tbody>
             {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} style={{ borderTop: '1px solid #0d1f38' }}>
-                  {cols.map(c => (
-                    <td key={c.key} className="px-4 py-3">
+              Array.from({ length: 5 }).map((_, index) => (
+                <tr key={index} style={{ borderTop: '1px solid #0d1f38' }}>
+                  {cols.map(col => (
+                    <td key={col.key} className="px-4 py-3">
                       <div className="skeleton h-4 w-full" />
                     </td>
                   ))}
@@ -86,9 +86,9 @@ export default function RastreabilidadePedido({ data, selectedOrder, onColumnCli
                 </td>
               </tr>
             ) : (
-              rows.map((row, i) => (
+              rows.map((row, index) => (
                 <tr
-                  key={i}
+                  key={`${row.pedcodigo || 'trace'}-${index}`}
                   className="table-row-hover"
                   style={{ borderTop: '1px solid #0d1f38' }}
                   onClick={() => row.pedcodigo && onColumnClick('pedcodigo', row.pedcodigo)}
@@ -100,16 +100,16 @@ export default function RastreabilidadePedido({ data, selectedOrder, onColumnCli
                     <span
                       className="badge"
                       style={{
-                        background: row.celula === 'Saída' ? 'rgba(34,197,94,0.1)' : 'rgba(59,130,246,0.1)',
-                        color: row.celula === 'Saída' ? '#22c55e' : '#60a5fa',
-                        border: `1px solid ${row.celula === 'Saída' ? '#22c55e40' : '#60a5fa40'}`,
+                        background: row.celula === 'Saida' ? 'rgba(34,197,94,0.1)' : 'rgba(59,130,246,0.1)',
+                        color: row.celula === 'Saida' ? '#22c55e' : '#60a5fa',
+                        border: `1px solid ${row.celula === 'Saida' ? '#22c55e40' : '#60a5fa40'}`,
                       }}
                     >
                       {row.celula}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 font-mono" style={{ color: '#7ba3cc' }}>{fmtDt(row.dataHora)}</td>
-                  <td className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>{row.usuario || '—'}</td>
+                  <td className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>{row.usuario || '-'}</td>
                 </tr>
               ))
             )}
