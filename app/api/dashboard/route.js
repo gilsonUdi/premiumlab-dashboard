@@ -7,9 +7,8 @@ import { resolveAuthorizedCompany } from '@/lib/server-auth'
 export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 1000
-const MAX_REQUI_ROWS = 20000
+const MAX_REQUI_ROWS = 100000
 const MAX_SALES_ROWS = 20000
-const MAX_ORDER_CELL_BATCH = 800
 const LOSS_REQ_TYPES = new Set(['B', 'C'])
 const PRODUCTION_TIME_ZONE = 'America/Sao_Paulo'
 const EXPECTED_TIME_SQL = `(date_trunc('hour', ped.pedhrentre::time) - interval '3 hours')::time`
@@ -256,14 +255,6 @@ async function execSql(supabase, sql) {
   return data || []
 }
 
-function chunkList(items, chunkSize) {
-  const chunks = []
-  for (let index = 0; index < items.length; index += chunkSize) {
-    chunks.push(items.slice(index, index + chunkSize))
-  }
-  return chunks
-}
-
 function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind = 'products' }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
@@ -358,30 +349,6 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
   `
 }
 
-function buildLatestOrderCellsSql(orderIds) {
-  const idList = orderIds.map(id => Number(id)).filter(Number.isFinite)
-  if (!idList.length) return null
-
-  return `
-    select
-      latest.id_pedido as pedido,
-      lp.lpdescricao as current_cell,
-      latest.apdata,
-      latest.aphora
-    from (
-      select distinct on (ac.id_pedido)
-        ac.id_pedido,
-        ac.lpcodigo,
-        ac.apdata,
-        ac.aphora
-      from acoped ac
-      where ac.id_pedido in (${idList.join(',')})
-      order by ac.id_pedido, ac.apdata desc, ac.aphora desc
-    ) latest
-    left join localped lp on lp.lpcodigo = latest.lpcodigo
-  `
-}
-
 async function getTenantSupabase(request, tenantSlug) {
   const { company, companySecrets } = await resolveAuthorizedCompany(request, tenantSlug)
   const supabaseUrl = companySecrets.supabaseUrl || company.supabaseUrl || (company.isPremiumLab ? process.env.SUPABASE_URL : '')
@@ -458,8 +425,8 @@ export async function GET(request) {
       supabase.from('almox').select('empcodigo, alxcodigo, alxdescricao, dptcodigo, alxordem, alxtipocel').order('alxordem'),
       supabase.from('funcio').select('funcodigo, funnome').limit(300),
       supabase.from('usuario').select('usucodigo, usunome').limit(300),
-      fetchOptionalPages(acopedQuery, { maxRows: pedcodigo ? 10000 : 20000 }),
-      fetchOptionalPages(rastreabQuery, { maxRows: pedcodigo ? 10000 : 20000 }),
+      fetchOptionalPages(acopedQuery, { maxRows: pedcodigo ? 20000 : 100000 }),
+      fetchOptionalPages(rastreabQuery, { maxRows: pedcodigo ? 20000 : 100000 }),
       fetchAllPages(() => {
         let query = supabase
           .from('clien')
@@ -581,17 +548,6 @@ export async function GET(request) {
 
     const salesOrders = Object.values(salesOrderMap)
     const orderNumberById = Object.fromEntries(salesOrders.map(order => [order.pedido, order.numeroVenda]))
-    const latestOrderCellRows = (
-      await Promise.all(
-        chunkList(
-          salesOrders.map(order => order.pedido),
-          MAX_ORDER_CELL_BATCH
-        ).map(async batch => {
-          const sql = buildLatestOrderCellsSql(batch)
-          return sql ? execSql(supabase, sql) : []
-        })
-      )
-    ).flat()
 
     let products = salesRows.map(row => ({
       pedcodigo: normalizeOrderCode(row.numero_venda || row.pedido),
@@ -604,16 +560,6 @@ export async function GET(request) {
     }))
 
     const latestCellByOrderId = {}
-
-    for (const row of latestOrderCellRows) {
-      const pedidoId = String(row.pedido || '')
-      if (!pedidoId) continue
-
-      latestCellByOrderId[pedidoId] = {
-        stamp: combineDateTime(row.apdata, row.aphora),
-        cell: normalizeText(row.current_cell),
-      }
-    }
 
     for (const row of acoped) {
       const pedidoId = String(row.id_pedido || '')
