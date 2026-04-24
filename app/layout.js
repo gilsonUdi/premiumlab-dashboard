@@ -1,8 +1,8 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'Premium Lab — Dashboard de Produção',
-  description: 'Dashboard de linha de produção do Laboratório Óptico Premium',
+  title: 'GS Portal - Multi-tenant',
+  description: 'Portal multi-tenant para dashboards e ferramentas das empresas atendidas pela GS Consultoria & Gestao',
 }
 
 export default function RootLayout({ children }) {

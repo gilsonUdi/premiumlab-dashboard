@@ -1,240 +1,183 @@
-'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
-import dynamic from 'next/dynamic'
-import { format, startOfMonth } from 'date-fns'
-import { RefreshCw, Microscope, X } from 'lucide-react'
-import Filters from '@/components/Filters'
-import KPICards from '@/components/KPICards'
-import HistoricoPedidos from '@/components/HistoricoPedidos'
-import DetalhesProdutos from '@/components/DetalhesProdutos'
-import RastreabilidadePedido from '@/components/RastreabilidadePedido'
-import IndiceAtendimento from '@/components/IndiceAtendimento'
+import Image from 'next/image'
+import Link from 'next/link'
+import { ArrowRight, Building2, ShieldCheck } from 'lucide-react'
 
-// Dynamic import for chart components (browser-only)
-const PontualidadeChart = dynamic(() => import('@/components/PontualidadeChart'), { ssr: false })
-const PerdasChart = dynamic(() => import('@/components/PerdasChart'), { ssr: false })
-
-const defaultFilters = () => ({
-  dateStart: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
-  dateEnd:   format(new Date(), 'yyyy-MM-dd'),
-  dptcodigo: '',
-  clicodigo: '',
-  clinome:   '',
-  pedcodigo: '',
-  gclcodigo: '',
-  status:    '',
-})
-
-export default function Dashboard() {
-  const [filters, setFilters]           = useState(defaultFilters)
-  const [selectedOrder, setSelectedOrder]   = useState(null)
-  const [selectedClient, setSelectedClient] = useState(null)
-  const [columnFilters, setColumnFilters] = useState({})
-  const [data, setData]     = useState(null)
-  const [options, setOptions] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [lastUpdated, setLastUpdated] = useState(null)
-  const debounceRef = useRef(null)
-
-  // Fetch filter options once on mount
-  useEffect(() => {
-    fetch('/api/options')
-      .then(r => r.json())
-      .then(setOptions)
-      .catch(console.error)
-  }, [])
-
-  // Fetch dashboard data (debounced)
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    const params = new URLSearchParams()
-    Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v) })
-    if (Object.keys(columnFilters).length > 0) params.set('columnFilters', JSON.stringify(columnFilters))
-    if (selectedOrder)  params.set('pedcodigo', selectedOrder)
-    if (selectedClient) params.set('clicodigo', selectedClient)
-    try {
-      const res = await fetch(`/api/dashboard?${params}`)
-      const json = await res.json()
-      setData(json)
-      setLastUpdated(new Date())
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }, [filters, selectedOrder, selectedClient, columnFilters])
-
-  const handleFiltersChange = useCallback((updater) => {
-    setFilters(prev => (typeof updater === 'function' ? updater(prev) : updater))
-    setSelectedOrder(null)
-    setSelectedClient(null)
-    setColumnFilters({})
-  }, [])
-
-  useEffect(() => {
-    clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(fetchData, 350)
-    return () => clearTimeout(debounceRef.current)
-  }, [fetchData])
-
-  const handleColumnClick = (field, value) => {
-    if (field === 'pedcodigo') {
-      setSelectedOrder(prev => prev === value || value === null ? null : value)
-      setColumnFilters(prev => {
-        const next = { ...prev }
-        delete next.pedcodigo
-        return next
-      })
-    } else if (field === 'clicodigo') {
-      setSelectedClient(prev => prev === value || value === null ? null : value)
-      setColumnFilters(prev => {
-        const next = { ...prev }
-        delete next.clicodigo
-        return next
-      })
-    } else {
-      setColumnFilters(prev => {
-        const normalized = value == null ? '' : String(value)
-        if (String(prev[field] || '') === normalized) {
-          const next = { ...prev }
-          delete next[field]
-          return next
-        }
-        return { ...prev, [field]: normalized }
-      })
-    }
-  }
-
-  const handleReset = () => {
-    setFilters(defaultFilters())
-    setSelectedOrder(null)
-    setSelectedClient(null)
-    setColumnFilters({})
-  }
-
-  const activeChips = [
-    selectedOrder  && { label: `Pedido: ${selectedOrder}`,     onRemove: () => setSelectedOrder(null)  },
-    selectedClient && { label: `Cliente: ${selectedClient}`,   onRemove: () => setSelectedClient(null) },
-    ...Object.entries(columnFilters).map(([field, value]) => ({
-      label: `${field}: ${value}`,
-      onRemove: () => setColumnFilters(prev => {
-        const next = { ...prev }
-        delete next[field]
-        return next
-      }),
-    })),
-  ].filter(Boolean)
-
+function DashboardMock() {
   return (
-    <div className="min-h-screen" style={{ background: '#030b1a' }}>
-      {/* ─── HEADER ────────────────────────────────────────────────── */}
-      <header style={{ background: '#050f1e', borderBottom: '1px solid #1a3355' }}>
-        <div className="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1d6fa4, #0891b2)' }}>
-              <Microscope size={18} color="#fff" />
+    <div className="relative mx-auto w-full max-w-[760px]">
+      <div className="absolute -left-10 top-14 h-40 w-40 rounded-full bg-[#e3ad5a]/15 blur-3xl" />
+      <div className="absolute -right-8 bottom-0 h-48 w-48 rounded-full bg-[#e3ad5a]/20 blur-3xl" />
+
+      <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#0d0d11] shadow-[0_32px_100px_rgba(0,0,0,0.45)]">
+        <div className="grid min-h-[430px] grid-cols-[110px_1fr]">
+          <aside className="border-r border-white/6 bg-[#111216] p-5">
+            <div className="mb-7 h-9 w-9 rounded-lg bg-[#1d1f25]" />
+            <div className="space-y-3">
+              {[72, 60, 68, 54, 46].map((width, index) => (
+                <div key={index} className="h-3 rounded-full bg-[#1f2229]" style={{ width }} />
+              ))}
             </div>
-            <div>
-              <h1 className="text-sm font-bold tracking-wide" style={{ color: '#e2e8f0' }}>
-                Premium Lab
-              </h1>
-              <p className="text-xs" style={{ color: '#4a6b8a' }}>Dashboard de Produção</p>
+          </aside>
+
+          <div className="p-5">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <div className="mb-2 h-3 w-20 rounded-full bg-[#2a2f39]" />
+                <div className="h-6 w-40 rounded-full bg-[#ece7dd]" />
+              </div>
+              <div className="flex gap-3">
+                <div className="h-10 w-24 rounded-2xl bg-[#1c1f27]" />
+                <div className="h-10 w-24 rounded-2xl bg-[#1c1f27]" />
+              </div>
+            </div>
+
+            <div className="mb-5 grid gap-4 md:grid-cols-4">
+              {['#e3ad5a', '#23c17e', '#60a5fa', '#a78bfa'].map((color, index) => (
+                <div key={index} className="rounded-2xl border border-white/6 bg-[#14171d] p-4">
+                  <div className="mb-3 h-3 w-20 rounded-full bg-[#2b313d]" />
+                  <div className="mb-2 h-7 w-16 rounded-full" style={{ background: color }} />
+                  <div className="h-3 w-14 rounded-full bg-[#262c37]" />
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="rounded-3xl border border-white/6 bg-[#14171d] p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="h-4 w-36 rounded-full bg-[#2a303b]" />
+                  <div className="h-3 w-16 rounded-full bg-[#232934]" />
+                </div>
+                <div className="flex h-[210px] items-end gap-3">
+                  {[52, 86, 64, 118, 78, 138, 112].map((height, index) => (
+                    <div
+                      key={index}
+                      className="flex-1 rounded-t-2xl bg-gradient-to-t from-[#e3ad5a]/35 to-[#e3ad5a]"
+                      style={{ height }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-3xl border border-white/6 bg-[#14171d] p-5">
+                  <div className="mb-5 flex items-center justify-between">
+                    <div className="h-4 w-28 rounded-full bg-[#2a303b]" />
+                    <div className="h-8 w-8 rounded-full border border-white/8 bg-[#1a1e25]" />
+                  </div>
+                  <div className="mx-auto mb-5 flex h-36 w-36 items-center justify-center rounded-full border-[12px] border-[#e3ad5a] border-r-[#2f343e] border-b-[#2f343e]">
+                    <span className="text-4xl font-semibold text-white">25%</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="mb-2 h-3 w-16 rounded-full bg-[#2a303b]" />
+                      <div className="h-5 w-12 rounded-full bg-[#e3ad5a]" />
+                    </div>
+                    <div>
+                      <div className="mb-2 h-3 w-16 rounded-full bg-[#2a303b]" />
+                      <div className="h-5 w-12 rounded-full bg-[#e3ad5a]" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-white/6 bg-[#14171d] p-5">
+                  <div className="mb-4 h-4 w-24 rounded-full bg-[#2a303b]" />
+                  <div className="space-y-3">
+                    {[88, 76, 68, 82].map((width, index) => (
+                      <div key={index} className="space-y-2">
+                        <div className="h-2 w-16 rounded-full bg-[#20252d]" />
+                        <div className="h-2 rounded-full bg-[#2b313d]">
+                          <div className="h-2 rounded-full bg-[#e3ad5a]" style={{ width: `${width}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            {lastUpdated && (
-              <span className="text-xs hidden md:block" style={{ color: '#4a6b8a' }}>
-                Atualizado às {format(lastUpdated, 'HH:mm:ss')}
-              </span>
-            )}
-            <button
-              onClick={fetchData}
-              disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-              style={{ background: '#0d1f38', border: '1px solid #1a3355', color: '#7ba3cc' }}
-              title="Atualizar dados"
-            >
-              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-              <span className="hidden md:inline">Atualizar</span>
-            </button>
-          </div>
         </div>
-      </header>
+      </div>
 
-      {/* ─── CONTENT ───────────────────────────────────────────────── */}
-      <main className="max-w-screen-2xl mx-auto px-4 py-4">
-
-        {/* Filters */}
-        <Filters
-          filters={filters}
-          options={options}
-          onChange={handleFiltersChange}
-          onReset={handleReset}
-        />
-
-        {/* Active interactive filter chips */}
-        {activeChips.length > 0 && (
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
-            <span className="text-xs" style={{ color: '#4a6b8a' }}>Filtros ativos:</span>
-            {activeChips.map((chip, i) => (
-              <button
-                key={i}
-                className="filter-chip"
-                onClick={chip.onRemove}
-              >
-                {chip.label}
-                <X size={10} />
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* KPIs */}
-        <KPICards data={data?.kpis} loading={loading} />
-
-        {/* Charts row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-          <PontualidadeChart data={data?.pontualidade} loading={loading} />
-          <PerdasChart data={data?.perdas} loading={loading} />
+      <div className="absolute -bottom-8 left-6 right-10 flex items-center gap-4 rounded-[26px] border border-white/8 bg-[#1a1818]/90 px-5 py-4 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#e3ad5a] text-[#1b1612]">
+          <Building2 size={24} />
         </div>
-
-        {/* Order History */}
-        <HistoricoPedidos
-          data={data?.orders}
-          selectedOrder={selectedOrder}
-          onColumnClick={handleColumnClick}
-          loading={loading}
-        />
-
-        {/* Product Details */}
-        <DetalhesProdutos
-          data={data?.products}
-          selectedOrder={selectedOrder}
-          onColumnClick={handleColumnClick}
-          loading={loading}
-        />
-
-        {/* Traceability + Customer Index */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-          <RastreabilidadePedido
-            data={data?.traceability}
-            selectedOrder={selectedOrder}
-            onColumnClick={handleColumnClick}
-            loading={loading}
-          />
-          <IndiceAtendimento
-            data={data?.customers}
-            selectedClient={selectedClient}
-            onColumnClick={handleColumnClick}
-            loading={loading}
-          />
+        <div>
+          <p className="text-sm uppercase tracking-[0.24em] text-[#8e887d]">Portal GS</p>
+          <p className="text-2xl font-semibold text-[#f1b867]">Visao unificada das empresas</p>
         </div>
-
-        {/* Footer */}
-        <div className="text-center py-4" style={{ color: '#1a3355', fontSize: 11 }}>
-          Premium Lab © {new Date().getFullYear()} — Dashboard de Produção
-        </div>
-      </main>
+      </div>
     </div>
+  )
+}
+
+export default function HomePage() {
+  return (
+    <main className="min-h-screen overflow-hidden bg-[#171416] text-white">
+      <div className="mx-auto flex min-h-screen max-w-[1500px] flex-col px-6 pb-12 pt-6 lg:px-12">
+        <header className="flex items-center justify-between gap-6">
+          <Link href="/" className="flex items-center gap-4">
+            <Image
+              src="/gs-logo.png"
+              alt="GS Consultoria & Gestao"
+              width={220}
+              height={124}
+              className="h-14 w-auto md:h-16"
+              priority
+            />
+          </Link>
+
+          <nav className="hidden items-center gap-10 text-sm font-medium uppercase tracking-[0.16em] text-[#e7e1d9]/80 lg:flex">
+            <span>Inicio</span>
+            <span>Empresas</span>
+            <span>Ferramentas</span>
+            <span>Controle</span>
+          </nav>
+
+          <Link
+            href="/login"
+            className="inline-flex h-14 items-center gap-3 rounded-full bg-[#e3ad5a] px-7 text-sm font-semibold text-[#201814] shadow-[0_18px_35px_rgba(227,173,90,0.22)] transition hover:brightness-105"
+          >
+            Fazer login
+            <ArrowRight size={16} />
+          </Link>
+        </header>
+
+        <section className="grid flex-1 items-center gap-16 py-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <div className="max-w-[640px]">
+            <div className="mb-8 inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-[#e7e1d9]/80">
+              <ShieldCheck size={16} className="text-[#e3ad5a]" />
+              Multi-tenant para operacao, dashboards e gestao
+            </div>
+
+            <h1 className="mb-8 text-[48px] font-semibold leading-[0.96] tracking-tight text-[#f7f5f2] md:text-[72px]">
+              Voce controla suas empresas ou so organiza tudo em planilhas?
+            </h1>
+
+            <p className="mb-10 max-w-[560px] text-lg leading-8 text-[#c3bfb7] md:text-[30px]/[1.45]">
+              A plataforma GS centraliza ferramentas, acessos e operacao por empresa. Comecamos com o dashboard da
+              Premium Lab e uma base pronta para crescer com novos modulos.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-5">
+              <Link
+                href="/login"
+                className="inline-flex h-16 items-center rounded-full bg-[#e3ad5a] px-10 text-lg font-semibold text-[#221a15] shadow-[0_18px_40px_rgba(227,173,90,0.25)] transition hover:brightness-105"
+              >
+                Entrar no portal
+              </Link>
+              <div className="text-base font-medium text-[#e7e1d9]/85">
+                Login corporativo e acesso administrativo em um unico lugar
+              </div>
+            </div>
+          </div>
+
+          <div className="relative px-2 pb-14 lg:px-0">
+            <div className="absolute left-20 top-10 h-[420px] w-[420px] rounded-full bg-[#e3ad5a]/10 blur-3xl" />
+            <DashboardMock />
+          </div>
+        </section>
+      </div>
+    </main>
   )
 }
