@@ -13,6 +13,7 @@ const LOSS_REQ_TYPES = new Set(['B', 'C'])
 const PRODUCTION_TIME_ZONE = 'America/Sao_Paulo'
 const EXPECTED_TIME_SQL = `(date_trunc('hour', ped.pedhrentre::time) - interval '3 hours')::time`
 const ACTUAL_TIME_SQL = `(ped.pedhrsaida::time - interval '3 hours')::time`
+const NORMALIZED_PEDCODIGO_SQL = `coalesce(nullif(ltrim(replace(ped.pedcodigo::text, '.000', ''), '0'), ''), '0')`
 
 function getErrorStatus(error) {
   const message = String(error?.message || '')
@@ -232,6 +233,12 @@ function asSqlNumber(value) {
   return Number.isFinite(number) ? number : null
 }
 
+function asSqlOrderCode(value) {
+  if (value === '' || value == null) return null
+  const normalized = normalizeOrderCode(value).replace(/^0+/, '')
+  return normalized || '0'
+}
+
 async function execSql(supabase, sql) {
   const compactSql = sql.replace(/\s+/g, ' ').trim()
   const { data, error } = await supabase.rpc('exec_sql', { sql: compactSql })
@@ -246,11 +253,11 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, ki
     `ped.pedsitped <> 'C'`,
   ]
 
-  const pedido = asSqlNumber(pedcodigo)
+  const pedido = asSqlOrderCode(pedcodigo)
   const cliente = asSqlNumber(clicodigo)
   const grupo = asSqlNumber(gclcodigo)
 
-  if (pedido != null) clauses.push(`ped.pedcodigo = ${pedido}`)
+  if (pedido != null) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} = '${pedido}'`)
   if (cliente != null) clauses.push(`ped.clicodigo = ${cliente}`)
   if (grupo != null) clauses.push(`cli.gclcodigo = ${grupo}`)
 
@@ -302,11 +309,11 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
     `ped.pedsitped <> 'C'`,
   ]
 
-  const pedido = asSqlNumber(pedcodigo)
+  const pedido = asSqlOrderCode(pedcodigo)
   const cliente = asSqlNumber(clicodigo)
   const grupo = asSqlNumber(gclcodigo)
 
-  if (pedido != null) clauses.push(`ped.pedcodigo = ${pedido}`)
+  if (pedido != null) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} = '${pedido}'`)
   if (cliente != null) clauses.push(`ped.clicodigo = ${cliente}`)
   if (grupo != null) clauses.push(`cli.gclcodigo = ${grupo}`)
 
