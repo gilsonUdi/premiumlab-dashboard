@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic'
 const PAGE_SIZE = 1000
 const MAX_REQUI_ROWS = 20000
 const MAX_SALES_ROWS = 20000
+const MAX_ORDER_CELL_BATCH = 800
 const LOSS_REQ_TYPES = new Set(['B', 'C'])
 const PRODUCTION_TIME_ZONE = 'America/Sao_Paulo'
 const EXPECTED_TIME_SQL = `(date_trunc('hour', ped.pedhrentre::time) - interval '3 hours')::time`
@@ -255,6 +256,14 @@ async function execSql(supabase, sql) {
   return data || []
 }
 
+function chunkList(items, chunkSize) {
+  const chunks = []
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize))
+  }
+  return chunks
+}
+
 function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind = 'products' }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
@@ -340,20 +349,36 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
       cli.gclcodigo as gclcodigo,
       ped.pedcodigo as numero_venda,
       ped.id_pedido as pedido,
-      (
-        select lp.lpdescricao
-        from acoped ac
-        left join localped lp on lp.lpcodigo = ac.lpcodigo
-        where ac.id_pedido = ped.id_pedido
-        order by ac.apdata desc, ac.aphora desc
-        limit 1
-      ) as current_cell,
       ped.pedsitped::text as status
     from pedid ped
     left join clien cli on ped.clicodigo = cli.clicodigo
     where ${clauses.join(' and ')}
     order by data_venda desc, pedido desc
     limit ${MAX_SALES_ROWS}
+  `
+}
+
+function buildLatestOrderCellsSql(orderIds) {
+  const idList = orderIds.map(id => Number(id)).filter(Number.isFinite)
+  if (!idList.length) return null
+
+  return `
+    select
+      latest.id_pedido as pedido,
+      lp.lpdescricao as current_cell,
+      latest.apdata,
+      latest.aphora
+    from (
+      select distinct on (ac.id_pedido)
+        ac.id_pedido,
+        ac.lpcodigo,
+        ac.apdata,
+        ac.aphora
+      from acoped ac
+      where ac.id_pedido in (${idList.join(',')})
+      order by ac.id_pedido, ac.apdata desc, ac.aphora desc
+    ) latest
+    left join localped lp on lp.lpcodigo = latest.lpcodigo
   `
 }
 
@@ -497,7 +522,6 @@ export async function GET(request) {
     const normalizedSalesOrdersRaw = salesOrdersRaw.map(row => ({
       ...row,
       cliente: normalizeText(row.cliente),
-      current_cell: normalizeText(row.current_cell),
       status: normalizeText(row.status),
     }))
 
@@ -542,7 +566,6 @@ export async function GET(request) {
         expectedText: localDateTimeText(row.data_hora_prevista),
         delivered: parseLocalDateTime(row.data_hora_saida),
         deliveredText: localDateTimeText(row.data_hora_saida),
-        currentCell: normalizeText(row.current_cell),
         quantidade: 0,
         products: [],
         statusRaw: row.status,
@@ -558,6 +581,17 @@ export async function GET(request) {
 
     const salesOrders = Object.values(salesOrderMap)
     const orderNumberById = Object.fromEntries(salesOrders.map(order => [order.pedido, order.numeroVenda]))
+    const latestOrderCellRows = (
+      await Promise.all(
+        chunkList(
+          salesOrders.map(order => order.pedido),
+          MAX_ORDER_CELL_BATCH
+        ).map(async batch => {
+          const sql = buildLatestOrderCellsSql(batch)
+          return sql ? execSql(supabase, sql) : []
+        })
+      )
+    ).flat()
 
     let products = salesRows.map(row => ({
       pedcodigo: normalizeOrderCode(row.numero_venda || row.pedido),
@@ -570,6 +604,16 @@ export async function GET(request) {
     }))
 
     const latestCellByOrderId = {}
+
+    for (const row of latestOrderCellRows) {
+      const pedidoId = String(row.pedido || '')
+      if (!pedidoId) continue
+
+      latestCellByOrderId[pedidoId] = {
+        stamp: combineDateTime(row.apdata, row.aphora),
+        cell: normalizeText(row.current_cell),
+      }
+    }
 
     for (const row of acoped) {
       const pedidoId = String(row.id_pedido || '')
@@ -657,7 +701,6 @@ export async function GET(request) {
       const delivered = order.delivered
       const resolvedStatus = resolveStatus(expected, delivered, now)
       const currentCell =
-        normalizeText(order.currentCell) ||
         normalizeText(latestCellByOrderId[order.pedido]?.cell) ||
         (delivered ? normalizeText(localPedByCode[28]) || 'PEDIDO FATURADO' : '-')
 
