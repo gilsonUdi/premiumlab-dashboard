@@ -1,14 +1,12 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import Link from 'next/link'
-import { ArrowLeft, Building2, LockKeyhole, ShieldCheck } from 'lucide-react'
-import { authenticatePortalUser, getCurrentPortalSession, loadPortalState } from '@/lib/portal-store'
+import { LockKeyhole } from 'lucide-react'
+import { authenticatePortalUser, getCurrentPortalSession } from '@/lib/portal-store'
 import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [state, setState] = useState(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -18,9 +16,8 @@ export default function LoginPage() {
 
     async function hydrate() {
       try {
-        const [portalState, session] = await Promise.all([loadPortalState(), getCurrentPortalSession()])
+        const session = await getCurrentPortalSession()
         if (!active) return
-        setState(portalState)
 
         if (session?.type === 'admin') router.replace('/admin')
         if (session?.type === 'company' && session.companySlug) router.replace(`/empresa/${session.companySlug}`)
@@ -36,11 +33,6 @@ export default function LoginPage() {
       active = false
     }
   }, [router])
-
-  const premiumCompany = useMemo(
-    () => (state?.companies || []).find(company => company.isPremiumLab),
-    [state]
-  )
 
   const handleSubmit = async event => {
     event.preventDefault()
@@ -62,58 +54,11 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#171416] px-6 py-8 text-white">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[1280px] items-center gap-10 lg:grid lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="hidden h-full flex-col justify-between rounded-[32px] border border-white/8 bg-[linear-gradient(180deg,#221c19,#171416)] p-10 shadow-[0_30px_90px_rgba(0,0,0,0.35)] lg:flex">
-          <div>
-            <Link href="/" className="inline-flex items-center gap-3 text-sm text-[#d8d2c8] transition hover:text-white">
-              <ArrowLeft size={16} />
-              Voltar para a home
-            </Link>
-
-            <div className="mt-10 flex items-center gap-4">
-              <Image src="/gs-logo.png" alt="GS Consultoria & Gestao" width={220} height={124} className="h-16 w-auto" />
-            </div>
-
-            <div className="mt-16 max-w-[520px]">
-              <p className="mb-4 text-sm uppercase tracking-[0.24em] text-[#b8aa98]">Portal multi-tenant</p>
-              <h1 className="text-5xl font-semibold leading-tight text-[#f7f5f2]">
-                Um unico acesso para operacao das empresas que a consultoria acompanha.
-              </h1>
-              <p className="mt-6 text-lg leading-8 text-[#c4bdb2]">
-                Empresas entram com email e senha. A administracao da GS controla cadastros, ferramentas liberadas e
-                qual tenant usa o dashboard operacional da Premium Lab.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-4">
-            <div className="portal-stat-card">
-              <ShieldCheck size={20} className="text-[#e3ad5a]" />
-              <div>
-                <h2 className="text-sm font-semibold text-white">Acesso administrativo</h2>
-                <p className="mt-1 text-sm text-[#bdb7ae]">
-                  Gestao de empresas, bancos sincronizados e atalhos para cada tenant.
-                </p>
-              </div>
-            </div>
-            <div className="portal-stat-card">
-              <Building2 size={20} className="text-[#e3ad5a]" />
-              <div>
-                <h2 className="text-sm font-semibold text-white">Tenant inicial pronto</h2>
-                <p className="mt-1 text-sm text-[#bdb7ae]">
-                  {premiumCompany
-                    ? 'Premium Lab ja cadastrada com o dashboard operacional ativo.'
-                    : 'O primeiro tenant pode ser marcado como Premium Lab.'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto w-full max-w-[520px]">
+    <main className="flex min-h-screen items-center justify-center bg-[#171416] px-6 py-8 text-white">
+      <div className="w-full max-w-[520px]">
+        <section className="mx-auto w-full">
           <div className="rounded-[32px] border border-white/8 bg-[#0f1014] p-8 shadow-[0_30px_90px_rgba(0,0,0,0.35)] md:p-10">
-            <div className="mb-8 flex items-center gap-4 lg:hidden">
+            <div className="mb-8 flex items-center justify-center">
               <Image src="/gs-logo.png" alt="GS Consultoria & Gestao" width={180} height={100} className="h-14 w-auto" />
             </div>
 
@@ -159,14 +104,6 @@ export default function LoginPage() {
                 Entrar
               </button>
             </form>
-
-            <div className="mt-8 rounded-[24px] border border-white/8 bg-white/[0.03] p-5">
-              <p className="text-sm font-semibold text-white">Primeiro tenant configurado</p>
-              <p className="mt-2 text-sm leading-6 text-[#bdb7ae]">
-                Premium Lab ja entra no portal com o dashboard operacional ativo. A administracao pode cadastrar novas
-                empresas e preparar os proximos bancos sincronizados.
-              </p>
-            </div>
           </div>
         </section>
       </div>
