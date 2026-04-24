@@ -112,6 +112,24 @@ function normalizeText(value) {
   return best.replace(/\uFFFD/g, '').trim()
 }
 
+function normalizeOrderCode(value) {
+  if (value == null) return ''
+
+  const text = String(value).trim()
+  if (!text) return ''
+
+  if (/^\d+\.0+$/.test(text)) {
+    return text.replace(/\.0+$/, '')
+  }
+
+  const number = Number(text)
+  if (Number.isFinite(number) && Number.isInteger(number)) {
+    return String(number)
+  }
+
+  return text
+}
+
 function nowInProductionTimeZone() {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: PRODUCTION_TIME_ZONE,
@@ -489,7 +507,7 @@ export async function GET(request) {
       if (!row.pedido) continue
       salesOrderMap[String(row.pedido)] = {
         pedido: String(row.pedido),
-        numeroVenda: String(row.numero_venda),
+        numeroVenda: normalizeOrderCode(row.numero_venda),
         clicodigo: row.codigo_cliente,
         clinome: row.cliente,
         gclcodigo: row.gclcodigo,
@@ -516,7 +534,7 @@ export async function GET(request) {
     const orderNumberById = Object.fromEntries(salesOrders.map(order => [order.pedido, order.numeroVenda]))
 
     let products = salesRows.map(row => ({
-      pedcodigo: String(row.numero_venda || row.pedido),
+      pedcodigo: normalizeOrderCode(row.numero_venda || row.pedido),
       pedidoId: String(row.pedido),
       status: row.data_hora_saida ? 'Saida' : 'Em Producao',
       procodigo: String(row.codigo_produto || '').trim(),
@@ -534,7 +552,7 @@ export async function GET(request) {
           celula: normalizeText(localPedByCode[row.lpcodigo]) || `Etapa ${row.lpcodigo || ''}`,
           dataHora: combineDateTime(row.apdata, row.aphora),
           usuario: normalizeText(userMap[row.usucodigo]) || `Usuario ${row.usucodigo || ''}`,
-          pedcodigo: orderNumberById[String(row.id_pedido)] || String(row.id_pedido),
+          pedcodigo: normalizeOrderCode(orderNumberById[String(row.id_pedido)] || row.id_pedido),
           pedidoId: String(row.id_pedido),
           clicodigo: null,
           clinome: '-',
@@ -546,7 +564,7 @@ export async function GET(request) {
         celula: normalizeText(row.lpdescricao) || `Etapa ${row.lpcodigo || ''}`,
         dataHora: combineDateTime(row.apdata || row.peddtemis, row.aphora) || row.peddtemis || null,
         usuario: normalizeText(row.usunome) || normalizeText(row.funnome) || normalizeText(empMap[row.funcodigo]) || `Func ${row.funcodigo || ''}`,
-        pedcodigo: orderNumberById[String(row.id_pedido || row.pedcodigo)] || String(row.id_pedido || row.pedcodigo),
+        pedcodigo: normalizeOrderCode(orderNumberById[String(row.id_pedido || row.pedcodigo)] || row.id_pedido || row.pedcodigo),
         pedidoId: String(row.id_pedido || row.pedcodigo),
         clicodigo: row.clicodigo,
         clinome: normalizeText(row.clinome),
@@ -559,7 +577,7 @@ export async function GET(request) {
           celula: normalizeText(getFallbackStepDescription(row)),
           dataHora: combineDateTime(row.reqdata, row.reqhora),
           usuario: normalizeText(empMap[row.funcodigo]) || `Func ${row.funcodigo}`,
-          pedcodigo: orderNumberById[String(row.pdccodigo)] || String(row.pdccodigo),
+          pedcodigo: normalizeOrderCode(orderNumberById[String(row.pdccodigo)] || row.pdccodigo),
           pedidoId: String(row.pdccodigo),
           clicodigo: null,
           clinome: '-',
