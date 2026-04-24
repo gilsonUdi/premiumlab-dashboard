@@ -195,6 +195,15 @@ function buildDelayRank(expected, delivered, now) {
   return differenceInMinutes(delivered || now, expected)
 }
 
+function isNewerTrace(currentValue, nextValue) {
+  if (!nextValue) return false
+  if (!currentValue) return true
+
+  const currentTime = parseLocalDateTime(currentValue)?.getTime() || 0
+  const nextTime = parseLocalDateTime(nextValue)?.getTime() || 0
+  return nextTime >= currentTime
+}
+
 async function fetchAllPages(queryFactory, { pageSize = PAGE_SIZE, maxRows = MAX_REQUI_ROWS } = {}) {
   const rows = []
 
@@ -550,6 +559,41 @@ export async function GET(request) {
       clinome: normalizeText(row.cliente),
     }))
 
+    const latestCellByOrderId = {}
+
+    for (const row of acoped) {
+      const pedidoId = String(row.id_pedido || '')
+      if (!pedidoId) continue
+
+      const cellLabel = normalizeText(localPedByCode[row.lpcodigo]) || `Etapa ${row.lpcodigo || ''}`
+      const stamp = combineDateTime(row.apdata, row.aphora)
+      if (isNewerTrace(latestCellByOrderId[pedidoId]?.stamp, stamp)) {
+        latestCellByOrderId[pedidoId] = { stamp, cell: cellLabel }
+      }
+    }
+
+    for (const row of rastreab) {
+      const pedidoId = String(row.id_pedido || row.pedcodigo || '')
+      if (!pedidoId) continue
+
+      const cellLabel = normalizeText(row.lpdescricao) || `Etapa ${row.lpcodigo || ''}`
+      const stamp = combineDateTime(row.apdata || row.peddtemis, row.aphora) || row.peddtemis || null
+      if (isNewerTrace(latestCellByOrderId[pedidoId]?.stamp, stamp)) {
+        latestCellByOrderId[pedidoId] = { stamp, cell: cellLabel }
+      }
+    }
+
+    for (const row of requiData.filter(item => item.pdccodigo)) {
+      const pedidoId = String(row.pdccodigo || '')
+      if (!pedidoId) continue
+
+      const cellLabel = normalizeText(getFallbackStepDescription(row))
+      const stamp = combineDateTime(row.reqdata, row.reqhora)
+      if (isNewerTrace(latestCellByOrderId[pedidoId]?.stamp, stamp)) {
+        latestCellByOrderId[pedidoId] = { stamp, cell: cellLabel }
+      }
+    }
+
     let traceability = []
     if (acoped.length > 0) {
       traceability = acoped.map(row => {
@@ -598,17 +642,13 @@ export async function GET(request) {
       return new Date(a.dataHora) - new Date(b.dataHora)
     })
 
-    const latestTraceByOrder = {}
-    for (const row of traceability) {
-      if (!row.pedidoId) continue
-      latestTraceByOrder[row.pedidoId] = row
-    }
-
     let orders = salesOrders.map(order => {
       const expected = order.expected || (order.emitted ? addDays(order.emitted, 5) : null)
       const delivered = order.delivered
       const resolvedStatus = resolveStatus(expected, delivered, now)
-      const currentTrace = latestTraceByOrder[order.pedido]
+      const currentCell =
+        normalizeText(latestCellByOrderId[order.pedido]?.cell) ||
+        (delivered ? normalizeText(localPedByCode[28]) || 'PEDIDO FATURADO' : '-')
 
       return {
         pedcodigo: order.numeroVenda,
@@ -619,7 +659,7 @@ export async function GET(request) {
         saida: order.deliveredText,
         quantidade: order.quantidade || order.products.length,
         status: resolvedStatus,
-        currentCell: normalizeText(currentTrace?.celula) || '-',
+        currentCell,
         delayRank: buildDelayRank(expected, delivered, now),
         rowTone: resolveRowTone(resolvedStatus, expected, delivered, now),
         clicodigo: order.clicodigo,
