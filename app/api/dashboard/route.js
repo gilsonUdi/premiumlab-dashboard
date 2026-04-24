@@ -23,11 +23,40 @@ function getErrorStatus(error) {
 }
 
 function combineDateTime(dateValue, timeValue) {
-  if (!dateValue) return null
-  if (!timeValue) return dateValue
-  const datePart = String(dateValue).slice(0, 10)
-  const timePart = String(timeValue).slice(0, 8)
+  const datePart = extractDatePart(dateValue)
+  if (!datePart) return null
+
+  const timePart = extractTimePart(timeValue)
+  if (!timePart) return datePart
+
   return `${datePart}T${timePart}`
+}
+
+function extractDatePart(value) {
+  if (!value) return null
+  if (value instanceof Date) {
+    const pad = number => String(number).padStart(2, '0')
+    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
+  }
+
+  const text = String(value).trim()
+  const match = text.match(/(\d{4}-\d{2}-\d{2})/)
+  return match ? match[1] : null
+}
+
+function extractTimePart(value) {
+  if (!value) return null
+  if (value instanceof Date) {
+    const pad = number => String(number).padStart(2, '0')
+    return `${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`
+  }
+
+  const text = String(value).trim()
+  const fullMatch = text.match(/(\d{2}:\d{2}:\d{2})/)
+  if (fullMatch) return fullMatch[1]
+
+  const shortMatch = text.match(/(\d{2}:\d{2})(?!:)/)
+  return shortMatch ? `${shortMatch[1]}:00` : null
 }
 
 function parseLocalDateTime(value) {
@@ -52,6 +81,35 @@ function localDateTimeText(value) {
   if (!parsed) return null
   const pad = number => String(number).padStart(2, '0')
   return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:${pad(parsed.getSeconds())}`
+}
+
+function countEncodingArtifacts(text) {
+  if (!text) return 0
+  const matches = text.match(/[�ÃÂ]/g)
+  return matches ? matches.length : 0
+}
+
+function normalizeText(value) {
+  if (value == null) return ''
+
+  const original = String(value).trim()
+  if (!original) return ''
+
+  let best = original
+
+  try {
+    const repaired = Buffer.from(original, 'latin1').toString('utf8').trim()
+    const repairedLooksBetter =
+      repaired &&
+      countEncodingArtifacts(repaired) < countEncodingArtifacts(best) &&
+      /[A-Za-zÀ-ÿ]/.test(repaired)
+
+    if (repairedLooksBetter) best = repaired
+  } catch {
+    // ignore best-effort decoding failures
+  }
+
+  return best.replace(/\uFFFD/g, '').trim()
 }
 
 function nowInProductionTimeZone() {
@@ -368,18 +426,51 @@ export async function GET(request) {
       execSql(supabase, buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind: 'services' })),
     ])
 
-    const salesRows = [...productSalesRows, ...serviceSalesRows]
-    const cellByDpt = Object.fromEntries(cellsData.map(cell => [cell.dptcodigo, cell]))
+    const normalizedCellsData = cellsData.map(cell => ({
+      ...cell,
+      alxdescricao: normalizeText(cell.alxdescricao),
+    }))
+    const normalizedEmpData = empData.map(employee => ({
+      ...employee,
+      funnome: normalizeText(employee.funnome),
+    }))
+    const normalizedUserData = userData.map(user => ({
+      ...user,
+      usunome: normalizeText(user.usunome),
+    }))
+    const normalizedClientsData = clientsData.map(client => ({
+      ...client,
+      clirazsocial: normalizeText(client.clirazsocial),
+      clinomefant: normalizeText(client.clinomefant),
+    }))
+    const normalizedLocalPedData = localPedData.map(step => ({
+      ...step,
+      lpdescricao: normalizeText(step.lpdescricao),
+    }))
+    const normalizedSalesRows = [...productSalesRows, ...serviceSalesRows].map(row => ({
+      ...row,
+      cliente: normalizeText(row.cliente),
+      descricao_produto: normalizeText(row.descricao_produto),
+      status: normalizeText(row.status),
+    }))
+    const normalizedSalesOrdersRaw = salesOrdersRaw.map(row => ({
+      ...row,
+      cliente: normalizeText(row.cliente),
+      status: normalizeText(row.status),
+    }))
+
+    const salesRows = normalizedSalesRows
+    const cellByDpt = Object.fromEntries(normalizedCellsData.map(cell => [cell.dptcodigo, cell]))
     const cellByAlx = new Map()
-    for (const cell of cellsData) {
+    for (const cell of normalizedCellsData) {
       if (cell.alxcodigo == null) continue
       cellByAlx.set(String(cell.alxcodigo), cell)
       if (cell.empcodigo != null) cellByAlx.set(`${cell.empcodigo}:${cell.alxcodigo}`, cell)
     }
-    const empMap = Object.fromEntries(empData.map(employee => [employee.funcodigo, employee.funnome]))
-    const userMap = Object.fromEntries(userData.map(user => [user.usucodigo, user.usunome]))
-    const clientsByCode = Object.fromEntries(clientsData.map(client => [client.clicodigo, client]))
-    const localPedByCode = Object.fromEntries(localPedData.map(step => [step.lpcodigo, step.lpdescricao]))
+    const empMap = Object.fromEntries(normalizedEmpData.map(employee => [employee.funcodigo, employee.funnome]))
+    const userMap = Object.fromEntries(normalizedUserData.map(user => [user.usucodigo, user.usunome]))
+    const clientsByCode = Object.fromEntries(normalizedClientsData.map(client => [client.clicodigo, client]))
+    const localPedByCode = Object.fromEntries(normalizedLocalPedData.map(step => [step.lpcodigo, step.lpdescricao]))
 
     const fallbackLocalPedByDpt = {
       4: { E: 4, S: 5 },
@@ -395,7 +486,7 @@ export async function GET(request) {
     }
 
     const salesOrderMap = {}
-    for (const row of salesOrdersRaw) {
+    for (const row of normalizedSalesOrdersRaw) {
       if (!row.pedido) continue
       salesOrderMap[String(row.pedido)] = {
         pedido: String(row.pedido),
@@ -427,9 +518,9 @@ export async function GET(request) {
       pedcodigo: String(row.pedido),
       status: row.data_hora_saida ? 'Saida' : 'Em Producao',
       procodigo: String(row.codigo_produto || '').trim(),
-      prodescricao: String(row.descricao_produto || '').trim(),
+      prodescricao: normalizeText(row.descricao_produto),
       quantidade: Number(row.qtde_produtos) || 0,
-      clinome: row.cliente,
+      clinome: normalizeText(row.cliente),
     }))
 
     let traceability = []
@@ -437,10 +528,10 @@ export async function GET(request) {
       traceability = acoped.map(row => {
         const stock = cellByAlx.get(`${row.empcodigo}:${row.alxcodigo}`) || cellByAlx.get(String(row.alxcodigo))
         return {
-          estoque: stock ? `${row.alxcodigo} - ${stock.alxdescricao}` : `Estoque ${row.alxcodigo || ''}`,
-          celula: localPedByCode[row.lpcodigo] || `Etapa ${row.lpcodigo || ''}`,
+          estoque: stock ? `${row.alxcodigo} - ${normalizeText(stock.alxdescricao)}` : `Estoque ${row.alxcodigo || ''}`,
+          celula: normalizeText(localPedByCode[row.lpcodigo]) || `Etapa ${row.lpcodigo || ''}`,
           dataHora: combineDateTime(row.apdata, row.aphora),
-          usuario: userMap[row.usucodigo] || `Usuario ${row.usucodigo || ''}`,
+          usuario: normalizeText(userMap[row.usucodigo]) || `Usuario ${row.usucodigo || ''}`,
           pedcodigo: String(row.id_pedido),
           clicodigo: null,
           clinome: '-',
@@ -448,22 +539,22 @@ export async function GET(request) {
       })
     } else if (rastreab.length > 0) {
       traceability = rastreab.map(row => ({
-        estoque: row.setdescricao || cellByDpt[row.setcodigo]?.alxdescricao || `Estoque ${row.setcodigo || ''}`,
-        celula: row.lpdescricao || `Etapa ${row.lpcodigo || ''}`,
+        estoque: normalizeText(row.setdescricao) || normalizeText(cellByDpt[row.setcodigo]?.alxdescricao) || `Estoque ${row.setcodigo || ''}`,
+        celula: normalizeText(row.lpdescricao) || `Etapa ${row.lpcodigo || ''}`,
         dataHora: combineDateTime(row.apdata || row.peddtemis, row.aphora) || row.peddtemis || null,
-        usuario: row.usunome || row.funnome || empMap[row.funcodigo] || `Func ${row.funcodigo || ''}`,
+        usuario: normalizeText(row.usunome) || normalizeText(row.funnome) || normalizeText(empMap[row.funcodigo]) || `Func ${row.funcodigo || ''}`,
         pedcodigo: String(row.id_pedido || row.pedcodigo),
         clicodigo: row.clicodigo,
-        clinome: row.clinome,
+        clinome: normalizeText(row.clinome),
       }))
     } else {
       traceability = requiData
         .filter(row => row.pdccodigo)
         .map(row => ({
-          estoque: cellByDpt[row.dptcodigo]?.alxdescricao || `Depto ${row.dptcodigo}`,
-          celula: getFallbackStepDescription(row),
-          dataHora: row.reqdata,
-          usuario: empMap[row.funcodigo] || `Func ${row.funcodigo}`,
+          estoque: normalizeText(cellByDpt[row.dptcodigo]?.alxdescricao) || `Depto ${row.dptcodigo}`,
+          celula: normalizeText(getFallbackStepDescription(row)),
+          dataHora: combineDateTime(row.reqdata, row.reqhora),
+          usuario: normalizeText(empMap[row.funcodigo]) || `Func ${row.funcodigo}`,
           pedcodigo: String(row.pdccodigo),
           clicodigo: null,
           clinome: '-',
@@ -497,11 +588,11 @@ export async function GET(request) {
         saida: order.deliveredText,
         quantidade: order.quantidade || order.products.length,
         status: resolvedStatus,
-        currentCell: currentTrace?.celula || order.statusRaw || '-',
+        currentCell: normalizeText(currentTrace?.celula) || '-',
         delayRank: buildDelayRank(expected, delivered, now),
         rowTone: resolveRowTone(resolvedStatus, expected, delivered, now),
         clicodigo: order.clicodigo,
-        clinome: order.clinome,
+        clinome: normalizeText(order.clinome),
       }
     })
 
@@ -567,7 +658,6 @@ export async function GET(request) {
     if (customers.length > 0 && (customerIndiceFilter || customerMediaDiasFilter)) {
       const filteredClientIds = new Set(customers.map(row => String(row.clicodigo)))
       orders = orders.filter(row => filteredClientIds.has(String(row.clicodigo)))
-      products = products.filter(row => filteredClientIds.has(String(row.clicodigo)) || filteredClientIds.has(String(clientsByCode[row.clicodigo]?.clicodigo || '')))
     }
 
     const finalOrderIds = new Set(orders.map(row => row.pedcodigo))

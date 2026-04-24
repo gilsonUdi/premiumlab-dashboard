@@ -12,6 +12,35 @@ function getErrorStatus(error) {
   return 500
 }
 
+function countEncodingArtifacts(text) {
+  if (!text) return 0
+  const matches = text.match(/[�ÃÂ]/g)
+  return matches ? matches.length : 0
+}
+
+function normalizeText(value) {
+  if (value == null) return ''
+
+  const original = String(value).trim()
+  if (!original) return ''
+
+  let best = original
+
+  try {
+    const repaired = Buffer.from(original, 'latin1').toString('utf8').trim()
+    const repairedLooksBetter =
+      repaired &&
+      countEncodingArtifacts(repaired) < countEncodingArtifacts(best) &&
+      /[A-Za-zÀ-ÿ]/.test(repaired)
+
+    if (repairedLooksBetter) best = repaired
+  } catch {
+    // ignore best-effort decoding failures
+  }
+
+  return best.replace(/\uFFFD/g, '').trim()
+}
+
 async function getTenantSupabase(request, tenantSlug) {
   const { company, companySecrets } = await resolveAuthorizedCompany(request, tenantSlug)
   const supabaseUrl = companySecrets.supabaseUrl || company.supabaseUrl || (company.isPremiumLab ? process.env.SUPABASE_URL : '')
@@ -41,15 +70,15 @@ export async function GET(request) {
 
     const cells = (cellsRes.data || []).map(cell => ({
       value: cell.dptcodigo,
-      label: cell.alxdescricao,
+      label: normalizeText(cell.alxdescricao),
       alxcodigo: cell.alxcodigo,
       alxperda: cell.alxperda,
     }))
 
     const clients = (clientsRes.data || []).map(client => ({
       clicodigo: client.clicodigo,
-      label: client.clinomefant || client.clirazsocial,
-      razaoSocial: client.clirazsocial,
+      label: normalizeText(client.clinomefant || client.clirazsocial),
+      razaoSocial: normalizeText(client.clirazsocial),
       gclcodigo: client.gclcodigo,
     }))
 
@@ -58,14 +87,14 @@ export async function GET(request) {
 
     const stages = (localPedRes.data || []).map(stage => ({
       value: stage.lpcodigo,
-      label: stage.lpdescricao,
+      label: normalizeText(stage.lpdescricao),
       isFinal: stage.lpfimprocesso === 'S',
       isStart: stage.lpiniprocesso === 'S',
     }))
 
     const employees = (empRes.data || [])
-      .filter(employee => !employee.funnome?.includes('INATIVO'))
-      .map(employee => ({ value: employee.funcodigo, label: employee.funnome }))
+      .filter(employee => !normalizeText(employee.funnome).includes('INATIVO'))
+      .map(employee => ({ value: employee.funcodigo, label: normalizeText(employee.funnome) }))
 
     const statuses = [
       { value: 'in_progress', label: 'Em Producao' },
