@@ -113,8 +113,8 @@ export default function CompanyHomePage({ slug }) {
               Ferramentas liberadas para a operacao da {company.name}.
             </h2>
             <p className="mt-5 max-w-[720px] text-lg leading-8 text-[#bdb7ae]">
-              Neste primeiro passo, o tenant mostra as ferramentas que a administracao liberou. A Premium Lab ja usa o
-              dashboard operacional que desenvolvemos. Os proximos modulos podem ser adicionados sem refazer o portal.
+              O tenant mostra as ferramentas que a administracao liberou. Com o banco configurado, a empresa acessa o
+              dashboard operacional no proprio ambiente. Os proximos modulos podem ser adicionados sem refazer o portal.
             </p>
           </div>
 
@@ -131,7 +131,7 @@ export default function CompanyHomePage({ slug }) {
 
             <div className="space-y-3 text-sm text-[#cbc4ba]">
               <div className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3">
-                Dashboard operacional: {company.isPremiumLab ? 'ativo no tenant Premium Lab' : 'preparado para integracao'}
+                Dashboard operacional: {company.hasServiceRoleKey || company.isPremiumLab ? 'ativo para este tenant' : 'aguardando service role do Supabase'}
               </div>
               <div className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3">
                 Ferramentas liberadas: {company.tools.join(', ')}

@@ -10,6 +10,7 @@ import HistoricoPedidos from '@/components/HistoricoPedidos'
 import DetalhesProdutos from '@/components/DetalhesProdutos'
 import RastreabilidadePedido from '@/components/RastreabilidadePedido'
 import IndiceAtendimento from '@/components/IndiceAtendimento'
+import { getFirebaseServices } from '@/lib/firebase-client'
 
 const PontualidadeChart = dynamic(() => import('@/components/PontualidadeChart'), { ssr: false })
 const PerdasChart = dynamic(() => import('@/components/PerdasChart'), { ssr: false })
@@ -29,6 +30,7 @@ export default function ProductionDashboard({
   companyName = 'Premium Lab',
   companySubtitle = 'Dashboard de Producao',
   backHref = null,
+  tenantSlug,
 }) {
   const [filters, setFilters] = useState(defaultFilters)
   const [selectedOrder, setSelectedOrder] = useState(null)
@@ -40,12 +42,33 @@ export default function ProductionDashboard({
   const [lastUpdated, setLastUpdated] = useState(null)
   const debounceRef = useRef(null)
 
-  useEffect(() => {
-    fetch('/api/options')
-      .then(response => response.json())
-      .then(setOptions)
-      .catch(console.error)
+  const getAuthorizedHeaders = useCallback(async () => {
+    const { auth } = getFirebaseServices()
+    const authUser = auth.currentUser
+    if (!authUser) return {}
+
+    const token = await authUser.getIdToken()
+    return token ? { Authorization: `Bearer ${token}` } : {}
   }, [])
+
+  useEffect(() => {
+    async function fetchOptions() {
+      try {
+        const params = new URLSearchParams()
+        if (tenantSlug) params.set('tenant', tenantSlug)
+
+        const response = await fetch(`/api/options?${params}`, {
+          headers: await getAuthorizedHeaders(),
+        })
+        const payload = await response.json()
+        setOptions(payload)
+      } catch (error) {
+        console.error(error)
+      }
+    }
+
+    fetchOptions()
+  }, [getAuthorizedHeaders, tenantSlug])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -53,12 +76,15 @@ export default function ProductionDashboard({
     Object.entries(filters).forEach(([key, value]) => {
       if (value) params.set(key, value)
     })
+    if (tenantSlug) params.set('tenant', tenantSlug)
     if (Object.keys(columnFilters).length > 0) params.set('columnFilters', JSON.stringify(columnFilters))
     if (selectedOrder) params.set('pedcodigo', selectedOrder)
     if (selectedClient) params.set('clicodigo', selectedClient)
 
     try {
-      const response = await fetch(`/api/dashboard?${params}`)
+      const response = await fetch(`/api/dashboard?${params}`, {
+        headers: await getAuthorizedHeaders(),
+      })
       const payload = await response.json()
       setData(payload)
       setLastUpdated(new Date())
@@ -67,7 +93,7 @@ export default function ProductionDashboard({
     } finally {
       setLoading(false)
     }
-  }, [filters, selectedOrder, selectedClient, columnFilters])
+  }, [columnFilters, filters, getAuthorizedHeaders, selectedClient, selectedOrder, tenantSlug])
 
   const handleFiltersChange = useCallback(updater => {
     setFilters(previous => (typeof updater === 'function' ? updater(previous) : updater))

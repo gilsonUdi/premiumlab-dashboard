@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getSupabase } from '@/lib/supabase'
+import { createTenantSupabase } from '@/lib/supabase'
+import { resolveAuthorizedCompany } from '@/lib/server-auth'
 import { addDays, differenceInDays, format, parseISO, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -13,6 +14,14 @@ const LOSS_REQ_TYPES = new Set(['B', 'C'])
 const PRODUCTION_TIME_ZONE = 'America/Sao_Paulo'
 const EXPECTED_TIME_SQL = `(date_trunc('hour', ped.pedhrentre::time) - interval '3 hours')::time`
 const ACTUAL_TIME_SQL = `(ped.pedhrsaida::time - interval '3 hours')::time`
+
+function getErrorStatus(error) {
+  const message = String(error?.message || '')
+  if (message.includes('Nao autorizado')) return 401
+  if (message.includes('Acesso negado')) return 403
+  if (message.includes('nao encontrada')) return 404
+  return 500
+}
 
 function calcStatus(emissao, exitDate, now) {
   const expected = addDays(parseISO(emissao), LEAD_DAYS)
@@ -278,10 +287,24 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
   `
 }
 
+async function getTenantSupabase(request, tenantSlug) {
+  const { company, companySecrets } = await resolveAuthorizedCompany(request, tenantSlug)
+  const supabaseUrl = companySecrets.supabaseUrl || company.supabaseUrl || (company.isPremiumLab ? process.env.SUPABASE_URL : '')
+  const supabaseServiceRoleKey =
+    companySecrets.supabaseServiceRoleKey || (company.isPremiumLab ? process.env.SUPABASE_SERVICE_ROLE_KEY : '')
+
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error(`Supabase nao configurado para o tenant ${company.slug}.`)
+  }
+
+  return createTenantSupabase(supabaseUrl, supabaseServiceRoleKey)
+}
+
 export async function GET(request) {
   try {
-    const supabase = getSupabase()
     const { searchParams } = new URL(request.url)
+    const tenantSlug = searchParams.get('tenant') || ''
+    const supabase = await getTenantSupabase(request, tenantSlug)
     const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
     const fallbackEnd = format(new Date(), 'yyyy-MM-dd')
     const dateStart = asSqlDate(searchParams.get('dateStart'), fallbackStart)
@@ -674,6 +697,6 @@ export async function GET(request) {
     })
   } catch (err) {
     console.error('[dashboard]', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json({ error: err.message }, { status: getErrorStatus(err) })
   }
 }

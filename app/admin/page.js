@@ -18,7 +18,6 @@ import {
   deleteCompany,
   ensurePremiumLabTenant,
   getCurrentPortalSession,
-  loadPortalState,
   slugifyCompanyName,
   upsertCompany,
 } from '@/lib/portal-store'
@@ -29,6 +28,7 @@ const emptyForm = {
   email: '',
   password: '',
   supabaseUrl: '',
+  supabaseServiceRoleKey: '',
   supabaseLabel: '',
   tools: ['dashboard'],
   isPremiumLab: false,
@@ -194,8 +194,8 @@ export default function AdminPage() {
               <div>
                 <h2 className="text-2xl font-semibold">Registrar empresa</h2>
                 <p className="text-sm text-[#b7b0a6]">
-                  Cadastre login, tenant e identificacao do banco no Supabase. O dashboard operacional real permanece
-                  no tenant da Premium Lab.
+                  Cadastre login, tenant e identificacao do banco no Supabase. Com a service role configurada, o
+                  dashboard ja pode operar no tenant da empresa.
                 </p>
               </div>
             </div>
@@ -269,6 +269,20 @@ export default function AdminPage() {
                     onChange={event => setForm(previous => ({ ...previous, supabaseLabel: event.target.value }))}
                     placeholder="Ex.: sincronizado em Supabase producao"
                   />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <label className="portal-label">Supabase Service Role Key</label>
+                  <input
+                    className="portal-input"
+                    type="password"
+                    value={form.supabaseServiceRoleKey}
+                    onChange={event => setForm(previous => ({ ...previous, supabaseServiceRoleKey: event.target.value }))}
+                    placeholder="Cole a service_role_key do tenant"
+                  />
+                  <p className="text-xs text-[#9f9a90]">
+                    Essa chave vai para o backend seguro do portal e nao fica exposta nas telas das empresas.
+                  </p>
                 </div>
               </div>
 
@@ -372,6 +386,10 @@ export default function AdminPage() {
                     <div className="rounded-2xl border border-white/6 bg-white/[0.03] p-4">
                       <p className="text-xs uppercase tracking-[0.18em] text-[#9f9a90]">Ferramentas</p>
                       <p className="mt-2 text-sm text-white">{company.tools.join(', ') || 'Nenhuma ferramenta liberada'}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/6 bg-white/[0.03] p-4">
+                      <p className="text-xs uppercase tracking-[0.18em] text-[#9f9a90]">Credencial Supabase</p>
+                      <p className="mt-2 text-sm text-white">{company.hasServiceRoleKey ? 'Configurada' : 'Nao configurada'}</p>
                     </div>
                   </div>
                 </article>

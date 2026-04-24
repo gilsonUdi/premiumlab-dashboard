@@ -16,8 +16,8 @@ function PlaceholderTool({ company }) {
         <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Ferramenta em configuracao</p>
         <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
         <p className="mt-4 text-base leading-8 text-[#c6c0b7]">
-          O tenant ja esta preparado para receber o dashboard, mas a troca dinamica de banco por empresa ainda nao foi
-          conectada para este modulo. O fluxo administrativo ja guarda os dados da empresa para os proximos passos.
+          O tenant ja esta pronto, mas ainda falta cadastrar a service role do Supabase para este banco. Depois disso,
+          o dashboard passa a operar normalmente para a empresa.
         </p>
       </div>
     </main>
@@ -79,7 +79,7 @@ export default function CompanyDashboardPage({ slug }) {
     )
   }
 
-  if (!company.isPremiumLab) {
+  if (!company.hasServiceRoleKey && !company.isPremiumLab) {
     return <PlaceholderTool company={company} />
   }
 
@@ -88,6 +88,7 @@ export default function CompanyDashboardPage({ slug }) {
       companyName={company.name}
       companySubtitle="Dashboard de Producao"
       backHref={`/empresa/${company.slug}`}
+      tenantSlug={company.slug}
     />
   )
 }

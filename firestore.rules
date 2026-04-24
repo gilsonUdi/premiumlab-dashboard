@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'gilson@gsgestao.com.br' ||
+        (currentUser().exists() && currentUser().data.role == 'admin')
+      );
+    }
+
+    function isOwnUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwnUser(userId) || isAdmin();
+      allow create, update: if isOwnUser(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /companies/{companyId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /companySecrets/{companyId} {
+      allow read, write: if false;
+    }
+  }
+}

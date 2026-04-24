@@ -1,16 +1,41 @@
 import { NextResponse } from 'next/server'
-import { getSupabase } from '@/lib/supabase'
+import { createTenantSupabase } from '@/lib/supabase'
+import { resolveAuthorizedCompany } from '@/lib/server-auth'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+function getErrorStatus(error) {
+  const message = String(error?.message || '')
+  if (message.includes('Nao autorizado')) return 401
+  if (message.includes('Acesso negado')) return 403
+  if (message.includes('nao encontrada')) return 404
+  return 500
+}
+
+async function getTenantSupabase(request, tenantSlug) {
+  const { company, companySecrets } = await resolveAuthorizedCompany(request, tenantSlug)
+  const supabaseUrl = companySecrets.supabaseUrl || company.supabaseUrl || (company.isPremiumLab ? process.env.SUPABASE_URL : '')
+  const supabaseServiceRoleKey =
+    companySecrets.supabaseServiceRoleKey || (company.isPremiumLab ? process.env.SUPABASE_SERVICE_ROLE_KEY : '')
+
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error(`Supabase nao configurado para o tenant ${company.slug}.`)
+  }
+
+  return createTenantSupabase(supabaseUrl, supabaseServiceRoleKey)
+}
+
+export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const tenantSlug = searchParams.get('tenant') || ''
+    const supabase = await getTenantSupabase(request, tenantSlug)
     const [cellsRes, clientsRes, groupsRes, localPedRes, empRes] = await Promise.all([
-      getSupabase().from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxperda').order('alxordem'),
-      getSupabase().from('clien').select('clicodigo, clirazsocial, clinomefant, gclcodigo').eq('clicliente', 'S').order('clirazsocial').limit(500),
-      getSupabase().from('clien').select('gclcodigo').not('gclcodigo', 'is', null),
-      getSupabase().from('localped').select('lpcodigo, lpdescricao, lpfimprocesso, lpiniprocesso').order('lpordem'),
-      getSupabase().from('funcio').select('funcodigo, funnome').order('funnome').limit(200),
+      supabase.from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxperda').order('alxordem'),
+      supabase.from('clien').select('clicodigo, clirazsocial, clinomefant, gclcodigo').eq('clicliente', 'S').order('clirazsocial').limit(500),
+      supabase.from('clien').select('gclcodigo').not('gclcodigo', 'is', null),
+      supabase.from('localped').select('lpcodigo, lpdescricao, lpfimprocesso, lpiniprocesso').order('lpordem'),
+      supabase.from('funcio').select('funcodigo, funnome').order('funnome').limit(200),
     ])
 
     const cells = (cellsRes.data || []).map(c => ({
@@ -52,6 +77,6 @@ export async function GET() {
     return NextResponse.json({ cells, clients, clientGroups, stages, employees, statuses })
   } catch (err) {
     console.error('[options]', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json({ error: err.message }, { status: getErrorStatus(err) })
   }
 }
