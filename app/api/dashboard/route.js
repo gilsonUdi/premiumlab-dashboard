@@ -286,6 +286,7 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, ki
       ped.clicodigo as codigo_cliente,
       coalesce(cli.clinomefant, cli.clirazsocial) as cliente,
       cli.gclcodigo as gclcodigo,
+      ped.funcodigo as vendedor_codigo,
       ped.pedcodigo as numero_venda,
       ped.id_pedido as pedido,
       ${itemAlias}.${joinColumn}::text as codigo_produto,
@@ -329,6 +330,7 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
       ped.clicodigo as codigo_cliente,
       coalesce(cli.clinomefant, cli.clirazsocial) as cliente,
       cli.gclcodigo as gclcodigo,
+      ped.funcodigo as vendedor_codigo,
       ped.pedcodigo as numero_venda,
       ped.id_pedido as pedido,
       ped.pedsitped::text as status
@@ -518,6 +520,8 @@ export async function GET(request) {
         clicodigo: row.codigo_cliente,
         clinome: row.cliente,
         gclcodigo: row.gclcodigo,
+        vendedorCodigo: row.vendedor_codigo,
+        vendedorNome: normalizeText(empMap[row.vendedor_codigo]) || `Vendedor ${row.vendedor_codigo || '-'}`,
         emitted: parseLocalDateTime(row.data_venda),
         emittedText: localDateTimeText(row.data_venda),
         expected: parseLocalDateTime(row.data_hora_prevista),
@@ -695,6 +699,38 @@ export async function GET(request) {
     products = products.filter(row => finalOrderIds.has(row.pedidoId))
     traceability = traceability.filter(row => finalOrderIds.has(row.pedidoId))
 
+    const sellerMap = {}
+    for (const order of salesOrders.filter(item => finalOrderIds.has(item.pedido))) {
+      const sellerCode = String(order.vendedorCodigo || '')
+      const sellerName = normalizeText(order.vendedorNome)
+
+      if (!sellerMap[sellerCode]) {
+        sellerMap[sellerCode] = {
+          vendedorCodigo: sellerCode,
+          vendedorNome: sellerName || 'Nao informado',
+          totalVendas: 0,
+          totalPecas: 0,
+        }
+      }
+
+      sellerMap[sellerCode].totalVendas += 1
+      sellerMap[sellerCode].totalPecas += Number(order.quantidade) || 0
+    }
+
+    const sellerRanking = Object.values(sellerMap)
+      .sort((a, b) => {
+        if (b.totalVendas !== a.totalVendas) return b.totalVendas - a.totalVendas
+        if (b.totalPecas !== a.totalPecas) return b.totalPecas - a.totalPecas
+        return a.vendedorNome.localeCompare(b.vendedorNome)
+      })
+      .map((seller, index) => ({
+        posicao: index + 1,
+        vendedorCodigo: seller.vendedorCodigo,
+        vendedorNome: seller.vendedorNome,
+        totalVendas: seller.totalVendas,
+        totalPecas: seller.totalPecas,
+      }))
+
     const weekMap = {}
     for (const order of orders) {
       const week = format(startOfWeek(parseISO(order.emissao), { locale: ptBR }), 'dd/MM', { locale: ptBR })
@@ -741,6 +777,7 @@ export async function GET(request) {
       products: products.slice(0, 200),
       traceability: pedcodigo ? traceability : traceability.slice(0, 150),
       customers: customers.slice(0, 100),
+      sellerRanking,
     })
   } catch (error) {
     console.error('[dashboard]', error)

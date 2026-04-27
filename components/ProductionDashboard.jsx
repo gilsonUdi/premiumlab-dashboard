@@ -10,6 +10,7 @@ import HistoricoPedidos from '@/components/HistoricoPedidos'
 import DetalhesProdutos from '@/components/DetalhesProdutos'
 import RastreabilidadePedido from '@/components/RastreabilidadePedido'
 import IndiceAtendimento from '@/components/IndiceAtendimento'
+import RankingVendedores from '@/components/RankingVendedores'
 import { getFirebaseServices } from '@/lib/firebase-client'
 
 const PontualidadeChart = dynamic(() => import('@/components/PontualidadeChart'), { ssr: false })
@@ -246,11 +247,20 @@ export default function ProductionDashboard({
         'Media Dias': row.mediaDias,
       }))
 
+      const sellerRows = (data.sellerRanking || []).map(row => ({
+        Posicao: `${row.posicao}º`,
+        'Cod. Vendedor': row.vendedorCodigo,
+        Vendedor: row.vendedorNome,
+        Vendas: row.totalVendas,
+        Pecas: row.totalPecas,
+      }))
+
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(orderRows), 'Historico')
       if (!isPpsMode) {
         XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(productRows), 'Produtos')
         XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(traceRows), 'Rastreabilidade')
         XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(customerRows), 'Clientes')
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(sellerRows), 'Vendedores')
       }
 
       XLSX.writeFile(workbook, `${companyName.replace(/\s+/g, '-').toLowerCase()}-${isPpsMode ? 'pps' : 'analise'}-${format(new Date(), 'yyyyMMdd-HHmm')}.xlsx`)
@@ -380,6 +390,8 @@ export default function ProductionDashboard({
                 loading={loading}
               />
             </div>
+
+            <RankingVendedores data={data?.sellerRanking} loading={loading} />
           </>
         )}
 
