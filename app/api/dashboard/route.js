@@ -333,6 +333,11 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
       ped.funcodigo as vendedor_codigo,
       ped.pedcodigo as numero_venda,
       ped.id_pedido as pedido,
+      (
+        coalesce((select sum(prd.pdpqtdade)::numeric from pdprd prd where prd.id_pedido = ped.id_pedido), 0)
+        +
+        coalesce((select sum(pds.pdsqtdade)::numeric from pdser pds where pds.id_pedido = ped.id_pedido), 0)
+      ) as quantidade_total,
       ped.pedsitped::text as status
     from pedid ped
     left join clien cli on ped.clicodigo = cli.clicodigo
@@ -384,6 +389,8 @@ export async function GET(request) {
     const customerMediaDiasFilter = searchParams.get('customerMediaDias') || ''
 
     const now = nowInProductionTimeZone()
+    const shouldLoadTraceability = Boolean(pedcodigo)
+    const shouldLoadProductDetails = Boolean(pedcodigo)
 
     const acopedQuery = () => {
       let query = supabase
@@ -418,8 +425,8 @@ export async function GET(request) {
       supabase.from('almox').select('empcodigo, alxcodigo, alxdescricao, dptcodigo, alxordem, alxtipocel').order('alxordem'),
       supabase.from('funcio').select('funcodigo, funnome').limit(300),
       supabase.from('usuario').select('usucodigo, usunome').limit(300),
-      fetchOptionalPages(acopedQuery, { maxRows: pedcodigo ? 10000 : 20000 }),
-      fetchOptionalPages(rastreabQuery, { maxRows: pedcodigo ? 10000 : 20000 }),
+      shouldLoadTraceability ? fetchOptionalPages(acopedQuery, { maxRows: 10000 }) : Promise.resolve({ data: [], error: null }),
+      shouldLoadTraceability ? fetchOptionalPages(rastreabQuery, { maxRows: 10000 }) : Promise.resolve({ data: [], error: null }),
       fetchAllPages(() => {
         let query = supabase
           .from('clien')
@@ -448,8 +455,12 @@ export async function GET(request) {
 
     const [salesOrdersRaw, productSalesRows, serviceSalesRows] = await Promise.all([
       execSql(supabase, buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })),
-      execSql(supabase, buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind: 'products' })),
-      execSql(supabase, buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind: 'services' })),
+      shouldLoadProductDetails
+        ? execSql(supabase, buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind: 'products' }))
+        : Promise.resolve([]),
+      shouldLoadProductDetails
+        ? execSql(supabase, buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind: 'services' }))
+        : Promise.resolve([]),
     ])
 
     const normalizedCellsData = cellsData.map(cell => ({
@@ -528,7 +539,7 @@ export async function GET(request) {
         expectedText: localDateTimeText(row.data_hora_prevista),
         delivered: parseLocalDateTime(row.data_hora_saida),
         deliveredText: localDateTimeText(row.data_hora_saida),
-        quantidade: 0,
+        quantidade: Number(row.quantidade_total) || 0,
         products: [],
         statusRaw: row.status,
       }
@@ -538,7 +549,6 @@ export async function GET(request) {
       const order = salesOrderMap[String(row.pedido)]
       if (!order) continue
       order.products.push(row)
-      order.quantidade += Number(row.qtde_produtos) || 0
     }
 
     const salesOrders = Object.values(salesOrderMap)
