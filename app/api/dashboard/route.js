@@ -1,15 +1,19 @@
 import { NextResponse } from 'next/server'
 import { addDays, differenceInDays, differenceInMinutes, format, parseISO, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { createTenantSupabase } from '@/lib/supabase'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
-import { getUpstashRowsByDateRange, getUpstashRowsByIndex, getUpstashTables } from '@/lib/upstash-store'
 
 export const dynamic = 'force-dynamic'
 
+const PAGE_SIZE = 1000
 const MAX_REQUI_ROWS = 20000
 const MAX_SALES_ROWS = 20000
 const LOSS_REQ_TYPES = new Set(['B', 'C'])
 const PRODUCTION_TIME_ZONE = 'America/Sao_Paulo'
+const EXPECTED_TIME_SQL = `(date_trunc('hour', ped.pedhrentre::time) - interval '3 hours')::time`
+const ACTUAL_TIME_SQL = `(ped.pedhrsaida::time - interval '3 hours')::time`
+const NORMALIZED_PEDCODIGO_SQL = `coalesce(nullif(ltrim(replace(ped.pedcodigo::text, '.000', ''), '0'), ''), '0')`
 
 function getErrorStatus(error) {
   const message = String(error?.message || '')
@@ -191,6 +195,34 @@ function buildDelayRank(expected, delivered, now) {
   return differenceInMinutes(delivered || now, expected)
 }
 
+async function fetchAllPages(queryFactory, { pageSize = PAGE_SIZE, maxRows = MAX_REQUI_ROWS } = {}) {
+  const rows = []
+
+  for (let from = 0; from < maxRows; from += pageSize) {
+    const to = Math.min(from + pageSize - 1, maxRows - 1)
+    const { data, error } = await queryFactory().range(from, to)
+    if (error) return { data: rows, error }
+
+    const page = data || []
+    rows.push(...page)
+    if (page.length < pageSize) break
+  }
+
+  return { data: rows, error: null }
+}
+
+async function fetchOptionalPages(queryFactory, options) {
+  const result = await fetchAllPages(queryFactory, options)
+  if (!result.error) return result
+
+  const message = result.error.message || ''
+  if (message.includes('Could not find the table') || message.includes('relation') || message.includes('does not exist')) {
+    return { data: [], error: null }
+  }
+
+  return result
+}
+
 function asSqlDate(value, fallback) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? value : fallback
 }
@@ -207,66 +239,132 @@ function asSqlOrderCode(value) {
   return normalized || '0'
 }
 
-function toNumber(value) {
-  const number = Number(value)
-  return Number.isFinite(number) ? number : null
+async function execSql(supabase, sql) {
+  const compactSql = sql.replace(/\s+/g, ' ').trim()
+  const { data, error } = await supabase.rpc('exec_sql', { sql: compactSql })
+  if (error) throw new Error(`exec_sql: ${error.message}`)
+  return data || []
 }
 
-function sameNumber(left, right) {
-  const a = toNumber(left)
-  const b = toNumber(right)
-  return a != null && b != null && a === b
-}
-
-function dateInRange(value, dateStart, dateEnd) {
-  const date = extractDatePart(value)
-  return Boolean(date && date >= dateStart && date <= dateEnd)
-}
-
-function dateTimeInRange(value, dateStart, dateEnd) {
-  const date = extractDatePart(value)
-  return Boolean(date && date >= dateStart && date <= dateEnd)
-}
-
-function combineOrderDateTime(dateValue, timeValue) {
-  const datePart = extractDatePart(dateValue)
-  if (!datePart) return null
-
-  const timePart = extractTimePart(timeValue)
-  if (!timePart) return datePart
-
-  const parsed = parseLocalDateTime(`${datePart}T${timePart}`)
-  if (!parsed) return `${datePart}T${timePart}`
-  parsed.setHours(parsed.getHours() - 3)
-  return localDateTimeText(parsed)
-}
-
-function orderMatchesFilters(order, client, { dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo }) {
-  if (!dateInRange(order.peddtemis, dateStart, dateEnd)) return false
-  if (normalizeText(order.pedsitped) === 'C') return false
+function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind = 'products' }) {
+  const clauses = [
+    `ped.peddtemis >= '${dateStart}T00:00:00'`,
+    `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
+    `ped.pedsitped <> 'C'`,
+  ]
 
   const pedido = asSqlOrderCode(pedcodigo)
   const cliente = asSqlNumber(clicodigo)
   const grupo = asSqlNumber(gclcodigo)
 
-  if (pedido != null && normalizeOrderCode(order.pedcodigo).replace(/^0+/, '') !== pedido) return false
-  if (cliente != null && !sameNumber(order.clicodigo, cliente)) return false
-  if (grupo != null && !sameNumber(client?.gclcodigo, grupo)) return false
+  if (pedido != null) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} = '${pedido}'`)
+  if (cliente != null) clauses.push(`ped.clicodigo = ${cliente}`)
+  if (grupo != null) clauses.push(`cli.gclcodigo = ${grupo}`)
 
-  return true
+  const isService = kind === 'services'
+  const itemTable = isService ? 'pdser' : 'pdprd'
+  const itemAlias = isService ? 'pds' : 'prd'
+  const joinColumn = isService ? 'sercodigo' : 'procodigo'
+  const descriptionColumn = isService ? 'pdsdescricao' : 'pdpdescricao'
+  const quantityColumn = isService ? 'pdsqtdade' : 'pdpqtdade'
+  const productService = isService ? 'S' : 'P'
+
+  return `
+    select
+      ped.empcodigo as cod_empresa,
+      ped.peddtemis::date as data_venda,
+      ped.peddtsaida::date as data_saida,
+      ${ACTUAL_TIME_SQL} as hora_saida,
+      ped.pedpzentre::date as data_prazo,
+      ${EXPECTED_TIME_SQL} as hora_prev,
+      (ped.peddtsaida::date + ${ACTUAL_TIME_SQL}) as data_hora_saida,
+      (ped.pedpzentre::date + ${EXPECTED_TIME_SQL}) as data_hora_prevista,
+      floor(extract(epoch from (
+        coalesce((ped.peddtsaida::date + ${ACTUAL_TIME_SQL}), current_timestamp)
+        - (ped.pedpzentre::date + ${EXPECTED_TIME_SQL})
+      )) / 60)::integer as atraso_minutos,
+      ped.clicodigo as codigo_cliente,
+      coalesce(cli.clinomefant, cli.clirazsocial) as cliente,
+      cli.gclcodigo as gclcodigo,
+      ped.funcodigo as vendedor_codigo,
+      ped.pedcodigo as numero_venda,
+      ped.id_pedido as pedido,
+      ${itemAlias}.${joinColumn}::text as codigo_produto,
+      ${itemAlias}.${descriptionColumn}::text as descricao_produto,
+      ${itemAlias}.${quantityColumn}::numeric as qtde_produtos,
+      ped.pedsitped::text as status,
+      '${productService}'::text as produto_servico
+    from pedid ped
+    join ${itemTable} ${itemAlias} on ped.id_pedido = ${itemAlias}.id_pedido
+    left join clien cli on ped.clicodigo = cli.clicodigo
+    where ${clauses.join('\n      and ')}
+    order by data_venda desc, pedido desc
+    limit ${MAX_SALES_ROWS}
+  `
 }
 
-function compareDateDesc(a, b, field) {
-  const left = parseLocalDateTime(a[field])?.getTime() || 0
-  const right = parseLocalDateTime(b[field])?.getTime() || 0
-  return right - left
+function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo }) {
+  const clauses = [
+    `ped.peddtemis >= '${dateStart}T00:00:00'`,
+    `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
+    `ped.pedsitped <> 'C'`,
+  ]
+
+  const pedido = asSqlOrderCode(pedcodigo)
+  const cliente = asSqlNumber(clicodigo)
+  const grupo = asSqlNumber(gclcodigo)
+
+  if (pedido != null) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} = '${pedido}'`)
+  if (cliente != null) clauses.push(`ped.clicodigo = ${cliente}`)
+  if (grupo != null) clauses.push(`cli.gclcodigo = ${grupo}`)
+
+  return `
+    select
+      ped.peddtemis::date as data_venda,
+      (ped.pedpzentre::date + ${EXPECTED_TIME_SQL}) as data_hora_prevista,
+      (ped.peddtsaida::date + ${ACTUAL_TIME_SQL}) as data_hora_saida,
+      floor(extract(epoch from (
+        coalesce((ped.peddtsaida::date + ${ACTUAL_TIME_SQL}), current_timestamp)
+        - (ped.pedpzentre::date + ${EXPECTED_TIME_SQL})
+      )) / 60)::integer as atraso_minutos,
+      ped.clicodigo as codigo_cliente,
+      coalesce(cli.clinomefant, cli.clirazsocial) as cliente,
+      cli.gclcodigo as gclcodigo,
+      ped.funcodigo as vendedor_codigo,
+      ped.pedcodigo as numero_venda,
+      ped.id_pedido as pedido,
+      (
+        coalesce((select sum(prd.pdpqtdade)::numeric from pdprd prd where prd.id_pedido = ped.id_pedido), 0)
+        +
+        coalesce((select sum(pds.pdsqtdade)::numeric from pdser pds where pds.id_pedido = ped.id_pedido), 0)
+      ) as quantidade_total,
+      ped.pedsitped::text as status
+    from pedid ped
+    left join clien cli on ped.clicodigo = cli.clicodigo
+    where ${clauses.join(' and ')}
+    order by data_venda desc, pedido desc
+    limit ${MAX_SALES_ROWS}
+  `
+}
+
+async function getTenantSupabase(request, tenantSlug) {
+  const { company, companySecrets } = await resolveAuthorizedCompany(request, tenantSlug)
+  const supabaseUrl = companySecrets.supabaseUrl || company.supabaseUrl || (company.isPremiumLab ? process.env.SUPABASE_URL : '')
+  const supabaseServiceRoleKey =
+    companySecrets.supabaseServiceRoleKey || (company.isPremiumLab ? process.env.SUPABASE_SERVICE_ROLE_KEY : '')
+
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error(`Supabase nao configurado para o tenant ${company.slug}.`)
+  }
+
+  return createTenantSupabase(supabaseUrl, supabaseServiceRoleKey)
 }
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const tenantSlug = searchParams.get('tenant') || ''
-    await resolveAuthorizedCompany(request, tenantSlug)
+    const supabase = await getTenantSupabase(request, tenantSlug)
 
     const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
     const fallbackEnd = format(new Date(), 'yyyy-MM-dd')
@@ -291,139 +389,79 @@ export async function GET(request) {
     const customerMediaDiasFilter = searchParams.get('customerMediaDias') || ''
 
     const now = nowInProductionTimeZone()
+    const shouldLoadTraceability = Boolean(pedcodigo)
     const shouldLoadProductDetails = Boolean(pedcodigo)
 
-    const [smallTables, pedid, requi] = await Promise.all([
-      getUpstashTables(['almox', 'funcio', 'usuario', 'clien', 'localped']),
-      pedcodigo
-        ? getUpstashRowsByIndex('pedid', 'pedcodigo', pedcodigo, 'orderCode')
-        : getUpstashRowsByDateRange('pedid', 'peddtemis', dateStart, dateEnd),
-      getUpstashRowsByDateRange('requi', 'reqdata', dateStart, dateEnd),
-    ])
-
-    const {
-      almox = [],
-      funcio = [],
-      usuario = [],
-      clien = [],
-      localped = [],
-    } = smallTables
-
-    const clientsByCodeRaw = Object.fromEntries(clien.map(client => [String(client.clicodigo), client]))
-    const orderFilters = { dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo }
-    const filteredPedid = pedid
-      .filter(order => orderMatchesFilters(order, clientsByCodeRaw[String(order.clicodigo)], orderFilters))
-      .sort((a, b) => compareDateDesc(a, b, 'peddtemis'))
-      .slice(0, MAX_SALES_ROWS)
-    const filteredOrderIds = new Set(filteredPedid.map(order => String(order.id_pedido)))
-    const filteredOrderById = Object.fromEntries(filteredPedid.map(order => [String(order.id_pedido), order]))
-
-    const requiData = requi
-      .filter(row => dateTimeInRange(row.reqdata, dateStart, dateEnd))
-      .filter(row => !pedcodigo || normalizeOrderCode(row.pdccodigo) === normalizeOrderCode(pedcodigo))
-      .filter(row => !dptcodigo || sameNumber(row.dptcodigo, dptcodigo))
-      .sort((a, b) => compareDateDesc(a, b, 'reqdata'))
-      .slice(0, MAX_REQUI_ROWS)
-    const cellsData = almox.slice().sort((a, b) => Number(a.alxordem || 0) - Number(b.alxordem || 0))
-    const empData = funcio.slice(0, 300)
-    const userData = usuario.slice(0, 300)
-    const indexedOrderIds = shouldLoadProductDetails ? [...filteredOrderIds].slice(0, 20) : []
-    const [indexedAcopedRows, indexedProductRows, indexedServiceRows] = await Promise.all([
-      shouldLoadProductDetails
-        ? Promise.all(indexedOrderIds.map(orderId => getUpstashRowsByIndex('acoped', 'id_pedido', orderId))).then(results => results.flat())
-        : Promise.resolve([]),
-      shouldLoadProductDetails
-        ? Promise.all(indexedOrderIds.map(orderId => getUpstashRowsByIndex('pdprd', 'id_pedido', orderId))).then(results => results.flat())
-        : Promise.resolve([]),
-      shouldLoadProductDetails
-        ? Promise.all(indexedOrderIds.map(orderId => getUpstashRowsByIndex('pdser', 'id_pedido', orderId))).then(results => results.flat())
-        : Promise.resolve([]),
-    ])
-    const acoped = indexedAcopedRows
-      .filter(row => dateInRange(row.apdata, dateStart, dateEnd))
-      .sort((a, b) => `${extractDatePart(a.apdata) || ''} ${extractTimePart(a.aphora) || ''}`.localeCompare(`${extractDatePart(b.apdata) || ''} ${extractTimePart(b.aphora) || ''}`))
-      .slice(0, 10000)
-    const rastreab = []
-    const clientsData = clien
-      .filter(client => client.clicliente === 'S')
-      .filter(client => !clicodigo || sameNumber(client.clicodigo, clicodigo))
-      .filter(client => !gclcodigo || sameNumber(client.gclcodigo, gclcodigo))
-      .sort((a, b) => Number(a.clicodigo || 0) - Number(b.clicodigo || 0))
-      .slice(0, 10000)
-    const localPedData = localped.slice().sort((a, b) => Number(a.lpcodigo || 0) - Number(b.lpcodigo || 0))
-
-    const productRowsForOrders = indexedProductRows
-    const serviceRowsForOrders = indexedServiceRows
-    const quantityByOrder = {}
-    for (const row of [...productRowsForOrders, ...serviceRowsForOrders]) {
-      const orderId = String(row.id_pedido)
-      const quantity = Number(row.pdpqtdade ?? row.pdsqtdade ?? 0) || 0
-      quantityByOrder[orderId] = (quantityByOrder[orderId] || 0) + quantity
+    const acopedQuery = () => {
+      let query = supabase
+        .from('acoped')
+        .select('alxcodigo, apdata, empcodigo, aphora, usucodigo, id_pedido, lpcodigo')
+        .order('apdata', { ascending: true })
+        .order('aphora', { ascending: true })
+      return query.gte('apdata', dateStart).lte('apdata', dateEnd)
     }
 
-    const salesOrdersRaw = filteredPedid.map(order => {
-      const client = clientsByCodeRaw[String(order.clicodigo)] || {}
-      return {
-        data_venda: extractDatePart(order.peddtemis),
-        data_hora_prevista: combineOrderDateTime(order.pedpzentre, order.pedhrentre),
-        data_hora_saida: combineOrderDateTime(order.peddtsaida, order.pedhrsaida),
-        codigo_cliente: order.clicodigo,
-        cliente: client.clinomefant || client.clirazsocial,
-        gclcodigo: client.gclcodigo,
-        vendedor_codigo: order.funcodigo,
-        numero_venda: order.pedcodigo,
-        pedido: order.id_pedido,
-        quantidade_total: quantityByOrder[String(order.id_pedido)] || 0,
-        status: order.pedsitped,
-      }
-    })
+    const rastreabQuery = () => {
+      let query = supabase
+        .from('rastreab')
+        .select('*')
+        .order('apdata', { ascending: true })
+        .order('aphora', { ascending: true })
+      return query.gte('peddtemis', `${dateStart}T00:00:00`).lte('peddtemis', `${dateEnd}T23:59:59`)
+    }
 
-    const productSalesRows = shouldLoadProductDetails
-      ? productRowsForOrders.map(row => {
-          const order = filteredOrderById[String(row.id_pedido)] || {}
-          const client = clientsByCodeRaw[String(order.clicodigo)] || {}
-          return {
-            cod_empresa: order.empcodigo,
-            data_venda: extractDatePart(order.peddtemis),
-            data_hora_saida: combineOrderDateTime(order.peddtsaida, order.pedhrsaida),
-            data_hora_prevista: combineOrderDateTime(order.pedpzentre, order.pedhrentre),
-            codigo_cliente: order.clicodigo,
-            cliente: client.clinomefant || client.clirazsocial,
-            gclcodigo: client.gclcodigo,
-            vendedor_codigo: order.funcodigo,
-            numero_venda: order.pedcodigo,
-            pedido: order.id_pedido,
-            codigo_produto: row.procodigo,
-            descricao_produto: row.pdpdescricao,
-            qtde_produtos: row.pdpqtdade,
-            status: order.pedsitped,
-            produto_servico: 'P',
-          }
-        })
-      : []
-    const serviceSalesRows = shouldLoadProductDetails
-      ? serviceRowsForOrders.map(row => {
-          const order = filteredOrderById[String(row.id_pedido)] || {}
-          const client = clientsByCodeRaw[String(order.clicodigo)] || {}
-          return {
-            cod_empresa: order.empcodigo,
-            data_venda: extractDatePart(order.peddtemis),
-            data_hora_saida: combineOrderDateTime(order.peddtsaida, order.pedhrsaida),
-            data_hora_prevista: combineOrderDateTime(order.pedpzentre, order.pedhrentre),
-            codigo_cliente: order.clicodigo,
-            cliente: client.clinomefant || client.clirazsocial,
-            gclcodigo: client.gclcodigo,
-            vendedor_codigo: order.funcodigo,
-            numero_venda: order.pedcodigo,
-            pedido: order.id_pedido,
-            codigo_produto: row.sercodigo,
-            descricao_produto: row.pdsdescricao,
-            qtde_produtos: row.pdsqtdade,
-            status: order.pedsitped,
-            produto_servico: 'S',
-          }
-        })
-      : []
+    const [requiRes, cellsRes, empRes, userRes, acopedRes, rastreabRes, clientsRes, localPedRes] = await Promise.all([
+      fetchAllPages(() => {
+        let query = supabase
+          .from('requi')
+          .select('reqcodigo, reqdata, reqhora, pdccodigo, funcodigo, dptcodigo, reqentsai, reqtipo')
+          .gte('reqdata', `${dateStart}T00:00:00`)
+          .lte('reqdata', `${dateEnd}T23:59:59`)
+          .order('reqdata', { ascending: false })
+        if (pedcodigo) query = query.eq('pdccodigo', Number(pedcodigo))
+        if (dptcodigo) query = query.eq('dptcodigo', Number(dptcodigo))
+        return query
+      }),
+      supabase.from('almox').select('empcodigo, alxcodigo, alxdescricao, dptcodigo, alxordem, alxtipocel').order('alxordem'),
+      supabase.from('funcio').select('funcodigo, funnome').limit(300),
+      supabase.from('usuario').select('usucodigo, usunome').limit(300),
+      shouldLoadTraceability ? fetchOptionalPages(acopedQuery, { maxRows: 10000 }) : Promise.resolve({ data: [], error: null }),
+      shouldLoadTraceability ? fetchOptionalPages(rastreabQuery, { maxRows: 10000 }) : Promise.resolve({ data: [], error: null }),
+      fetchAllPages(() => {
+        let query = supabase
+          .from('clien')
+          .select('clicodigo, clirazsocial, clinomefant, gclcodigo')
+          .eq('clicliente', 'S')
+          .order('clicodigo')
+        if (clicodigo) query = query.eq('clicodigo', Number(clicodigo))
+        if (gclcodigo) query = query.eq('gclcodigo', Number(gclcodigo))
+        return query
+      }, { maxRows: 10000 }),
+      supabase.from('localped').select('lpcodigo, lpdescricao').order('lpcodigo'),
+    ])
+
+    for (const [name, res] of Object.entries({ requi: requiRes, almox: cellsRes, funcio: empRes, usuario: userRes, acoped: acopedRes, rastreab: rastreabRes, clien: clientsRes, localped: localPedRes })) {
+      if (res.error) throw new Error(`${name}: ${res.error.message}`)
+    }
+
+    const requiData = requiRes.data || []
+    const cellsData = cellsRes.data || []
+    const empData = empRes.data || []
+    const userData = userRes.data || []
+    const acoped = acopedRes.data || []
+    const rastreab = rastreabRes.data || []
+    const clientsData = clientsRes.data || []
+    const localPedData = localPedRes.data || []
+
+    const [salesOrdersRaw, productSalesRows, serviceSalesRows] = await Promise.all([
+      execSql(supabase, buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })),
+      shouldLoadProductDetails
+        ? execSql(supabase, buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind: 'products' }))
+        : Promise.resolve([]),
+      shouldLoadProductDetails
+        ? execSql(supabase, buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind: 'services' }))
+        : Promise.resolve([]),
+    ])
 
     const normalizedCellsData = cellsData.map(cell => ({
       ...cell,

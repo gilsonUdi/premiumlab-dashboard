@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
+import { createTenantSupabase } from '@/lib/supabase'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
-import { getUpstashTables } from '@/lib/upstash-store'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,52 +41,59 @@ function normalizeText(value) {
   return best.replace(/\uFFFD/g, '').trim()
 }
 
+async function getTenantSupabase(request, tenantSlug) {
+  const { company, companySecrets } = await resolveAuthorizedCompany(request, tenantSlug)
+  const supabaseUrl = companySecrets.supabaseUrl || company.supabaseUrl || (company.isPremiumLab ? process.env.SUPABASE_URL : '')
+  const supabaseServiceRoleKey =
+    companySecrets.supabaseServiceRoleKey || (company.isPremiumLab ? process.env.SUPABASE_SERVICE_ROLE_KEY : '')
+
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error(`Supabase nao configurado para o tenant ${company.slug}.`)
+  }
+
+  return createTenantSupabase(supabaseUrl, supabaseServiceRoleKey)
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const tenantSlug = searchParams.get('tenant') || ''
-    await resolveAuthorizedCompany(request, tenantSlug)
+    const supabase = await getTenantSupabase(request, tenantSlug)
 
-    const { almox = [], clien = [], localped = [], funcio = [] } = await getUpstashTables(['almox', 'clien', 'localped', 'funcio'])
+    const [cellsRes, clientsRes, groupsRes, localPedRes, empRes] = await Promise.all([
+      supabase.from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxperda').order('alxordem'),
+      supabase.from('clien').select('clicodigo, clirazsocial, clinomefant, gclcodigo').eq('clicliente', 'S').order('clirazsocial').limit(500),
+      supabase.from('clien').select('gclcodigo').not('gclcodigo', 'is', null),
+      supabase.from('localped').select('lpcodigo, lpdescricao, lpfimprocesso, lpiniprocesso').order('lpordem'),
+      supabase.from('funcio').select('funcodigo, funnome').order('funnome').limit(200),
+    ])
 
-    const cells = almox
-      .slice()
-      .sort((a, b) => Number(a.alxordem || 0) - Number(b.alxordem || 0))
-      .map(cell => ({
+    const cells = (cellsRes.data || []).map(cell => ({
       value: cell.dptcodigo,
       label: normalizeText(cell.alxdescricao),
       alxcodigo: cell.alxcodigo,
       alxperda: cell.alxperda,
     }))
 
-    const clients = clien
-      .filter(client => client.clicliente === 'S')
-      .sort((a, b) => normalizeText(a.clirazsocial).localeCompare(normalizeText(b.clirazsocial)))
-      .slice(0, 500)
-      .map(client => ({
+    const clients = (clientsRes.data || []).map(client => ({
       clicodigo: client.clicodigo,
       label: normalizeText(client.clinomefant || client.clirazsocial),
       razaoSocial: normalizeText(client.clirazsocial),
       gclcodigo: client.gclcodigo,
     }))
 
-    const groupCodes = [...new Set(clien.map(row => row.gclcodigo).filter(Boolean))]
+    const groupCodes = [...new Set((groupsRes.data || []).map(row => row.gclcodigo).filter(Boolean))]
     const clientGroups = groupCodes.map(groupCode => ({ value: groupCode, label: `Grupo ${groupCode}` }))
 
-    const stages = localped
-      .slice()
-      .sort((a, b) => Number(a.lpordem || a.lpcodigo || 0) - Number(b.lpordem || b.lpcodigo || 0))
-      .map(stage => ({
+    const stages = (localPedRes.data || []).map(stage => ({
       value: stage.lpcodigo,
       label: normalizeText(stage.lpdescricao),
       isFinal: stage.lpfimprocesso === 'S',
       isStart: stage.lpiniprocesso === 'S',
     }))
 
-    const employees = funcio
+    const employees = (empRes.data || [])
       .filter(employee => !normalizeText(employee.funnome).includes('INATIVO'))
-      .sort((a, b) => normalizeText(a.funnome).localeCompare(normalizeText(b.funnome)))
-      .slice(0, 200)
       .map(employee => ({ value: employee.funcodigo, label: normalizeText(employee.funnome) }))
 
     const statuses = [
