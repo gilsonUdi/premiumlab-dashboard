@@ -5,12 +5,14 @@ Sincronizador local para rodar no computador do cliente e enviar as tabelas do F
 ## Instalar no PC do cliente
 
 1. Copie esta pasta para o computador do cliente.
-2. Instale Node.js 20 ou superior.
+2. Instale Node.js 20.x LTS.
 3. Abra o terminal dentro desta pasta e rode:
 
 ```powershell
 npm install
 ```
+
+Se estiver usando Node 24 ou 22, troque para Node 20 antes de continuar. O pacote `node-firebird` desta rotina fica estavel com Node 20 LTS.
 
 4. Copie `.env.example` para `.env.local`.
 5. Preencha Firebird e Supabase no `.env.local`.
