@@ -5,6 +5,18 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const Firebird = require("node-firebird");
+const DEFAULT_INDEX_COLUMNS = [
+  "pedid:peddtemis:date",
+  "pedid:pedcodigo:orderCode",
+  "pedid:id_pedido:number",
+  "pedid:clicodigo:number",
+  "requi:reqdata:date",
+  "requi:pdccodigo:orderCode",
+  "requi:dptcodigo:number",
+  "acoped:id_pedido:number",
+  "pdprd:id_pedido:number",
+  "pdser:id_pedido:number",
+].join(",");
 
 loadEnvFile(path.join(__dirname, ".env.local"));
 
@@ -170,12 +182,19 @@ function parseDateFilters() {
 }
 
 function parseIndexColumns() {
-  return Object.fromEntries(
-    parseList(process.env.SYNC_INDEX_COLUMNS)
-      .map((item) => item.split(":").map((part) => part.trim().toLowerCase()))
-      .filter(([table, column]) => table && column)
-      .map(([table, column]) => [table, column])
-  );
+  const entries = parseList(process.env.SYNC_INDEX_COLUMNS || DEFAULT_INDEX_COLUMNS).map((item) => {
+    const [table, column, mode] = item.split(":").map((part) => part.trim());
+    return [normalizeName(table), { column: normalizeName(column), mode: normalizeName(mode || "raw") || "raw" }];
+  });
+
+  const grouped = {};
+  for (const [table, config] of entries) {
+    if (!table || !config.column) continue;
+    if (!grouped[table]) grouped[table] = [];
+    grouped[table].push(config);
+  }
+
+  return grouped;
 }
 
 function dateDaysAgo(days) {
@@ -202,6 +221,44 @@ function upstashConfig() {
     token,
     prefix: (process.env.UPSTASH_KEY_PREFIX || "premium:firebird").replace(/:+$/, ""),
   };
+}
+
+function extractDateToken(value) {
+  if (!value) return "";
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+
+  const match = String(value).trim().match(/(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : "";
+}
+
+function normalizeIntegerToken(value) {
+  if (value == null) return "";
+
+  const text = String(value).trim();
+  if (!text) return "";
+
+  if (/^\d+\.0+$/.test(text)) {
+    return text.replace(/\.0+$/, "").replace(/^0+/, "") || "0";
+  }
+
+  const numeric = Number(text);
+  if (Number.isFinite(numeric) && Number.isInteger(numeric)) {
+    return String(numeric).replace(/^0+/, "") || "0";
+  }
+
+  return text.replace(/^0+/, "") || "0";
+}
+
+function normalizeIndexValue(value, mode) {
+  switch (mode) {
+    case "date":
+      return extractDateToken(value);
+    case "number":
+    case "ordercode":
+      return normalizeIntegerToken(value);
+    default:
+      return String(value ?? "").trim();
+  }
 }
 
 async function upstashCommand(command) {
@@ -281,7 +338,7 @@ async function syncTable(db, tableName, options) {
   const fetchBatch = options.fetchBatch;
   const chunkRows = options.chunkRows;
   const bucketCount = options.bucketCount;
-  const indexColumn = options.indexColumns[normalizedTable] || null;
+  const indexColumns = options.indexColumns[normalizedTable] || [];
   const dateFilter = options.dateFilters[tableName.toUpperCase()] || null;
   const whereClause = dateFilter ? `WHERE "${dateFilter.column}" >= '${dateFilter.from}'` : "";
   const columns = await getTableColumns(db, tableName);
@@ -316,8 +373,10 @@ async function syncTable(db, tableName, options) {
           const rowsKey = `${tableKey}:rows:${index}`;
           const commands = commandsByBucket.get(rowsKey) || [];
           commands.push(["HSET", rowsKey, item.id, JSON.stringify(item.row)]);
-          if (indexColumn && item.row[indexColumn] != null && item.row[indexColumn] !== "") {
-            commands.push(["SADD", `${tableKey}:index:${indexColumn}:${item.row[indexColumn]}`, item.id]);
+          for (const indexConfig of indexColumns) {
+            const indexValue = normalizeIndexValue(item.row[indexConfig.column], indexConfig.mode);
+            if (!indexValue) continue;
+            commands.push(["SADD", `${tableKey}:index:${indexConfig.column}:${indexValue}`, item.id]);
           }
           commandsByBucket.set(rowsKey, commands);
         }
@@ -366,7 +425,7 @@ async function syncTable(db, tableName, options) {
     storageMode: useMergeMode ? "hash-merge-buckets" : "snapshot-chunks",
     rowsKeyPattern: useMergeMode ? `${tableKey}:rows:{bucket}` : null,
     bucketCount: useMergeMode ? bucketCount : null,
-    indexColumn: useMergeMode ? indexColumn : null,
+    indexColumns: useMergeMode ? indexColumns : [],
     columns,
     primaryKeys,
     syncedRowCount: totalRows,

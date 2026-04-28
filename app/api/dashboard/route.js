@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { addDays, differenceInDays, differenceInMinutes, format, parseISO, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
-import { getUpstashRowsByIndex, getUpstashTables } from '@/lib/upstash-store'
+import { getUpstashRowsByDateRange, getUpstashRowsByIndex, getUpstashTables } from '@/lib/upstash-store'
 
 export const dynamic = 'force-dynamic'
 
@@ -293,15 +293,21 @@ export async function GET(request) {
     const now = nowInProductionTimeZone()
     const shouldLoadProductDetails = Boolean(pedcodigo)
 
+    const [smallTables, pedid, requi] = await Promise.all([
+      getUpstashTables(['almox', 'funcio', 'usuario', 'clien', 'localped']),
+      pedcodigo
+        ? getUpstashRowsByIndex('pedid', 'pedcodigo', pedcodigo, 'orderCode')
+        : getUpstashRowsByDateRange('pedid', 'peddtemis', dateStart, dateEnd),
+      getUpstashRowsByDateRange('requi', 'reqdata', dateStart, dateEnd),
+    ])
+
     const {
-      requi = [],
       almox = [],
       funcio = [],
       usuario = [],
       clien = [],
       localped = [],
-      pedid = [],
-    } = await getUpstashTables(['requi', 'almox', 'funcio', 'usuario', 'clien', 'localped', 'pedid'])
+    } = smallTables
 
     const clientsByCodeRaw = Object.fromEntries(clien.map(client => [String(client.clicodigo), client]))
     const orderFilters = { dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo }

@@ -8,7 +8,8 @@
     "sync:date": "node sync.js --date-tables-only",
     "sync:dry": "node sync.js --dry-run",
     "sync:watch": "node sync.js --watch",
-    "sync:table": "node sync.js --table"
+    "sync:table": "node sync.js --table",
+    "reindex": "node reindex.js"
   },
   "dependencies": {
     "node-firebird": "^1.1.8"
