@@ -1,0 +1,18 @@
+{
+  "name": "premium-firebird-upstash-sync",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sincronizador local Firebird -> Upstash Redis para o Dashboard Premium.",
+  "scripts": {
+    "sync": "node sync.js",
+    "sync:dry": "node sync.js --dry-run",
+    "sync:watch": "node sync.js --watch",
+    "sync:table": "node sync.js --table"
+  },
+  "dependencies": {
+    "node-firebird": "^1.1.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
