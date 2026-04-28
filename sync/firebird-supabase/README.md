@@ -28,7 +28,8 @@ O fluxo automatico fica configurado para:
 - rodar a cada 5 minutos;
 - sincronizar apenas as tabelas com coluna de data;
 - trazer somente os ultimos 3 dias dessas tabelas;
-- fazer `upsert`, preservando o historico anterior no Supabase.
+- inserir apenas registros novos, preservando o historico anterior no Supabase;
+- nunca apagar a janela anterior nem sobrescrever registros ja existentes.
 
 Para criar a tarefa do usuario no Agendador do Windows:
 
@@ -65,6 +66,7 @@ Depois disso, deixe o automatico seguir so com a janela movel de 3 dias.
 ## Observacoes
 
 - O Supabase precisa ter as tabelas ja criadas com os mesmos nomes em minusculo.
-- Quando a tabela tiver chave primaria no Firebird, o script usa essa chave no `upsert`.
+- Quando a tabela tiver chave primaria no Firebird, o script usa essa chave como conflito para ignorar duplicados no Supabase.
+- O modo padrao agora e `insert-only`: se o registro ja existir, ele e ignorado e nao atualizado.
 - Se o computador desligar, a sincronizacao pausa e volta quando a tarefa rodar novamente.
 - Os logs ficam em `logs\sync.log`.

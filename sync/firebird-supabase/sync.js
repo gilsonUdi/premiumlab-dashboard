@@ -189,18 +189,18 @@ function getSupabase() {
   });
 }
 
-async function upsertBatch(supabase, tableName, rows, primaryKeys) {
+async function insertOnlyBatch(supabase, tableName, rows, primaryKeys) {
   if (rows.length === 0) return;
 
   let query = supabase.from(tableName).upsert(rows, {
-    ignoreDuplicates: false,
+    ignoreDuplicates: true,
     defaultToNull: true,
   });
 
   if (primaryKeys.length > 0) {
     query = supabase.from(tableName).upsert(rows, {
       onConflict: primaryKeys.join(","),
-      ignoreDuplicates: false,
+      ignoreDuplicates: true,
       defaultToNull: true,
     });
   }
@@ -208,18 +208,6 @@ async function upsertBatch(supabase, tableName, rows, primaryKeys) {
   const { error } = await query;
   if (error) {
     throw new Error(`Supabase ${tableName}: ${error.message}`);
-  }
-}
-
-async function deleteDateWindow(supabase, tableName, dateFilter) {
-  const dateColumn = normalizeName(dateFilter.column);
-  const { error } = await supabase
-    .from(tableName)
-    .delete()
-    .gte(dateColumn, dateFilter.from);
-
-  if (error) {
-    throw new Error(`Supabase ${tableName} delete janela: ${error.message}`);
   }
 }
 
@@ -233,17 +221,13 @@ async function syncTable(db, supabase, tableName, options) {
 
   process.stdout.write(`  ${tableName} -> ${normalizedTable}${dateFilter ? ` [>= ${dateFilter.from}]` : ""}: `);
 
-  if (!options.dryRun && primaryKeys.length === 0 && dateFilter) {
-    await deleteDateWindow(supabase, normalizedTable, dateFilter);
-  }
-
   let skip = 0;
   let totalRows = 0;
   let pendingRows = [];
 
   async function flushPending() {
     if (pendingRows.length === 0 || options.dryRun) return;
-    await upsertBatch(supabase, normalizedTable, pendingRows, primaryKeys);
+    await insertOnlyBatch(supabase, normalizedTable, pendingRows, primaryKeys);
     pendingRows = [];
     process.stdout.write(".");
   }
@@ -270,7 +254,7 @@ async function syncTable(db, supabase, tableName, options) {
   }
 
   if (!options.dryRun && pendingRows.length > 0) {
-    await upsertBatch(supabase, normalizedTable, pendingRows, primaryKeys);
+    await insertOnlyBatch(supabase, normalizedTable, pendingRows, primaryKeys);
     process.stdout.write(".");
   }
 
@@ -309,6 +293,7 @@ async function runOnce() {
   log(`Supabase : ${cleanEnvValue(process.env.SUPABASE_URL)}`);
   log(`Tabelas  : ${tablesToSync.length > 0 ? tablesToSync.join(", ") : "todas"}`);
   if (dateTablesOnly && !tableArg) log("Modo     : somente tabelas com filtro de data");
+  log("Escrita  : insert-only (nao apaga e nao sobrescreve registros existentes)");
   if (dryRun) log("Modo     : dry-run");
 
   const db = await fbConnect(fbOptions);
