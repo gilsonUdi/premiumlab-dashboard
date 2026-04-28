@@ -1,17 +1,17 @@
 {
-  "name": "premium-firebird-upstash-sync",
+  "name": "premium-firebird-supabase-sync",
   "version": "1.0.0",
   "private": true,
-  "description": "Sincronizador local Firebird -> Upstash Redis para o Dashboard Premium.",
+  "description": "Sincronizador local Firebird -> Supabase para o Dashboard Premium.",
   "scripts": {
     "sync": "node sync.js",
     "sync:date": "node sync.js --date-tables-only",
     "sync:dry": "node sync.js --dry-run",
     "sync:watch": "node sync.js --watch",
-    "sync:table": "node sync.js --table",
-    "reindex": "node reindex.js"
+    "sync:table": "node sync.js --table"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.43.4",
     "node-firebird": "^1.1.8"
   },
   "engines": {

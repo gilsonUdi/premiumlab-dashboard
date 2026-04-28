@@ -1,0 +1,70 @@
+# Firebird -> Supabase Sync
+
+Sincronizador local para rodar no computador do cliente e enviar as tabelas do Firebird para o Supabase.
+
+## Instalar no PC do cliente
+
+1. Copie esta pasta para o computador do cliente.
+2. Instale Node.js 20 ou superior.
+3. Abra o terminal dentro desta pasta e rode:
+
+```powershell
+npm install
+```
+
+4. Copie `.env.example` para `.env.local`.
+5. Preencha Firebird e Supabase no `.env.local`.
+6. Teste:
+
+```powershell
+npm run sync:dry
+npm run sync
+```
+
+## Atualizacao automatica a cada 5 minutos
+
+O fluxo automatico fica configurado para:
+
+- rodar a cada 5 minutos;
+- sincronizar apenas as tabelas com coluna de data;
+- trazer somente os ultimos 3 dias dessas tabelas;
+- fazer `upsert`, preservando o historico anterior no Supabase.
+
+Para criar a tarefa do usuario no Agendador do Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-user-task.ps1
+```
+
+Se a politica do Windows bloquear tarefas agendadas, use `run-watch.bat` e deixe a janela aberta. Ele executa a sincronizacao em loop, respeitando `SYNC_INTERVAL_SECONDS`.
+
+## Configuracao recomendada
+
+```env
+SYNC_RECENT_DAYS=3
+SYNC_DATE_TABLES_ONLY=true
+SYNC_INTERVAL_SECONDS=300
+```
+
+As tabelas monitoradas por data ficam em `SYNC_DATE_COLUMNS`.
+
+## Carga completa inicial
+
+Na primeira carga, vale executar todas as tabelas:
+
+```powershell
+$env:SYNC_RECENT_DAYS="0"
+$env:SYNC_DATE_TABLES_ONLY="false"
+node sync.js
+Remove-Item Env:\SYNC_RECENT_DAYS
+Remove-Item Env:\SYNC_DATE_TABLES_ONLY
+```
+
+Depois disso, deixe o automatico seguir so com a janela movel de 3 dias.
+
+## Observacoes
+
+- O Supabase precisa ter as tabelas ja criadas com os mesmos nomes em minusculo.
+- Quando a tabela tiver chave primaria no Firebird, o script usa essa chave no `upsert`.
+- Se o computador desligar, a sincronizacao pausa e volta quando a tarefa rodar novamente.
+- Os logs ficam em `logs\sync.log`.

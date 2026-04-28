@@ -1,5 +1,5 @@
 param(
-  [string]$TaskName = "Premium Firebird Upstash Sync",
+  [string]$TaskName = "Premium Firebird Supabase Sync",
   [string]$ProjectDir = $PSScriptRoot
 )
 
@@ -11,7 +11,7 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 $action = New-ScheduledTaskAction `
   -Execute $node `
-  -Argument "`"$script`" >> `"$logDir\scheduled-task.log`" 2>&1" `
+  -Argument "`"$script`" --date-tables-only >> `"$logDir\scheduled-task.log`" 2>&1" `
   -WorkingDirectory $ProjectDir
 
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
@@ -29,7 +29,7 @@ Register-ScheduledTask `
   -Action $action `
   -Trigger $trigger `
   -Settings $settings `
-  -Description "Sincroniza Firebird com Upstash Redis a cada 5 minutos." `
+  -Description "Sincroniza Firebird com Supabase a cada 5 minutos." `
   -Force | Out-Null
 
 Write-Host "Tarefa criada: $TaskName"
