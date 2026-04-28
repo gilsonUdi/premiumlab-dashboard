@@ -5,6 +5,7 @@
   "description": "Sincronizador local Firebird -> Upstash Redis para o Dashboard Premium.",
   "scripts": {
     "sync": "node sync.js",
+    "sync:date": "node sync.js --date-tables-only",
     "sync:dry": "node sync.js --dry-run",
     "sync:watch": "node sync.js --watch",
     "sync:table": "node sync.js --table"

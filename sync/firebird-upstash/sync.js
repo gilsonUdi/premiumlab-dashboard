@@ -104,6 +104,11 @@ function rowIdentity(row, primaryKeys) {
   return crypto.createHash("sha1").update(JSON.stringify(row)).digest("hex");
 }
 
+function bucketIndex(identity, bucketCount) {
+  const digest = crypto.createHash("sha1").update(String(identity)).digest("hex");
+  return parseInt(digest.slice(0, 8), 16) % bucketCount;
+}
+
 async function getTableNames(db, filterList) {
   const rows = await fbQuery(
     db,
@@ -164,6 +169,15 @@ function parseDateFilters() {
   return Object.fromEntries(entries.filter(([table, filter]) => table && filter.column));
 }
 
+function parseIndexColumns() {
+  return Object.fromEntries(
+    parseList(process.env.SYNC_INDEX_COLUMNS)
+      .map((item) => item.split(":").map((part) => part.trim().toLowerCase()))
+      .filter(([table, column]) => table && column)
+      .map(([table, column]) => [table, column])
+  );
+}
+
 function dateDaysAgo(days) {
   const date = new Date();
   date.setDate(date.getDate() - days);
@@ -173,6 +187,10 @@ function dateDaysAgo(days) {
 function getTableArg() {
   const index = args.indexOf("--table");
   return index === -1 ? null : args[index + 1];
+}
+
+function envIsTrue(name) {
+  return String(process.env[name] || "").trim().toLowerCase() === "true";
 }
 
 function upstashConfig() {
@@ -245,13 +263,25 @@ async function clearOldChunks(tableKey, oldChunkCount, newChunkCount) {
   await upstashPipeline(commands);
 }
 
+async function countBucketRows(tableKey, bucketCount) {
+  const commands = [];
+  for (let index = 0; index < bucketCount; index++) {
+    commands.push(["HLEN", `${tableKey}:rows:${index}`]);
+  }
+
+  const counts = await upstashPipeline(commands);
+  return counts.reduce((sum, count) => sum + Number(count || 0), 0);
+}
+
 async function syncTable(db, tableName, options) {
   const normalizedTable = normalizeName(tableName);
   const tableKey = keyFor("table", normalizedTable);
   const metaKey = `${tableKey}:meta`;
-  const rowsKey = `${tableKey}:rows`;
+  const legacyRowsKey = `${tableKey}:rows`;
   const fetchBatch = options.fetchBatch;
   const chunkRows = options.chunkRows;
+  const bucketCount = options.bucketCount;
+  const indexColumn = options.indexColumns[normalizedTable] || null;
   const dateFilter = options.dateFilters[tableName.toUpperCase()] || null;
   const whereClause = dateFilter ? `WHERE "${dateFilter.column}" >= '${dateFilter.from}'` : "";
   const columns = await getTableColumns(db, tableName);
@@ -265,6 +295,10 @@ async function syncTable(db, tableName, options) {
     }
   });
 
+  if (useMergeMode && !options.dryRun && previousMeta?.storageMode !== "hash-merge-buckets") {
+    await upstashCommand(["DEL", legacyRowsKey]);
+  }
+
   let skip = 0;
   let totalRows = 0;
   let chunkIndex = 0;
@@ -276,11 +310,21 @@ async function syncTable(db, tableName, options) {
     if (currentChunk.length === 0) return;
     if (!options.dryRun) {
       if (useMergeMode) {
-        const commands = [];
+        const commandsByBucket = new Map();
         for (const item of currentChunk) {
+          const index = bucketIndex(item.id, bucketCount);
+          const rowsKey = `${tableKey}:rows:${index}`;
+          const commands = commandsByBucket.get(rowsKey) || [];
           commands.push(["HSET", rowsKey, item.id, JSON.stringify(item.row)]);
+          if (indexColumn && item.row[indexColumn] != null && item.row[indexColumn] !== "") {
+            commands.push(["SADD", `${tableKey}:index:${indexColumn}:${item.row[indexColumn]}`, item.id]);
+          }
+          commandsByBucket.set(rowsKey, commands);
         }
-        await upstashPipeline(commands);
+
+        for (const commands of commandsByBucket.values()) {
+          await upstashPipeline(commands);
+        }
       } else {
         await upstashCommand(["SET", `${tableKey}:chunk:${chunkIndex}`, JSON.stringify(currentChunk)]);
       }
@@ -319,8 +363,10 @@ async function syncTable(db, tableName, options) {
     source: "firebird",
     table: tableName,
     key: normalizedTable,
-    storageMode: useMergeMode ? "hash-merge" : "snapshot-chunks",
-    rowsKey: useMergeMode ? rowsKey : null,
+    storageMode: useMergeMode ? "hash-merge-buckets" : "snapshot-chunks",
+    rowsKeyPattern: useMergeMode ? `${tableKey}:rows:{bucket}` : null,
+    bucketCount: useMergeMode ? bucketCount : null,
+    indexColumn: useMergeMode ? indexColumn : null,
     columns,
     primaryKeys,
     syncedRowCount: totalRows,
@@ -332,7 +378,7 @@ async function syncTable(db, tableName, options) {
 
   if (!options.dryRun) {
     if (useMergeMode) {
-      meta.totalStoredRows = Number(await upstashCommand(["HLEN", rowsKey]) || 0);
+      meta.totalStoredRows = await countBucketRows(tableKey, bucketCount);
     }
 
     await upstashPipeline([
@@ -369,7 +415,10 @@ async function runOnce() {
 
   const dryRun = args.includes("--dry-run");
   const tableArg = getTableArg();
+  const dateFilters = parseDateFilters();
+  const dateTablesOnly = args.includes("--date-tables-only") || envIsTrue("SYNC_DATE_TABLES_ONLY");
   const filterList = tableArg ? [tableArg] : parseList(process.env.SYNC_TABLES);
+  const tablesToSync = dateTablesOnly && !tableArg ? Object.keys(dateFilters) : filterList;
   const fbOptions = {
     host: process.env.FIREBIRD_HOST,
     port: Number(process.env.FIREBIRD_PORT || 3050),
@@ -384,7 +433,8 @@ async function runOnce() {
   log(`Firebird : ${fbOptions.host}:${fbOptions.port} / ${fbOptions.database}`);
   log(`Upstash  : ${upstashConfig().url}`);
   log(`Prefixo  : ${upstashConfig().prefix}`);
-  log(`Tabelas  : ${filterList.length > 0 ? filterList.join(", ") : "todas"}`);
+  log(`Tabelas  : ${tablesToSync.length > 0 ? tablesToSync.join(", ") : "todas"}`);
+  if (dateTablesOnly && !tableArg) log("Modo     : somente tabelas com filtro de data");
   if (dryRun) log("Modo     : dry-run");
 
   const db = await fbConnect(fbOptions);
@@ -394,7 +444,7 @@ async function runOnce() {
       log("Upstash  : OK");
     }
 
-    const tables = await getTableNames(db, filterList);
+    const tables = await getTableNames(db, tablesToSync);
     if (tables.length === 0) {
       log("Nenhuma tabela encontrada para sincronizar.");
       return;
@@ -404,8 +454,10 @@ async function runOnce() {
       dryRun,
       fetchBatch: Number(process.env.SYNC_FETCH_BATCH || 1000),
       chunkRows: Number(process.env.SYNC_CHUNK_ROWS || 1000),
+      bucketCount: Number(process.env.SYNC_BUCKET_COUNT || 64),
       mergeMode: String(process.env.SYNC_MERGE_MODE || "true").toLowerCase() !== "false",
-      dateFilters: parseDateFilters(),
+      indexColumns: parseIndexColumns(),
+      dateFilters,
     };
 
     let ok = 0;

@@ -53,11 +53,35 @@ Depois da primeira carga completa, use:
 ```env
 SYNC_RECENT_DAYS=3
 SYNC_MERGE_MODE=true
+SYNC_DATE_TABLES_ONLY=true
+SYNC_INDEX_COLUMNS=ACOPED:id_pedido,PDPRD:id_pedido,PDSER:id_pedido,REQUI:pdccodigo
 ```
 
 Com esse modo, as tabelas com `SYNC_DATE_COLUMNS` buscam somente a janela recente, mas gravam no Upstash como `hash-merge`. Isso atualiza/insere registros pela chave primaria e nao apaga os dados antigos ja armazenados.
 
+`SYNC_DATE_TABLES_ONLY=true` faz a rotina agendada processar somente tabelas com coluna de data. As tabelas base continuam armazenadas pela carga completa e podem ser atualizadas manualmente quando necessario.
+
+Para fazer uma nova carga completa de todas as tabelas:
+
+```powershell
+$env:SYNC_RECENT_DAYS="0"
+$env:SYNC_DATE_TABLES_ONLY="false"
+node sync.js
+Remove-Item Env:\SYNC_RECENT_DAYS
+Remove-Item Env:\SYNC_DATE_TABLES_ONLY
+```
+
+As linhas sao divididas em buckets para evitar o limite de tamanho por chave do Upstash:
+
+```env
+SYNC_BUCKET_COUNT=64
+```
+
+Se uma tabela for muito grande, aumente para `128` ou `256`.
+
 Se uma tabela nao tiver chave primaria, o script usa um hash do conteudo da linha como identificador. Funciona para preservar dados, mas a atualizacao fica melhor em tabelas com PK.
+
+`SYNC_INDEX_COLUMNS` cria indices auxiliares para o dashboard buscar detalhes por pedido sem varrer tabelas grandes.
 
 ## Observacoes
 
