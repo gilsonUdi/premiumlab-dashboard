@@ -21,6 +21,20 @@ npm run sync:dry
 npm run sync
 ```
 
+## Reindexar o Upstash atual
+
+Se a base ja foi enviada para o Upstash antes destes ajustes, rode o reindex para criar os indices usados pelo dashboard:
+
+```powershell
+npm run reindex -- --table pedid
+npm run reindex -- --table requi
+npm run reindex -- --table acoped
+npm run reindex -- --table pdprd
+npm run reindex -- --table pdser
+```
+
+O `pdprd` pode demorar bastante. O script ja envia em lotes pequenos para nao estourar o limite de request do Upstash.
+
 ## Atualizacao automatica a cada 5 minutos
 
 Sem permissao de administrador, tente criar a tarefa do usuario:
@@ -54,7 +68,7 @@ Depois da primeira carga completa, use:
 SYNC_RECENT_DAYS=3
 SYNC_MERGE_MODE=true
 SYNC_DATE_TABLES_ONLY=true
-SYNC_INDEX_COLUMNS=ACOPED:id_pedido,PDPRD:id_pedido,PDSER:id_pedido,REQUI:pdccodigo
+SYNC_INDEX_COLUMNS=PEDID:PEDDTEMIS:date,PEDID:PEDCODIGO:orderCode,PEDID:ID_PEDIDO:number,PEDID:CLICODIGO:number,REQUI:REQDATA:date,REQUI:PDCCODIGO:orderCode,REQUI:DPTCODIGO:number,ACOPED:ID_PEDIDO:number,PDPRD:ID_PEDIDO:number,PDSER:ID_PEDIDO:number
 ```
 
 Com esse modo, as tabelas com `SYNC_DATE_COLUMNS` buscam somente a janela recente, mas gravam no Upstash como `hash-merge`. Isso atualiza/insere registros pela chave primaria e nao apaga os dados antigos ja armazenados.
@@ -81,7 +95,7 @@ Se uma tabela for muito grande, aumente para `128` ou `256`.
 
 Se uma tabela nao tiver chave primaria, o script usa um hash do conteudo da linha como identificador. Funciona para preservar dados, mas a atualizacao fica melhor em tabelas com PK.
 
-`SYNC_INDEX_COLUMNS` cria indices auxiliares para o dashboard buscar detalhes por pedido sem varrer tabelas grandes.
+`SYNC_INDEX_COLUMNS` cria indices auxiliares para o dashboard buscar dados por periodo, pedido e detalhes sem varrer tabelas grandes.
 
 ## Observacoes
 

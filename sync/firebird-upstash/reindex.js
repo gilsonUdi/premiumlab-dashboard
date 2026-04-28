@@ -4,6 +4,9 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const MAX_PIPELINE_COMMANDS = 200;
+const MAX_PIPELINE_BYTES = 512 * 1024;
+const HASH_SCAN_COUNT = 250;
 const DEFAULT_INDEX_COLUMNS = [
   "pedid:peddtemis:date",
   "pedid:pedcodigo:orderCode",
@@ -203,26 +206,34 @@ function chunkArray(values, size) {
   return chunks;
 }
 
+async function flushCommands(commands) {
+  if (commands.length === 0) return;
+  await upstashPipeline(commands.splice(0, commands.length));
+}
+
+async function scanHashValues(hashKey) {
+  const values = [];
+  let cursor = "0";
+
+  while (true) {
+    const [result] = await upstashPipeline([["HSCAN", hashKey, cursor, "COUNT", HASH_SCAN_COUNT]]);
+    const nextCursor = String(result?.[0] ?? "0");
+    const flatEntries = result?.[1] || [];
+
+    for (let index = 1; index < flatEntries.length; index += 2) {
+      values.push(flatEntries[index]);
+    }
+
+    if (nextCursor === "0") break;
+    cursor = nextCursor;
+  }
+
+  return values;
+}
+
 async function getTableMeta(table) {
   const [meta] = await upstashPipeline([["GET", `${tableKey(table)}:meta`]]);
   return parseJson(meta, null);
-}
-
-async function getTableRows(table, meta) {
-  const key = tableKey(table);
-  if (meta.storageMode === "hash-merge-buckets") {
-    const bucketCount = Number(meta.bucketCount || 64);
-    const commands = Array.from({ length: bucketCount }, (_, index) => ["HVALS", `${key}:rows:${index}`]);
-    const bucketValues = await upstashPipeline(commands);
-    return bucketValues.flatMap((values) => values || []).map((value) => parseJson(value, null)).filter(Boolean);
-  }
-
-  if (meta.storageMode === "hash-merge") {
-    const [values] = await upstashPipeline([["HVALS", `${key}:rows`]]);
-    return (values || []).map((value) => parseJson(value, null)).filter(Boolean);
-  }
-
-  return [];
 }
 
 async function syncTableIndexes(table, configs) {
@@ -232,33 +243,43 @@ async function syncTableIndexes(table, configs) {
     throw new Error(`Tabela ${table} nao esta em hash-merge-buckets`);
   }
 
-  const rows = await getTableRows(table, meta);
   const primaryKeys = (meta.primaryKeys || []).map(normalizePrimaryKeyName);
   const commands = [];
-  let indexedCount = 0;
+  let pendingBytes = 0;
+  let totalRows = 0;
+  const key = tableKey(table);
+  const bucketCount = Number(meta.bucketCount || 64);
 
-  for (const row of rows) {
-    const rowId = rowIdentity(row, primaryKeys);
-    for (const config of configs) {
-      const indexValue = normalizeIndexValue(row[config.column], config.mode);
-      if (!indexValue) continue;
-      commands.push(["SADD", `${tableKey(table)}:index:${config.column}:${indexValue}`, rowId]);
-      if (commands.length >= 1000) {
-        await upstashPipeline(commands.splice(0, commands.length));
+  for (let bucket = 0; bucket < bucketCount; bucket += 1) {
+    const bucketValues = await scanHashValues(`${key}:rows:${bucket}`);
+    const rows = bucketValues.map((value) => parseJson(value, null)).filter(Boolean);
+    totalRows += rows.length;
+
+    for (const row of rows) {
+      const rowId = rowIdentity(row, primaryKeys);
+      for (const config of configs) {
+        const indexValue = normalizeIndexValue(row[config.column], config.mode);
+        if (!indexValue) continue;
+        const command = ["SADD", `${key}:index:${config.column}:${indexValue}`, rowId];
+        const commandBytes = JSON.stringify(command).length;
+        commands.push(command);
+        pendingBytes += commandBytes;
+
+        if (commands.length >= MAX_PIPELINE_COMMANDS || pendingBytes >= MAX_PIPELINE_BYTES) {
+          await flushCommands(commands);
+          pendingBytes = 0;
+        }
       }
     }
-    indexedCount += 1;
   }
 
-  if (commands.length > 0) {
-    await upstashPipeline(commands);
-  }
+  await flushCommands(commands);
 
   meta.indexColumns = configs;
   meta.indexedAt = new Date().toISOString();
   await upstashPipeline([["SET", `${tableKey(table)}:meta`, JSON.stringify(meta)]]);
 
-  console.log(`${table}: ${rows.length.toLocaleString("pt-BR")} linha(s), ${configs.length} indice(s)`);
+  console.log(`${table}: ${totalRows.toLocaleString("pt-BR")} linha(s), ${configs.length} indice(s)`);
 }
 
 async function main() {
