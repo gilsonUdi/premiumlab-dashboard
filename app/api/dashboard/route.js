@@ -113,6 +113,47 @@ function normalizeText(value) {
   return best.replace(/\uFFFD/g, '').trim()
 }
 
+function cleanConfigValue(value) {
+  let text = String(value || '').trim()
+  if (!text) return ''
+
+  while (true) {
+    const next = text
+      .replace(/^\\?"/, '')
+      .replace(/\\?"$/, '')
+      .replace(/^\\?'/, '')
+      .replace(/\\?'$/, '')
+      .trim()
+
+    if (next === text) break
+    text = next
+  }
+
+  return text
+}
+
+function resolveSupabaseConfig(company, companySecrets) {
+  const url = cleanConfigValue(
+    companySecrets?.supabaseUrl ||
+      companySecrets?.supabase_url ||
+      company?.supabaseUrl ||
+      company?.supabase_url ||
+      (company?.isPremiumLab ? process.env.SUPABASE_URL : '')
+  )
+
+  const serviceRoleKey = cleanConfigValue(
+    companySecrets?.supabaseServiceRoleKey ||
+      companySecrets?.serviceRoleKey ||
+      companySecrets?.supabase_service_role_key ||
+      company?.supabaseServiceRoleKey ||
+      company?.serviceRoleKey ||
+      company?.supabase_service_role_key ||
+      (company?.isPremiumLab ? process.env.SUPABASE_SERVICE_ROLE_KEY : '')
+  )
+
+  return { url, serviceRoleKey }
+}
+
 function normalizeOrderCode(value) {
   if (value == null) return ''
 
@@ -349,9 +390,7 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
 
 async function getTenantSupabase(request, tenantSlug) {
   const { company, companySecrets } = await resolveAuthorizedCompany(request, tenantSlug)
-  const supabaseUrl = companySecrets.supabaseUrl || company.supabaseUrl || (company.isPremiumLab ? process.env.SUPABASE_URL : '')
-  const supabaseServiceRoleKey =
-    companySecrets.supabaseServiceRoleKey || (company.isPremiumLab ? process.env.SUPABASE_SERVICE_ROLE_KEY : '')
+  const { url: supabaseUrl, serviceRoleKey: supabaseServiceRoleKey } = resolveSupabaseConfig(company, companySecrets)
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
     throw new Error(`Supabase nao configurado para o tenant ${company.slug}.`)
