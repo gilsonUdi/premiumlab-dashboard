@@ -29,6 +29,7 @@ O fluxo automatico fica configurado para:
 
 - rodar a cada 5 minutos;
 - sincronizar apenas as tabelas com coluna de data;
+- incluir `PDPRD` e `PDSER` por vinculo com pedidos recentes;
 - trazer somente os ultimos 3 dias dessas tabelas;
 - inserir apenas registros novos, preservando o historico anterior no Supabase;
 - nunca apagar a janela anterior nem sobrescrever registros ja existentes.
@@ -50,6 +51,7 @@ SYNC_INTERVAL_SECONDS=300
 ```
 
 As tabelas monitoradas por data ficam em `SYNC_DATE_COLUMNS`.
+As tabelas sem data propria, mas dependentes de pedidos recentes, ficam em `SYNC_LINKED_DATE_TABLES`.
 
 ## Carga completa inicial
 
@@ -68,6 +70,8 @@ Depois disso, deixe o automatico seguir so com a janela movel de 3 dias.
 ## Observacoes
 
 - O Supabase precisa ter as tabelas ja criadas com os mesmos nomes em minusculo.
+- Para PPS e Analise de Dados, as tabelas realmente necessarias sao: `CLIEN`, `FUNCIO`, `ALMOX`, `LOCALPED`, `USUARIO`, `REQUI`, `PEDID`, `PDPRD`, `PDSER` e `ACOPED`.
+- As tabelas nao necessarias para esses dois modos sao: `BANCO`, `PRODU`, `CFOP`, `CIDADE`, `CCORR`, `PAGAR`, `RECEB`, `MOVIMENTACAO`, `PEDFINALIDADE`, `GRUPOCLI`, `GRUPOROTULOS`, `PEDFO`, `NOTAS`, `TBFIS`, `COMPOPROROT` e `REGRAPROMO`.
 - Quando a tabela tiver chave primaria no Firebird, o script usa essa chave como conflito para ignorar duplicados no Supabase.
 - O modo padrao agora e `insert-only`: se o registro ja existir, ele e ignorado e nao atualizado.
 - Se o computador desligar, a sincronizacao pausa e volta quando a tarefa rodar novamente.

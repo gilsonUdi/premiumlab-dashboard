@@ -232,6 +232,31 @@ function parseDateFilters() {
   return Object.fromEntries(entries.filter(([table, filter]) => table && filter.column));
 }
 
+function parseLinkedDateFilters() {
+  const recentDays = Number(process.env.SYNC_RECENT_DAYS || 0);
+  const from = recentDays > 0 ? dateDaysAgo(recentDays) : cleanEnvValue(process.env.SYNC_DATE_FROM || "2025-01-01");
+
+  const entries = parseList(process.env.SYNC_LINKED_DATE_TABLES).map((item) => {
+    const [table, foreignKey, parentTable, parentDateColumn] = item.split(":").map((part) => part.trim());
+    return [
+      table.toUpperCase(),
+      {
+        foreignKey,
+        parentTable,
+        parentDateColumn,
+        from,
+      },
+    ];
+  });
+
+  return Object.fromEntries(
+    entries.filter(
+      ([table, filter]) =>
+        table && filter.foreignKey && filter.parentTable && filter.parentDateColumn
+    )
+  );
+}
+
 function getTableArg() {
   const index = args.indexOf("--table");
   return index === -1 ? null : args[index + 1];
@@ -275,13 +300,28 @@ async function insertOnlyBatch(supabase, tableName, rows, primaryKeys) {
 async function syncTable(db, supabase, tableName, options) {
   const normalizedTable = normalizeName(tableName);
   const dateFilter = options.dateFilters[tableName.toUpperCase()] || null;
+  const linkedDateFilter = options.linkedDateFilters[tableName.toUpperCase()] || null;
   const primaryKeys = await getPrimaryKeys(db, tableName);
   const targetColumns = await getTargetColumns(supabase, normalizedTable);
   const fetchBatch = options.fetchBatch;
   const insertBatch = options.insertBatch;
-  const whereClause = dateFilter ? `WHERE "${dateFilter.column}" >= '${dateFilter.from}'` : "";
+  const whereClause = dateFilter
+    ? `WHERE "${dateFilter.column}" >= '${dateFilter.from}'`
+    : linkedDateFilter
+      ? `WHERE "${linkedDateFilter.foreignKey}" IN (
+          SELECT "${linkedDateFilter.foreignKey}"
+          FROM "${linkedDateFilter.parentTable}"
+          WHERE "${linkedDateFilter.parentDateColumn}" >= '${linkedDateFilter.from}'
+        )`
+      : "";
 
-  process.stdout.write(`  ${tableName} -> ${normalizedTable}${dateFilter ? ` [>= ${dateFilter.from}]` : ""}: `);
+  const filterLabel = dateFilter
+    ? ` [>= ${dateFilter.from}]`
+    : linkedDateFilter
+      ? ` [via ${linkedDateFilter.parentTable}.${linkedDateFilter.parentDateColumn} >= ${linkedDateFilter.from}]`
+      : "";
+
+  process.stdout.write(`  ${tableName} -> ${normalizedTable}${filterLabel}: `);
 
   let skip = 0;
   let totalRows = 0;
@@ -338,9 +378,13 @@ async function runOnce() {
   const dryRun = args.includes("--dry-run");
   const tableArg = getTableArg();
   const dateFilters = parseDateFilters();
+  const linkedDateFilters = parseLinkedDateFilters();
   const dateTablesOnly = args.includes("--date-tables-only") || envIsTrue("SYNC_DATE_TABLES_ONLY");
   const filterList = tableArg ? [tableArg] : parseList(process.env.SYNC_TABLES);
-  const tablesToSync = dateTablesOnly && !tableArg ? Object.keys(dateFilters) : filterList;
+  const tablesToSync =
+    dateTablesOnly && !tableArg
+      ? [...new Set([...Object.keys(dateFilters), ...Object.keys(linkedDateFilters)])]
+      : filterList;
 
   const fbOptions = {
     host: cleanEnvValue(process.env.FIREBIRD_HOST),
@@ -375,6 +419,7 @@ async function runOnce() {
       fetchBatch: Number(process.env.SYNC_FETCH_BATCH || 1000),
       insertBatch: Number(process.env.SYNC_INSERT_BATCH || 500),
       dateFilters,
+      linkedDateFilters,
     };
 
     let ok = 0;
