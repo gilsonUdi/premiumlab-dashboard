@@ -280,11 +280,6 @@ function asSqlOrderCode(value) {
   return normalized || '0'
 }
 
-function asSqlIdList(values) {
-  const ids = [...new Set((values || []).map(value => Number(value)).filter(Number.isFinite))]
-  return ids.length > 0 ? ids.join(',') : null
-}
-
 async function execSql(supabase, sql) {
   const compactSql = sql.replace(/\s+/g, ' ').trim()
   const { data, error } = await supabase.rpc('exec_sql', { sql: compactSql })
@@ -384,75 +379,12 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
         +
         coalesce((select sum(pds.pdsqtdade)::numeric from pdser pds where pds.id_pedido = ped.id_pedido), 0)
       ) as quantidade_total,
-      coalesce(
-        (
-          select lp.lpdescricao::text
-          from acoped ac
-          left join localped lp on lp.lpcodigo = ac.lpcodigo
-          where ac.id_pedido = ped.id_pedido
-          order by ac.apdata desc nulls last, ac.aphora desc nulls last, ac.id_roteiro desc nulls last
-          limit 1
-        ),
-        case when ped.peddtsaida is not null then 'PEDIDO FATURADO' else null end
-      ) as current_cell,
       ped.pedsitped::text as status
     from pedid ped
     left join clien cli on ped.clicodigo = cli.clicodigo
     where ${clauses.join(' and ')}
     order by data_venda desc, pedido desc
     limit ${MAX_SALES_ROWS}
-  `
-}
-
-function buildProductDetailsSql(orderIds, kind = 'products') {
-  const ids = asSqlIdList(orderIds)
-  if (!ids) return null
-
-  const isService = kind === 'services'
-  const itemTable = isService ? 'pdser' : 'pdprd'
-  const itemAlias = isService ? 'pds' : 'prd'
-  const joinColumn = isService ? 'sercodigo' : 'procodigo'
-  const descriptionColumn = isService ? 'pdsdescricao' : 'pdpdescricao'
-  const quantityColumn = isService ? 'pdsqtdade' : 'pdpqtdade'
-
-  return `
-    select
-      ped.pedcodigo as numero_venda,
-      ped.id_pedido as pedido,
-      ${itemAlias}.${joinColumn}::text as codigo_produto,
-      ${itemAlias}.${descriptionColumn}::text as descricao_produto,
-      ${itemAlias}.${quantityColumn}::numeric as qtde_produtos,
-      (ped.peddtsaida::date + ${ACTUAL_TIME_SQL}) as data_hora_saida,
-      coalesce(cli.clinomefant, cli.clirazsocial) as cliente
-    from pedid ped
-    join ${itemTable} ${itemAlias} on ped.id_pedido = ${itemAlias}.id_pedido
-    left join clien cli on ped.clicodigo = cli.clicodigo
-    where ped.id_pedido in (${ids})
-    order by ped.pedcodigo, pedido
-  `
-}
-
-function buildTraceabilitySql(orderIds) {
-  const ids = asSqlIdList(orderIds)
-  if (!ids) return null
-
-  return `
-    select
-      ac.id_pedido,
-      ped.pedcodigo as numero_venda,
-      ac.alxcodigo,
-      a.alxdescricao::text as estoque_descricao,
-      lp.lpdescricao::text as celula,
-      ac.apdata,
-      ac.aphora,
-      u.usunome::text as usuario
-    from acoped ac
-    join pedid ped on ped.id_pedido = ac.id_pedido
-    left join almox a on a.alxcodigo = ac.alxcodigo and a.empcodigo = ac.empcodigo
-    left join localped lp on lp.lpcodigo = ac.lpcodigo
-    left join usuario u on u.usucodigo = ac.usucodigo
-    where ac.id_pedido in (${ids})
-    order by ac.apdata asc nulls last, ac.aphora asc nulls last
   `
 }
 
@@ -499,7 +431,25 @@ export async function GET(request) {
     const shouldLoadTraceability = Boolean(pedcodigo)
     const shouldLoadProductDetails = Boolean(pedcodigo)
 
-    const [requiRes, cellsRes, empRes, userRes, clientsRes, localPedRes] = await Promise.all([
+    const acopedQuery = () => {
+      let query = supabase
+        .from('acoped')
+        .select('alxcodigo, apdata, empcodigo, aphora, usucodigo, id_pedido, lpcodigo')
+        .order('apdata', { ascending: true })
+        .order('aphora', { ascending: true })
+      return query.gte('apdata', dateStart).lte('apdata', dateEnd)
+    }
+
+    const rastreabQuery = () => {
+      let query = supabase
+        .from('rastreab')
+        .select('*')
+        .order('apdata', { ascending: true })
+        .order('aphora', { ascending: true })
+      return query.gte('peddtemis', `${dateStart}T00:00:00`).lte('peddtemis', `${dateEnd}T23:59:59`)
+    }
+
+    const [requiRes, cellsRes, empRes, userRes, acopedRes, rastreabRes, clientsRes, localPedRes] = await Promise.all([
       fetchAllPages(() => {
         let query = supabase
           .from('requi')
@@ -514,6 +464,8 @@ export async function GET(request) {
       supabase.from('almox').select('empcodigo, alxcodigo, alxdescricao, dptcodigo, alxordem, alxtipocel').order('alxordem'),
       supabase.from('funcio').select('funcodigo, funnome').limit(300),
       supabase.from('usuario').select('usucodigo, usunome').limit(300),
+      shouldLoadTraceability ? fetchOptionalPages(acopedQuery, { maxRows: 10000 }) : Promise.resolve({ data: [], error: null }),
+      shouldLoadTraceability ? fetchOptionalPages(rastreabQuery, { maxRows: 10000 }) : Promise.resolve({ data: [], error: null }),
       fetchAllPages(() => {
         let query = supabase
           .from('clien')
@@ -527,7 +479,7 @@ export async function GET(request) {
       supabase.from('localped').select('lpcodigo, lpdescricao').order('lpcodigo'),
     ])
 
-    for (const [name, res] of Object.entries({ requi: requiRes, almox: cellsRes, funcio: empRes, usuario: userRes, clien: clientsRes, localped: localPedRes })) {
+    for (const [name, res] of Object.entries({ requi: requiRes, almox: cellsRes, funcio: empRes, usuario: userRes, acoped: acopedRes, rastreab: rastreabRes, clien: clientsRes, localped: localPedRes })) {
       if (res.error) throw new Error(`${name}: ${res.error.message}`)
     }
 
@@ -535,10 +487,20 @@ export async function GET(request) {
     const cellsData = cellsRes.data || []
     const empData = empRes.data || []
     const userData = userRes.data || []
+    const acoped = acopedRes.data || []
+    const rastreab = rastreabRes.data || []
     const clientsData = clientsRes.data || []
     const localPedData = localPedRes.data || []
 
-    const salesOrdersRaw = await execSql(supabase, buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo }))
+    const [salesOrdersRaw, productSalesRows, serviceSalesRows] = await Promise.all([
+      execSql(supabase, buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })),
+      shouldLoadProductDetails
+        ? execSql(supabase, buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind: 'products' }))
+        : Promise.resolve([]),
+      shouldLoadProductDetails
+        ? execSql(supabase, buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind: 'services' }))
+        : Promise.resolve([]),
+    ])
 
     const normalizedCellsData = cellsData.map(cell => ({
       ...cell,
@@ -561,14 +523,28 @@ export async function GET(request) {
       ...step,
       lpdescricao: normalizeText(step.lpdescricao),
     }))
+    const normalizedSalesRows = [...productSalesRows, ...serviceSalesRows].map(row => ({
+      ...row,
+      cliente: normalizeText(row.cliente),
+      descricao_produto: normalizeText(row.descricao_produto),
+      status: normalizeText(row.status),
+    }))
     const normalizedSalesOrdersRaw = salesOrdersRaw.map(row => ({
       ...row,
       cliente: normalizeText(row.cliente),
       status: normalizeText(row.status),
-      current_cell: normalizeText(row.current_cell),
     }))
+
+    const salesRows = normalizedSalesRows
     const cellByDpt = Object.fromEntries(normalizedCellsData.map(cell => [cell.dptcodigo, cell]))
+    const cellByAlx = new Map()
+    for (const cell of normalizedCellsData) {
+      if (cell.alxcodigo == null) continue
+      cellByAlx.set(String(cell.alxcodigo), cell)
+      if (cell.empcodigo != null) cellByAlx.set(`${cell.empcodigo}:${cell.alxcodigo}`, cell)
+    }
     const empMap = Object.fromEntries(normalizedEmpData.map(employee => [employee.funcodigo, employee.funnome]))
+    const userMap = Object.fromEntries(normalizedUserData.map(user => [user.usucodigo, user.usunome]))
     const clientsByCode = Object.fromEntries(normalizedClientsData.map(client => [client.clicodigo, client]))
     const localPedByCode = Object.fromEntries(normalizedLocalPedData.map(step => [step.lpcodigo, step.lpdescricao]))
 
@@ -605,37 +581,19 @@ export async function GET(request) {
         quantidade: Number(row.quantidade_total) || 0,
         products: [],
         statusRaw: row.status,
-        currentCell: normalizeText(row.current_cell),
       }
     }
 
-    const salesOrders = Object.values(salesOrderMap)
-    const orderNumberById = Object.fromEntries(salesOrders.map(order => [order.pedido, order.numeroVenda]))
-    const selectedOrderIds = shouldLoadProductDetails ? salesOrders.map(order => order.pedido) : []
-    const [productSalesRows, serviceSalesRows, traceabilityRows] = await Promise.all([
-      shouldLoadProductDetails && buildProductDetailsSql(selectedOrderIds, 'products')
-        ? execSql(supabase, buildProductDetailsSql(selectedOrderIds, 'products'))
-        : Promise.resolve([]),
-      shouldLoadProductDetails && buildProductDetailsSql(selectedOrderIds, 'services')
-        ? execSql(supabase, buildProductDetailsSql(selectedOrderIds, 'services'))
-        : Promise.resolve([]),
-      shouldLoadTraceability && buildTraceabilitySql(selectedOrderIds)
-        ? execSql(supabase, buildTraceabilitySql(selectedOrderIds))
-        : Promise.resolve([]),
-    ])
-
-    const normalizedSalesRows = [...productSalesRows, ...serviceSalesRows].map(row => ({
-      ...row,
-      cliente: normalizeText(row.cliente),
-      descricao_produto: normalizeText(row.descricao_produto),
-    }))
-    for (const row of normalizedSalesRows) {
+    for (const row of salesRows) {
       const order = salesOrderMap[String(row.pedido)]
       if (!order) continue
       order.products.push(row)
     }
 
-    let products = normalizedSalesRows.map(row => ({
+    const salesOrders = Object.values(salesOrderMap)
+    const orderNumberById = Object.fromEntries(salesOrders.map(order => [order.pedido, order.numeroVenda]))
+
+    let products = salesRows.map(row => ({
       pedcodigo: normalizeOrderCode(row.numero_venda || row.pedido),
       pedidoId: String(row.pedido),
       status: row.data_hora_saida ? 'Saida' : 'Em Producao',
@@ -645,20 +603,33 @@ export async function GET(request) {
       clinome: normalizeText(row.cliente),
     }))
 
-    let traceability = traceabilityRows.map(row => ({
-      estoque: row.alxcodigo != null
-        ? `${row.alxcodigo} - ${normalizeText(row.estoque_descricao) || '-'}`
-        : normalizeText(row.estoque_descricao) || '-',
-      celula: normalizeText(row.celula) || '-',
-      dataHora: combineDateTime(row.apdata, row.aphora),
-      usuario: normalizeText(row.usuario) || '-',
-      pedcodigo: normalizeOrderCode(row.numero_venda || orderNumberById[String(row.id_pedido)] || row.id_pedido),
-      pedidoId: String(row.id_pedido),
-      clicodigo: null,
-      clinome: '-',
-    }))
-
-    if (!shouldLoadTraceability) {
+    let traceability = []
+    if (acoped.length > 0) {
+      traceability = acoped.map(row => {
+        const stock = cellByAlx.get(`${row.empcodigo}:${row.alxcodigo}`) || cellByAlx.get(String(row.alxcodigo))
+        return {
+          estoque: stock ? `${row.alxcodigo} - ${normalizeText(stock.alxdescricao)}` : `Estoque ${row.alxcodigo || ''}`,
+          celula: normalizeText(localPedByCode[row.lpcodigo]) || `Etapa ${row.lpcodigo || ''}`,
+          dataHora: combineDateTime(row.apdata, row.aphora),
+          usuario: normalizeText(userMap[row.usucodigo]) || `Usuario ${row.usucodigo || ''}`,
+          pedcodigo: normalizeOrderCode(orderNumberById[String(row.id_pedido)] || row.id_pedido),
+          pedidoId: String(row.id_pedido),
+          clicodigo: null,
+          clinome: '-',
+        }
+      })
+    } else if (rastreab.length > 0) {
+      traceability = rastreab.map(row => ({
+        estoque: normalizeText(row.setdescricao) || normalizeText(cellByDpt[row.setcodigo]?.alxdescricao) || `Estoque ${row.setcodigo || ''}`,
+        celula: normalizeText(row.lpdescricao) || `Etapa ${row.lpcodigo || ''}`,
+        dataHora: combineDateTime(row.apdata || row.peddtemis, row.aphora) || row.peddtemis || null,
+        usuario: normalizeText(row.usunome) || normalizeText(row.funnome) || normalizeText(empMap[row.funcodigo]) || `Func ${row.funcodigo || ''}`,
+        pedcodigo: normalizeOrderCode(orderNumberById[String(row.id_pedido || row.pedcodigo)] || row.id_pedido || row.pedcodigo),
+        pedidoId: String(row.id_pedido || row.pedcodigo),
+        clicodigo: row.clicodigo,
+        clinome: normalizeText(row.clinome),
+      }))
+    } else {
       traceability = requiData
         .filter(row => row.pdccodigo)
         .map(row => ({
@@ -673,10 +644,24 @@ export async function GET(request) {
         }))
     }
 
+    traceability.sort((a, b) => {
+      if (!a.dataHora && !b.dataHora) return 0
+      if (!a.dataHora) return 1
+      if (!b.dataHora) return -1
+      return new Date(a.dataHora) - new Date(b.dataHora)
+    })
+
+    const latestTraceByOrder = {}
+    for (const row of traceability) {
+      if (!row.pedidoId) continue
+      latestTraceByOrder[row.pedidoId] = row
+    }
+
     let orders = salesOrders.map(order => {
       const expected = order.expected || (order.emitted ? addDays(order.emitted, 5) : null)
       const delivered = order.delivered
       const resolvedStatus = resolveStatus(expected, delivered, now)
+      const currentTrace = latestTraceByOrder[order.pedido]
 
       return {
         pedcodigo: order.numeroVenda,
@@ -687,7 +672,7 @@ export async function GET(request) {
         saida: order.deliveredText,
         quantidade: order.quantidade || order.products.length,
         status: resolvedStatus,
-        currentCell: normalizeText(order.currentCell) || '-',
+        currentCell: normalizeText(currentTrace?.celula) || '-',
         delayRank: buildDelayRank(expected, delivered, now),
         rowTone: resolveRowTone(resolvedStatus, expected, delivered, now),
         clicodigo: order.clicodigo,
