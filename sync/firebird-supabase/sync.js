@@ -257,6 +257,34 @@ function parseLinkedDateFilters() {
   );
 }
 
+function applyRefreshWindowToFilters(dateFilters, linkedDateFilters, days, tables) {
+  if (!days || days <= 0) {
+    return { dateFilters, linkedDateFilters };
+  }
+
+  const from = dateDaysAgo(days);
+  const selected = new Set((tables || []).map((table) => String(table || "").trim().toUpperCase()));
+
+  const nextDateFilters = Object.fromEntries(
+    Object.entries(dateFilters).map(([table, filter]) => [
+      table,
+      selected.has(table) ? { ...filter, from } : filter,
+    ])
+  );
+
+  const nextLinkedDateFilters = Object.fromEntries(
+    Object.entries(linkedDateFilters).map(([table, filter]) => [
+      table,
+      selected.has(table) ? { ...filter, from } : filter,
+    ])
+  );
+
+  return {
+    dateFilters: nextDateFilters,
+    linkedDateFilters: nextLinkedDateFilters,
+  };
+}
+
 function getTableArg() {
   const index = args.indexOf("--table");
   return index === -1 ? null : args[index + 1];
@@ -480,7 +508,7 @@ async function runOnce() {
   log(`Firebird : ${fbOptions.host}:${fbOptions.port} / ${fbOptions.database}`);
   log(`Supabase : ${cleanEnvValue(process.env.SUPABASE_URL)}`);
   log(`Tabelas  : ${tablesToSync.length > 0 ? tablesToSync.join(", ") : "todas"}`);
-  if (dateTablesOnly && !tableArg) log("Modo     : somente tabelas com filtro de data");
+  if (dateTablesOnly && !tableArg && tablesArg.length === 0) log("Modo     : somente tabelas com filtro de data");
   if (refreshRecentDays && refreshRecentDays > 0) log(`Refresh  : substituindo somente os ultimos ${refreshRecentDays} dia(s) das tabelas selecionadas`);
   log("Escrita  : insert-only (nao apaga e nao sobrescreve registros existentes)");
   if (dryRun) log("Modo     : dry-run");
@@ -499,12 +527,14 @@ async function runOnce() {
       await refreshRecentWindow(supabase, tables, refreshRecentDays);
     }
 
+    const effectiveFilters = applyRefreshWindowToFilters(dateFilters, linkedDateFilters, refreshRecentDays, tables);
+
     const options = {
       dryRun,
       fetchBatch: Number(process.env.SYNC_FETCH_BATCH || 1000),
       insertBatch: Number(process.env.SYNC_INSERT_BATCH || 500),
-      dateFilters,
-      linkedDateFilters,
+      dateFilters: effectiveFilters.dateFilters,
+      linkedDateFilters: effectiveFilters.linkedDateFilters,
     };
 
     let ok = 0;
