@@ -400,6 +400,15 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
   `
 }
 
+function resolveLossFinalityCodes(finalityData) {
+  const codes = (finalityData || [])
+    .filter(item => normalizeText(item.pdfdescricao).trim().toUpperCase() === 'PERDA')
+    .map(item => String(item.pdfcodigo || '').trim())
+    .filter(Boolean)
+
+  return codes.length > 0 ? [...new Set(codes)] : ['2']
+}
+
 function buildLossMetricsSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, lossFinalityCodes = ['2'] }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
@@ -617,14 +626,7 @@ export async function GET(request) {
     const clientsData = clientsRes.data || []
     const localPedData = localPedRes.data || []
     const finalityData = finalityRes.data || []
-
-    const lossFinalityCodes = finalityData
-      .filter(item => normalizeText(item.pdfdescricao).toUpperCase() === 'PERDA')
-      .map(item => String(item.pdfcodigo).trim())
-
-    if (lossFinalityCodes.length === 0) {
-      lossFinalityCodes.push('2')
-    }
+    const lossFinalityCodes = resolveLossFinalityCodes(finalityData)
 
     const [salesOrdersRaw, lossMetricsRows] = await Promise.all([
       execSql(supabase, buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })),
