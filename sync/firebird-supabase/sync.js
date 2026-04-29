@@ -262,6 +262,22 @@ function getTableArg() {
   return index === -1 ? null : args[index + 1];
 }
 
+function getTablesArg() {
+  const index = args.indexOf("--tables");
+  if (index === -1) return [];
+  return String(args[index + 1] || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getNumberArg(name) {
+  const index = args.indexOf(name);
+  if (index === -1) return null;
+  const value = Number(args[index + 1]);
+  return Number.isFinite(value) ? value : null;
+}
+
 function envIsTrue(name) {
   return String(process.env[name] || "").trim().toLowerCase() === "true";
 }
@@ -273,6 +289,18 @@ function getSupabase() {
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+async function execSupabaseSql(supabase, sql) {
+  const { data, error } = await supabase.rpc("exec_sql", {
+    sql: sql.replace(/\s+/g, " ").trim(),
+  });
+
+  if (error) {
+    throw new Error(`Supabase SQL: ${error.message}`);
+  }
+
+  return data || [];
 }
 
 async function insertOnlyBatch(supabase, tableName, rows, primaryKeys) {
@@ -294,6 +322,56 @@ async function insertOnlyBatch(supabase, tableName, rows, primaryKeys) {
   const { error } = await query;
   if (error) {
     throw new Error(`Supabase ${tableName}: ${error.message}`);
+  }
+}
+
+async function refreshRecentWindow(supabase, tables, days) {
+  if (!days || days <= 0 || tables.length === 0) return;
+
+  const from = dateDaysAgo(days);
+  const wanted = new Set(tables.map((table) => String(table || "").trim().toUpperCase()));
+
+  const steps = [
+    {
+      table: "PDPRD",
+      enabled: wanted.has("PDPRD"),
+      sql: `
+        delete from pdprd
+        where id_pedido in (
+          select id_pedido
+          from pedid
+          where peddtemis >= '${from}T00:00:00'
+        )
+      `,
+    },
+    {
+      table: "PDSER",
+      enabled: wanted.has("PDSER"),
+      sql: `
+        delete from pdser
+        where id_pedido in (
+          select id_pedido
+          from pedid
+          where peddtemis >= '${from}T00:00:00'
+        )
+      `,
+    },
+    {
+      table: "PEDID",
+      enabled: wanted.has("PEDID"),
+      sql: `
+        delete from pedid
+        where peddtemis >= '${from}T00:00:00'
+      `,
+    },
+  ];
+
+  const activeSteps = steps.filter((step) => step.enabled);
+  if (activeSteps.length === 0) return;
+
+  log(`Refresh  : limpando janela recente de ${days} dia(s) para ${activeSteps.map((step) => step.table).join(", ")}`);
+  for (const step of activeSteps) {
+    await execSupabaseSql(supabase, step.sql);
   }
 }
 
@@ -377,12 +455,14 @@ async function runOnce() {
 
   const dryRun = args.includes("--dry-run");
   const tableArg = getTableArg();
+  const tablesArg = getTablesArg();
+  const refreshRecentDays = getNumberArg("--refresh-recent-days");
   const dateFilters = parseDateFilters();
   const linkedDateFilters = parseLinkedDateFilters();
   const dateTablesOnly = args.includes("--date-tables-only") || envIsTrue("SYNC_DATE_TABLES_ONLY");
-  const filterList = tableArg ? [tableArg] : parseList(process.env.SYNC_TABLES);
+  const filterList = tablesArg.length > 0 ? tablesArg : tableArg ? [tableArg] : parseList(process.env.SYNC_TABLES);
   const tablesToSync =
-    dateTablesOnly && !tableArg
+    dateTablesOnly && !tableArg && tablesArg.length === 0
       ? [...new Set([...Object.keys(dateFilters), ...Object.keys(linkedDateFilters)])]
       : filterList;
 
@@ -401,6 +481,7 @@ async function runOnce() {
   log(`Supabase : ${cleanEnvValue(process.env.SUPABASE_URL)}`);
   log(`Tabelas  : ${tablesToSync.length > 0 ? tablesToSync.join(", ") : "todas"}`);
   if (dateTablesOnly && !tableArg) log("Modo     : somente tabelas com filtro de data");
+  if (refreshRecentDays && refreshRecentDays > 0) log(`Refresh  : substituindo somente os ultimos ${refreshRecentDays} dia(s) das tabelas selecionadas`);
   log("Escrita  : insert-only (nao apaga e nao sobrescreve registros existentes)");
   if (dryRun) log("Modo     : dry-run");
 
@@ -412,6 +493,10 @@ async function runOnce() {
     if (tables.length === 0) {
       log("Nenhuma tabela encontrada para sincronizar.");
       return;
+    }
+
+    if (!dryRun && refreshRecentDays && refreshRecentDays > 0) {
+      await refreshRecentWindow(supabase, tables, refreshRecentDays);
     }
 
     const options = {

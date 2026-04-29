@@ -67,6 +67,23 @@ Remove-Item Env:\SYNC_DATE_TABLES_ONLY
 
 Depois disso, deixe o automatico seguir so com a janela movel de 3 dias.
 
+## Refresh corretivo so da janela recente
+
+Se precisar corrigir divergencia de dados sem apagar o historico antigo, voce pode
+substituir apenas a janela recente de tabelas especificas.
+
+Exemplo para recalcular perdas e vendas dos ultimos 30 dias:
+
+```powershell
+node sync.js --tables PEDID,PDPRD,PDSER --refresh-recent-days 30
+```
+
+Esse comando:
+
+- apaga no Supabase apenas os registros dessas tabelas ligados aos ultimos 30 dias;
+- recarrega a mesma janela a partir do Firebird;
+- preserva tudo que for anterior a 30 dias.
+
 ## Observacoes
 
 - O Supabase precisa ter as tabelas ja criadas com os mesmos nomes em minusculo.
