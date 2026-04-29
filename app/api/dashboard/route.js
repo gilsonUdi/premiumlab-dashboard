@@ -400,7 +400,7 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
   `
 }
 
-function buildLossMetricsSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo }) {
+function buildLossMetricsSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, lossFinalityCodes = ['2'] }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
@@ -415,11 +415,21 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodi
   if (cliente != null) clauses.push(`ped.clicodigo = ${cliente}`)
   if (grupo != null) clauses.push(`cli.gclcodigo = ${grupo}`)
 
+  const normalizedLossCodes = [...new Set(
+    (lossFinalityCodes || [])
+      .map(code => String(code || '').trim())
+      .filter(Boolean)
+  )]
+
+  const lossCodesSql = normalizedLossCodes.length > 0
+    ? normalizedLossCodes.map(code => `'${code.replace(/'/g, "''")}'`).join(', ')
+    : `'2'`
+
   return `
     select
-      coalesce(sum(case when vendas.finalidade = '2' then vendas.qtde_produtos else 0 end), 0) as qtd_perdas,
+      coalesce(sum(case when vendas.finalidade in (${lossCodesSql}) then vendas.qtde_produtos else 0 end), 0) as qtd_perdas,
       coalesce(sum(case when vendas.lanca_financeiro = 'S' then vendas.qtde_produtos else 0 end), 0) as qtd_lanca_financeiro,
-      coalesce(sum(case when vendas.finalidade = '2' then vendas.qtde_produtos else 0 end), 0)
+      coalesce(sum(case when vendas.finalidade in (${lossCodesSql}) then vendas.qtde_produtos else 0 end), 0)
         + coalesce(sum(case when vendas.lanca_financeiro = 'S' then vendas.qtde_produtos else 0 end), 0) as qtd_perda_produz
     from (
       select
@@ -567,7 +577,7 @@ export async function GET(request) {
     const shouldLoadTraceability = Boolean(pedcodigo)
     const shouldLoadProductDetails = Boolean(pedcodigo)
 
-    const [requiRes, cellsRes, empRes, userRes, clientsRes, localPedRes] = await Promise.all([
+    const [requiRes, cellsRes, empRes, userRes, clientsRes, localPedRes, finalityRes] = await Promise.all([
       fetchAllPages(() => {
         let query = supabase
           .from('requi')
@@ -593,9 +603,10 @@ export async function GET(request) {
         return query
       }, { maxRows: 10000 }),
       supabase.from('localped').select('lpcodigo, lpdescricao').order('lpcodigo'),
+      fetchOptionalPages(() => supabase.from('pedfinalidade').select('pdfcodigo, pdfdescricao').order('pdfcodigo'), { maxRows: 200 }),
     ])
 
-    for (const [name, res] of Object.entries({ requi: requiRes, almox: cellsRes, funcio: empRes, usuario: userRes, clien: clientsRes, localped: localPedRes })) {
+    for (const [name, res] of Object.entries({ requi: requiRes, almox: cellsRes, funcio: empRes, usuario: userRes, clien: clientsRes, localped: localPedRes, pedfinalidade: finalityRes })) {
       if (res.error) throw new Error(`${name}: ${res.error.message}`)
     }
 
@@ -605,10 +616,19 @@ export async function GET(request) {
     const userData = userRes.data || []
     const clientsData = clientsRes.data || []
     const localPedData = localPedRes.data || []
+    const finalityData = finalityRes.data || []
+
+    const lossFinalityCodes = finalityData
+      .filter(item => normalizeText(item.pdfdescricao).toUpperCase() === 'PERDA')
+      .map(item => String(item.pdfcodigo).trim())
+
+    if (lossFinalityCodes.length === 0) {
+      lossFinalityCodes.push('2')
+    }
 
     const [salesOrdersRaw, lossMetricsRows] = await Promise.all([
       execSql(supabase, buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })),
-      execSql(supabase, buildLossMetricsSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })),
+      execSql(supabase, buildLossMetricsSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, lossFinalityCodes })),
     ])
 
     const normalizedCellsData = cellsData.map(cell => ({
