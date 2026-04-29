@@ -9,7 +9,6 @@ export const dynamic = 'force-dynamic'
 const PAGE_SIZE = 1000
 const MAX_REQUI_ROWS = 20000
 const MAX_SALES_ROWS = 20000
-const LOSS_REQ_TYPES = new Set(['B', 'C'])
 const PRODUCTION_TIME_ZONE = 'America/Sao_Paulo'
 const EXPECTED_TIME_SQL = `(date_trunc('hour', ped.pedhrentre::time) - interval '3 hours')::time`
 const ACTUAL_TIME_SQL = `(ped.pedhrsaida::time - interval '3 hours')::time`
@@ -401,6 +400,51 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
   `
 }
 
+function buildLossMetricsSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo }) {
+  const clauses = [
+    `ped.peddtemis >= '${dateStart}T00:00:00'`,
+    `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
+    `ped.pedsitped <> 'C'`,
+  ]
+
+  const pedido = asSqlOrderCode(pedcodigo)
+  const cliente = asSqlNumber(clicodigo)
+  const grupo = asSqlNumber(gclcodigo)
+
+  if (pedido != null) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} = '${pedido}'`)
+  if (cliente != null) clauses.push(`ped.clicodigo = ${cliente}`)
+  if (grupo != null) clauses.push(`cli.gclcodigo = ${grupo}`)
+
+  return `
+    select
+      coalesce(sum(case when vendas.finalidade = '2' then vendas.qtde_produtos else 0 end), 0) as qtd_perdas,
+      coalesce(sum(case when vendas.lanca_financeiro = 'S' then vendas.qtde_produtos else 0 end), 0) as qtd_lanca_financeiro,
+      coalesce(sum(case when vendas.finalidade = '2' then vendas.qtde_produtos else 0 end), 0)
+        + coalesce(sum(case when vendas.lanca_financeiro = 'S' then vendas.qtde_produtos else 0 end), 0) as qtd_perda_produz
+    from (
+      select
+        ped.pdfcodigo::text as finalidade,
+        prd.pdpqtdade::numeric as qtde_produtos,
+        coalesce(prd.pdplcfinan, '')::text as lanca_financeiro
+      from pedid ped
+      join pdprd prd on ped.id_pedido = prd.id_pedido
+      left join clien cli on ped.clicodigo = cli.clicodigo
+      where ${clauses.join('\n        and ')}
+
+      union all
+
+      select
+        ped.pdfcodigo::text as finalidade,
+        pds.pdsqtdade::numeric as qtde_produtos,
+        coalesce(pds.pdslcfinan, '')::text as lanca_financeiro
+      from pedid ped
+      join pdser pds on ped.id_pedido = pds.id_pedido
+      left join clien cli on ped.clicodigo = cli.clicodigo
+      where ${clauses.join('\n        and ')}
+    ) vendas
+  `
+}
+
 function buildProductDetailsSql(orderIds, kind = 'products') {
   const ids = asSqlIdList(orderIds)
   if (!ids) return null
@@ -562,7 +606,10 @@ export async function GET(request) {
     const clientsData = clientsRes.data || []
     const localPedData = localPedRes.data || []
 
-    const salesOrdersRaw = await execSql(supabase, buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo }))
+    const [salesOrdersRaw, lossMetricsRows] = await Promise.all([
+      execSql(supabase, buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })),
+      execSql(supabase, buildLossMetricsSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })),
+    ])
 
     const normalizedCellsData = cellsData.map(cell => ({
       ...cell,
@@ -851,14 +898,15 @@ export async function GET(request) {
     }
 
     const pontualidade = Object.values(weekMap).slice(-8)
-    const productionMovements = requiData.filter(row => row.pdccodigo && row.reqtipo === 'P').length
-    const lossMovements = requiData.filter(row => LOSS_REQ_TYPES.has(row.reqtipo)).length
-    const totalQuantity = productionMovements + lossMovements
+    const lossMetrics = lossMetricsRows?.[0] || {}
+    const lossQuantity = Number(lossMetrics.qtd_perdas) || 0
+    const financiallyLaunchedQuantity = Number(lossMetrics.qtd_lanca_financeiro) || 0
+    const totalQuantity = Number(lossMetrics.qtd_perda_produz) || (lossQuantity + financiallyLaunchedQuantity)
     const perdas = {
       total: totalQuantity,
-      withLoss: lossMovements,
-      percentage: totalQuantity > 0 ? Number(((lossMovements / totalQuantity) * 100).toFixed(1)) : 0,
-      semPerda: productionMovements,
+      withLoss: lossQuantity,
+      percentage: totalQuantity > 0 ? Number(((lossQuantity / totalQuantity) * 100).toFixed(2)) : 0,
+      semPerda: financiallyLaunchedQuantity,
     }
 
     const totalOrders = orders.length
