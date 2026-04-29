@@ -13,6 +13,8 @@ const PRODUCTION_TIME_ZONE = 'America/Sao_Paulo'
 const EXPECTED_TIME_SQL = `(date_trunc('hour', ped.pedhrentre::time) - interval '3 hours')::time`
 const ACTUAL_TIME_SQL = `(ped.pedhrsaida::time - interval '3 hours')::time`
 const NORMALIZED_PEDCODIGO_SQL = `coalesce(nullif(ltrim(replace(ped.pedcodigo::text, '.000', ''), '0'), ''), '0')`
+const EXCLUDED_CLIENT_CODES = [489]
+const EXCLUDED_COMPANY_CODES = [2]
 
 function getErrorStatus(error) {
   const message = String(error?.message || '')
@@ -304,6 +306,8 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, ki
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
     `ped.pedsitped <> 'C'`,
+    ...EXCLUDED_CLIENT_CODES.map(code => `ped.clicodigo <> ${code}`),
+    ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
   ]
 
   const pedido = asSqlOrderCode(pedcodigo)
@@ -361,6 +365,8 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
     `ped.pedsitped <> 'C'`,
+    ...EXCLUDED_CLIENT_CODES.map(code => `ped.clicodigo <> ${code}`),
+    ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
   ]
 
   const pedido = asSqlOrderCode(pedcodigo)
@@ -414,6 +420,8 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodi
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
     `ped.pedsitped <> 'C'`,
+    ...EXCLUDED_CLIENT_CODES.map(code => `ped.clicodigo <> ${code}`),
+    ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
   ]
 
   const pedido = asSqlOrderCode(pedcodigo)
