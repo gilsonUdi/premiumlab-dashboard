@@ -99,21 +99,82 @@ function normalizeName(name) {
   return String(name || "").trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_");
 }
 
-function normalizeValue(value) {
+function formatDatePart(value) {
+  return value instanceof Date ? value.toISOString().slice(0, 10) : null;
+}
+
+function formatTimePart(value) {
+  if (!(value instanceof Date)) return null;
+  return value.toISOString().slice(11, 19);
+}
+
+function formatTimestamp(value) {
+  return value instanceof Date ? value.toISOString() : null;
+}
+
+function normalizeValue(value, targetColumn) {
   if (value == null) return null;
-  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Date) {
+    const dataType = String(targetColumn?.dataType || "").toLowerCase();
+    if (dataType.includes("time") && !dataType.includes("timestamp")) {
+      return formatTimePart(value);
+    }
+    if (dataType === "date") {
+      return formatDatePart(value);
+    }
+    return formatTimestamp(value);
+  }
   if (Buffer.isBuffer(value)) return value.toString("utf8");
   if (typeof value === "bigint") return value.toString();
   if (typeof value === "function") return null;
   return value;
 }
 
-function normalizeRow(row) {
+function normalizeRow(row, targetColumns) {
   const normalized = {};
   for (const [key, value] of Object.entries(row)) {
-    normalized[normalizeName(key)] = normalizeValue(value);
+    const normalizedKey = normalizeName(key);
+    const targetColumn = targetColumns[normalizedKey];
+    if (!targetColumn) continue;
+    normalized[normalizedKey] = normalizeValue(value, targetColumn);
   }
   return normalized;
+}
+
+async function getTargetColumns(supabase, tableName) {
+  const sql = `
+    select
+      column_name,
+      data_type,
+      udt_name
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = '${tableName}'
+    order by ordinal_position
+  `;
+
+  const { data, error } = await supabase.rpc("exec_sql", {
+    sql: sql.replace(/\s+/g, " ").trim(),
+  });
+
+  if (error) {
+    throw new Error(`Supabase ${tableName} schema: ${error.message}`);
+  }
+
+  const rows = data || [];
+  if (rows.length === 0) {
+    throw new Error(`Supabase ${tableName} schema: tabela sem colunas visiveis`);
+  }
+
+  return Object.fromEntries(
+    rows.map((row) => [
+      normalizeName(row.column_name),
+      {
+        name: normalizeName(row.column_name),
+        dataType: row.data_type || row.udt_name || "",
+      },
+    ])
+  );
 }
 
 async function getTableNames(db, filterList) {
@@ -215,6 +276,7 @@ async function syncTable(db, supabase, tableName, options) {
   const normalizedTable = normalizeName(tableName);
   const dateFilter = options.dateFilters[tableName.toUpperCase()] || null;
   const primaryKeys = await getPrimaryKeys(db, tableName);
+  const targetColumns = await getTargetColumns(supabase, normalizedTable);
   const fetchBatch = options.fetchBatch;
   const insertBatch = options.insertBatch;
   const whereClause = dateFilter ? `WHERE "${dateFilter.column}" >= '${dateFilter.from}'` : "";
@@ -241,7 +303,9 @@ async function syncTable(db, supabase, tableName, options) {
     if (rows.length === 0) break;
 
     for (const row of rows) {
-      pendingRows.push(normalizeRow(row));
+      const normalized = normalizeRow(row, targetColumns);
+      if (Object.keys(normalized).length === 0) continue;
+      pendingRows.push(normalized);
       totalRows += 1;
 
       if (pendingRows.length >= insertBatch) {
