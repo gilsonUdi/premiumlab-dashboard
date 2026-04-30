@@ -294,6 +294,13 @@ function parseRefreshLinkedTables() {
   );
 }
 
+function parseUpsertTables() {
+  const configured = parseList(process.env.SYNC_UPSERT_TABLES);
+  if (configured.length > 0) return configured.map((item) => item.toUpperCase());
+
+  return ["REQUI", "PEDID", "ACOPED", "PDPRD", "PDSER", "JBXROTEIRO"];
+}
+
 function applyRefreshWindowToFilters(dateFilters, linkedDateFilters, days, tables) {
   if (!days || days <= 0) {
     return { dateFilters, linkedDateFilters };
@@ -403,8 +410,22 @@ async function deleteSupabaseInChunks(supabase, tableName, whereClause, batchSiz
   }
 }
 
-async function insertOnlyBatch(supabase, tableName, rows, primaryKeys) {
+async function writeBatch(supabase, tableName, rows, primaryKeys, mode = "insert-only") {
   if (rows.length === 0) return;
+
+  if (mode === "upsert" && primaryKeys.length > 0) {
+    const { error } = await supabase.from(tableName).upsert(rows, {
+      onConflict: primaryKeys.join(","),
+      ignoreDuplicates: false,
+      defaultToNull: true,
+    });
+
+    if (error) {
+      throw new Error(`Supabase ${tableName}: ${error.message}`);
+    }
+
+    return;
+  }
 
   let query = supabase.from(tableName).upsert(rows, {
     ignoreDuplicates: true,
@@ -503,6 +524,7 @@ async function syncTable(db, supabase, tableName, options) {
   const normalizedTable = normalizeName(tableName);
   const dateFilter = options.dateFilters[tableName.toUpperCase()] || null;
   const linkedDateFilter = options.linkedDateFilters[tableName.toUpperCase()] || null;
+  const writeMode = options.upsertTables.has(tableName.toUpperCase()) ? "upsert" : "insert-only";
   const primaryKeys = await getPrimaryKeys(db, tableName);
   const targetColumns = await getTargetColumns(supabase, normalizedTable);
   const fetchBatch = options.fetchBatch;
@@ -531,7 +553,7 @@ async function syncTable(db, supabase, tableName, options) {
 
   async function flushPending() {
     if (pendingRows.length === 0 || options.dryRun) return;
-    await insertOnlyBatch(supabase, normalizedTable, pendingRows, primaryKeys);
+    await writeBatch(supabase, normalizedTable, pendingRows, primaryKeys, writeMode);
     pendingRows = [];
     process.stdout.write(".");
   }
@@ -560,7 +582,7 @@ async function syncTable(db, supabase, tableName, options) {
   }
 
   if (!options.dryRun && pendingRows.length > 0) {
-    await insertOnlyBatch(supabase, normalizedTable, pendingRows, primaryKeys);
+    await writeBatch(supabase, normalizedTable, pendingRows, primaryKeys, writeMode);
     process.stdout.write(".");
   }
 
@@ -584,6 +606,7 @@ async function runOnce() {
   const dateFilters = parseDateFilters();
   const linkedDateFilters = parseLinkedDateFilters();
   const refreshLinkedTables = parseRefreshLinkedTables();
+  const upsertTables = new Set(parseUpsertTables());
   const dateTablesOnly = args.includes("--date-tables-only") || envIsTrue("SYNC_DATE_TABLES_ONLY");
   const filterList = tablesArg.length > 0 ? tablesArg : tableArg ? [tableArg] : parseList(process.env.SYNC_TABLES);
   const tablesToSync =
@@ -607,7 +630,7 @@ async function runOnce() {
   log(`Tabelas  : ${tablesToSync.length > 0 ? tablesToSync.join(", ") : "todas"}`);
   if (dateTablesOnly && !tableArg && tablesArg.length === 0) log("Modo     : somente tabelas com filtro de data");
   if (refreshRecentDays && refreshRecentDays > 0) log(`Refresh  : substituindo somente os ultimos ${refreshRecentDays} dia(s) das tabelas selecionadas`);
-  log("Escrita  : tabelas recentes/vinculadas usam refresh por janela; demais seguem em insert-only");
+  log(`Escrita  : upsert para ${[...upsertTables].join(", ")}; demais seguem em insert-only`);
   if (dryRun) log("Modo     : dry-run");
 
   const db = await fbConnect(fbOptions);
@@ -620,7 +643,7 @@ async function runOnce() {
       return;
     }
 
-    if (!dryRun && ((refreshRecentDays && refreshRecentDays > 0) || Object.keys(refreshLinkedTables).length > 0)) {
+    if (!dryRun && refreshRecentDays && refreshRecentDays > 0) {
       await refreshRecentWindow(supabase, tables, refreshRecentDays, refreshLinkedTables);
     }
 
@@ -632,6 +655,7 @@ async function runOnce() {
       insertBatch: Number(process.env.SYNC_INSERT_BATCH || 500),
       dateFilters: effectiveFilters.dateFilters,
       linkedDateFilters: effectiveFilters.linkedDateFilters,
+      upsertTables,
     };
 
     let ok = 0;
