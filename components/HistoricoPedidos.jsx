@@ -132,7 +132,7 @@ export default function HistoricoPedidos({
   ]
 
   if (showDelayDays) {
-    cols.splice(6, 0, { key: 'diasAtraso', label: 'Dias Atraso' })
+    cols.splice(6, 0, { key: 'diasAtraso', label: 'Dias em Atraso' })
   }
 
   if (!hideDeliveredColumn) {
