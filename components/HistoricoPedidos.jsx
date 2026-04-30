@@ -12,6 +12,14 @@ const STATUS_MAP = {
   pending: { label: 'Aguardando', cls: 'badge-gray' },
 }
 
+const STATUS_SORT_WEIGHT = {
+  delayed: 4,
+  in_progress: 3,
+  pending: 3,
+  delayed_completed: 2,
+  completed: 1,
+}
+
 const ROW_STYLES = {
   danger: {
     background: 'rgba(127, 29, 29, 0.34)',
@@ -75,6 +83,14 @@ export default function HistoricoPedidos({
 
   const rows = useMemo(() => {
     return [...(data || [])].sort((a, b) => {
+      if (sort.col === 'delayRank') {
+        const statusDiff = (STATUS_SORT_WEIGHT[b.status] || 0) - (STATUS_SORT_WEIGHT[a.status] || 0)
+        if (statusDiff !== 0) return statusDiff
+
+        const delayDiff = Number(b.delayRank || 0) - Number(a.delayRank || 0)
+        if (delayDiff !== 0) return delayDiff
+      }
+
       let valueA = a[sort.col]
       let valueB = b[sort.col]
 
@@ -92,6 +108,7 @@ export default function HistoricoPedidos({
     { key: 'pedcodigo', label: 'Cod. Pedido' },
     { key: 'indice', label: '% Indice' },
     { key: 'currentCell', label: 'Celula' },
+    { key: 'caixa', label: 'Caixa' },
     { key: 'previsto', label: 'Dt. Prevista' },
     { key: 'saida', label: 'Dt. Saida' },
     { key: 'quantidade', label: 'Qtd.' },
@@ -116,7 +133,7 @@ export default function HistoricoPedidos({
         </h2>
         {selectedOrder ? (
           <button className="filter-chip" onClick={() => onColumnClick('pedcodigo', null)}>
-            Pedido: {selectedOrder} ×
+            Pedido: {selectedOrder} x
           </button>
         ) : null}
       </div>
@@ -161,7 +178,7 @@ export default function HistoricoPedidos({
               rows.map((row, index) => (
                 <tr
                   key={`${row.pedcodigo}-${index}`}
-                  className={selectedOrder === row.pedcodigo ? 'table-row-active' : 'table-row-hover'}
+                  className={selectedOrder && row.pedcodigo === selectedOrder ? 'table-row-active' : 'table-row-hover'}
                   style={{
                     borderTop: '1px solid #0d1f38',
                     ...(ROW_STYLES[row.rowTone] || {}),
@@ -189,6 +206,9 @@ export default function HistoricoPedidos({
                   </td>
                   <td onClick={event => filterBy(event, 'orders.currentCell', row.currentCell)} className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>
                     {row.currentCell || '-'}
+                  </td>
+                  <td className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>
+                    {row.caixa || '-'}
                   </td>
                   <td onClick={event => filterBy(event, 'orders.previsto', row.previsto)} className="px-4 py-2.5 font-mono" style={{ color: '#d7e9ff' }}>
                     {fmtDt(row.previsto)}

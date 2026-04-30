@@ -218,6 +218,20 @@ function rowMatchesFilter(row, field, value) {
   return normalizeFilterValue(row[field], field) === normalizeFilterValue(value, field)
 }
 
+function rowMatchesAnyFilter(row, field, values) {
+  if (!Array.isArray(values) || values.length === 0) return true
+  return values.some(value => rowMatchesFilter(row, field, value))
+}
+
+function parseCsvParam(searchParams, key) {
+  return [...new Set(
+    String(searchParams.get(key) || '')
+      .split(',')
+      .map(value => value.trim())
+      .filter(Boolean)
+  )]
+}
+
 function minutesUntil(dateValue, now) {
   if (!dateValue) return null
   return differenceInMinutes(dateValue, now)
@@ -235,6 +249,14 @@ function resolveRowTone(status, expected, delivered, now) {
 function buildDelayRank(expected, delivered, now) {
   if (!expected) return Number.MIN_SAFE_INTEGER
   return differenceInMinutes(delivered || now, expected)
+}
+
+function buildStatusPriority(status) {
+  if (status === 'delayed') return 4
+  if (status === 'in_progress' || status === 'pending') return 3
+  if (status === 'delayed_completed') return 2
+  if (status === 'completed') return 1
+  return 0
 }
 
 async function fetchAllPages(queryFactory, { pageSize = PAGE_SIZE, maxRows = MAX_REQUI_ROWS } = {}) {
@@ -301,7 +323,7 @@ async function execSql(supabase, sql) {
   return data || []
 }
 
-function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, kind = 'products' }) {
+function buildSalesSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], kind = 'products' }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
@@ -310,13 +332,13 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, ki
     ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
   ]
 
-  const pedido = asSqlOrderCode(pedcodigo)
-  const cliente = asSqlNumber(clicodigo)
-  const grupo = asSqlNumber(gclcodigo)
+  const pedidoList = [...new Set((pedcodigos || []).map(asSqlOrderCode).filter(Boolean))]
+  const clienteList = [...new Set((clicodigos || []).map(asSqlNumber).filter(Number.isFinite))]
+  const grupoList = [...new Set((gclcodigos || []).map(asSqlNumber).filter(Number.isFinite))]
 
-  if (pedido != null) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} = '${pedido}'`)
-  if (cliente != null) clauses.push(`ped.clicodigo = ${cliente}`)
-  if (grupo != null) clauses.push(`cli.gclcodigo = ${grupo}`)
+  if (pedidoList.length > 0) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} in (${pedidoList.map(code => `'${code}'`).join(', ')})`)
+  if (clienteList.length > 0) clauses.push(`ped.clicodigo in (${clienteList.join(', ')})`)
+  if (grupoList.length > 0) clauses.push(`cli.gclcodigo in (${grupoList.join(', ')})`)
 
   const isService = kind === 'services'
   const itemTable = isService ? 'pdser' : 'pdprd'
@@ -360,7 +382,7 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, ki
   `
 }
 
-function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo }) {
+function buildOrdersSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [] }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
@@ -369,13 +391,13 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })
     ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
   ]
 
-  const pedido = asSqlOrderCode(pedcodigo)
-  const cliente = asSqlNumber(clicodigo)
-  const grupo = asSqlNumber(gclcodigo)
+  const pedidoList = [...new Set((pedcodigos || []).map(asSqlOrderCode).filter(Boolean))]
+  const clienteList = [...new Set((clicodigos || []).map(asSqlNumber).filter(Number.isFinite))]
+  const grupoList = [...new Set((gclcodigos || []).map(asSqlNumber).filter(Number.isFinite))]
 
-  if (pedido != null) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} = '${pedido}'`)
-  if (cliente != null) clauses.push(`ped.clicodigo = ${cliente}`)
-  if (grupo != null) clauses.push(`cli.gclcodigo = ${grupo}`)
+  if (pedidoList.length > 0) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} in (${pedidoList.map(code => `'${code}'`).join(', ')})`)
+  if (clienteList.length > 0) clauses.push(`ped.clicodigo in (${clienteList.join(', ')})`)
+  if (grupoList.length > 0) clauses.push(`cli.gclcodigo in (${grupoList.join(', ')})`)
 
   return `
     select
@@ -415,7 +437,7 @@ function resolveLossFinalityCodes(finalityData) {
   return codes.length > 0 ? [...new Set(codes)] : ['2']
 }
 
-function buildLossMetricsSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, lossFinalityCodes = ['2'] }) {
+function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], lossFinalityCodes = ['2'] }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
@@ -424,13 +446,13 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodi
     ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
   ]
 
-  const pedido = asSqlOrderCode(pedcodigo)
-  const cliente = asSqlNumber(clicodigo)
-  const grupo = asSqlNumber(gclcodigo)
+  const pedidoList = [...new Set((pedcodigos || []).map(asSqlOrderCode).filter(Boolean))]
+  const clienteList = [...new Set((clicodigos || []).map(asSqlNumber).filter(Number.isFinite))]
+  const grupoList = [...new Set((gclcodigos || []).map(asSqlNumber).filter(Number.isFinite))]
 
-  if (pedido != null) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} = '${pedido}'`)
-  if (cliente != null) clauses.push(`ped.clicodigo = ${cliente}`)
-  if (grupo != null) clauses.push(`cli.gclcodigo = ${grupo}`)
+  if (pedidoList.length > 0) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} in (${pedidoList.map(code => `'${code}'`).join(', ')})`)
+  if (clienteList.length > 0) clauses.push(`ped.clicodigo in (${clienteList.join(', ')})`)
+  if (grupoList.length > 0) clauses.push(`cli.gclcodigo in (${grupoList.join(', ')})`)
 
   const normalizedLossCodes = [...new Set(
     (lossFinalityCodes || [])
@@ -507,7 +529,8 @@ function buildLatestCellsSql(orderIds) {
   return `
     select distinct on (ac.id_pedido)
       ac.id_pedido,
-      lp.lpdescricao::text as celula
+      lp.lpdescricao::text as celula,
+      ac.jbcodigo::text as caixa
     from acoped ac
     left join localped lp on lp.lpcodigo = ac.lpcodigo
     where ac.id_pedido in (${ids})
@@ -572,27 +595,29 @@ export async function GET(request) {
     const fallbackEnd = format(new Date(), 'yyyy-MM-dd')
     const dateStart = asSqlDate(searchParams.get('dateStart'), fallbackStart)
     const dateEnd = asSqlDate(searchParams.get('dateEnd'), fallbackEnd)
-    const pedcodigo = searchParams.get('pedcodigo') || ''
-    const dptcodigo = searchParams.get('dptcodigo') || ''
-    const statusFilter = searchParams.get('status') || ''
-    const clicodigo = searchParams.get('clicodigo') || ''
-    const gclcodigo = searchParams.get('gclcodigo') || ''
-    const emissaoFilter = searchParams.get('emissao') || ''
-    const indiceFilter = searchParams.get('indice') || ''
-    const previstoFilter = searchParams.get('previsto') || ''
-    const saidaFilter = searchParams.get('saida') || ''
-    const quantidadeFilter = searchParams.get('quantidade') || ''
-    const currentCellFilter = searchParams.get('currentCell') || ''
-    const productStatusFilter = searchParams.get('productStatus') || ''
-    const procodigoFilter = searchParams.get('procodigo') || ''
-    const prodescricaoFilter = searchParams.get('prodescricao') || ''
-    const productQuantidadeFilter = searchParams.get('productQuantidade') || ''
-    const customerIndiceFilter = searchParams.get('customerIndice') || ''
-    const customerMediaDiasFilter = searchParams.get('customerMediaDias') || ''
+    const pedcodigoValues = parseCsvParam(searchParams, 'pedcodigo').map(normalizeOrderCode)
+    const statusFilters = parseCsvParam(searchParams, 'status')
+    const clicodigoValues = parseCsvParam(searchParams, 'clicodigo')
+    const clinomeFilters = parseCsvParam(searchParams, 'clinome')
+    const gclcodigoValues = parseCsvParam(searchParams, 'gclcodigo')
+    const emissaoFilters = parseCsvParam(searchParams, 'emissao')
+    const indiceFilters = parseCsvParam(searchParams, 'indice')
+    const previstoFilters = parseCsvParam(searchParams, 'previsto')
+    const saidaFilters = parseCsvParam(searchParams, 'saida')
+    const quantidadeFilters = parseCsvParam(searchParams, 'quantidade')
+    const currentCellFilters = parseCsvParam(searchParams, 'currentCell').map(normalizeText)
+    const productStatusFilters = parseCsvParam(searchParams, 'productStatus')
+    const procodigoFilters = parseCsvParam(searchParams, 'procodigo')
+    const prodescricaoFilters = parseCsvParam(searchParams, 'prodescricao')
+    const productQuantidadeFilters = parseCsvParam(searchParams, 'productQuantidade')
+    const customerIndiceFilters = parseCsvParam(searchParams, 'customerIndice')
+    const customerMediaDiasFilters = parseCsvParam(searchParams, 'customerMediaDias')
+    const clientCodeFilters = [...new Set([...clicodigoValues, ...clinomeFilters])]
 
     const now = nowInProductionTimeZone()
-    const shouldLoadTraceability = Boolean(pedcodigo)
-    const shouldLoadProductDetails = Boolean(pedcodigo)
+    const shouldLoadTraceability = pedcodigoValues.length > 0
+    const shouldLoadProductDetails = pedcodigoValues.length > 0
+    const groupCodeFilterSet = new Set(gclcodigoValues.map(Number).filter(Number.isFinite))
 
     const [requiRes, cellsRes, empRes, userRes, clientsRes, localPedRes, finalityRes] = await Promise.all([
       fetchAllPages(() => {
@@ -602,8 +627,6 @@ export async function GET(request) {
           .gte('reqdata', `${dateStart}T00:00:00`)
           .lte('reqdata', `${dateEnd}T23:59:59`)
           .order('reqdata', { ascending: false })
-        if (pedcodigo) query = query.eq('pdccodigo', Number(pedcodigo))
-        if (dptcodigo) query = query.eq('dptcodigo', Number(dptcodigo))
         return query
       }),
       supabase.from('almox').select('empcodigo, alxcodigo, alxdescricao, dptcodigo, alxordem, alxtipocel').order('alxordem'),
@@ -615,8 +638,6 @@ export async function GET(request) {
           .select('clicodigo, clirazsocial, clinomefant, gclcodigo')
           .eq('clicliente', 'S')
           .order('clicodigo')
-        if (clicodigo) query = query.eq('clicodigo', Number(clicodigo))
-        if (gclcodigo) query = query.eq('gclcodigo', Number(gclcodigo))
         return query
       }, { maxRows: 10000 }),
       supabase.from('localped').select('lpcodigo, lpdescricao').order('lpcodigo'),
@@ -637,8 +658,8 @@ export async function GET(request) {
     const lossFinalityCodes = resolveLossFinalityCodes(finalityData)
 
     const [salesOrdersRaw, lossMetricsRows] = await Promise.all([
-      execSql(supabase, buildOrdersSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo })),
-      execSql(supabase, buildLossMetricsSql({ dateStart, dateEnd, pedcodigo, clicodigo, gclcodigo, lossFinalityCodes })),
+      execSql(supabase, buildOrdersSql({ dateStart, dateEnd, pedcodigos: pedcodigoValues, clicodigos: clientCodeFilters, gclcodigos: gclcodigoValues })),
+      execSql(supabase, buildLossMetricsSql({ dateStart, dateEnd, pedcodigos: pedcodigoValues, clicodigos: clientCodeFilters, gclcodigos: gclcodigoValues, lossFinalityCodes })),
     ])
 
     const normalizedCellsData = cellsData.map(cell => ({
@@ -721,7 +742,13 @@ export async function GET(request) {
     ])
 
     const latestCellByOrder = Object.fromEntries(
-      latestCellsRows.map(row => [String(row.id_pedido), normalizeText(row.celula)])
+      latestCellsRows.map(row => [
+        String(row.id_pedido),
+        {
+          celula: normalizeText(row.celula),
+          caixa: normalizeText(row.caixa),
+        },
+      ])
     )
 
     const normalizedSalesRows = [...productSalesRows, ...serviceSalesRows].map(row => ({
@@ -796,8 +823,9 @@ export async function GET(request) {
       const delivered = order.delivered
       const resolvedStatus = resolveStatus(expected, delivered, now)
       const currentTrace = latestTraceByOrder[order.pedido]
+      const latestCellInfo = latestCellByOrder[order.pedido] || {}
       const currentCell =
-        latestCellByOrder[order.pedido] ||
+        latestCellInfo.celula ||
         normalizeText(currentTrace?.celula) ||
         (order.delivered ? 'PEDIDO FATURADO' : '')
 
@@ -811,27 +839,32 @@ export async function GET(request) {
         quantidade: order.quantidade || order.products.length,
         status: resolvedStatus,
         currentCell: currentCell || '-',
+        caixa: latestCellInfo.caixa || '-',
         delayRank: buildDelayRank(expected, delivered, now),
+        statusPriority: buildStatusPriority(resolvedStatus),
         rowTone: resolveRowTone(resolvedStatus, expected, delivered, now),
         clicodigo: order.clicodigo,
         clinome: normalizeText(order.clinome),
       }
     })
 
-    if (statusFilter) orders = orders.filter(row => row.status === statusFilter)
-    if (emissaoFilter) orders = orders.filter(row => rowMatchesFilter(row, 'emissao', emissaoFilter))
-    if (indiceFilter) orders = orders.filter(row => rowMatchesFilter(row, 'indice', indiceFilter))
-    if (previstoFilter) orders = orders.filter(row => rowMatchesFilter(row, 'previsto', previstoFilter))
-    if (saidaFilter) orders = orders.filter(row => rowMatchesFilter(row, 'saida', saidaFilter))
-    if (quantidadeFilter) orders = orders.filter(row => rowMatchesFilter(row, 'quantidade', quantidadeFilter))
-    if (currentCellFilter) orders = orders.filter(row => rowMatchesFilter(row, 'currentCell', currentCellFilter))
+    if (statusFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'status', statusFilters))
+    if (emissaoFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'emissao', emissaoFilters))
+    if (indiceFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'indice', indiceFilters))
+    if (previstoFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'previsto', previstoFilters))
+    if (saidaFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'saida', saidaFilters))
+    if (quantidadeFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'quantidade', quantidadeFilters))
+    if (currentCellFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'currentCell', currentCellFilters))
 
-    if (productStatusFilter) products = products.filter(row => rowMatchesFilter(row, 'status', productStatusFilter))
-    if (procodigoFilter) products = products.filter(row => rowMatchesFilter(row, 'procodigo', procodigoFilter))
-    if (prodescricaoFilter) products = products.filter(row => rowMatchesFilter(row, 'prodescricao', prodescricaoFilter))
-    if (productQuantidadeFilter) products = products.filter(row => rowMatchesFilter(row, 'quantidade', productQuantidadeFilter))
+    if (productStatusFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'status', productStatusFilters))
+    if (procodigoFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'procodigo', procodigoFilters))
+    if (prodescricaoFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'prodescricao', prodescricaoFilters))
+    if (productQuantidadeFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'quantidade', productQuantidadeFilters))
 
-    orders.sort((a, b) => b.delayRank - a.delayRank)
+    orders.sort((a, b) => {
+      if (b.statusPriority !== a.statusPriority) return b.statusPriority - a.statusPriority
+      return b.delayRank - a.delayRank
+    })
 
     let customerMap = {}
     const visibleOrderIds = new Set(orders.map(row => row.pedidoId))
@@ -841,7 +874,7 @@ export async function GET(request) {
     for (const order of salesOrders.filter(item => visibleOrderIds.has(item.pedido))) {
       const client = clientsByCode[order.clicodigo]
       const groupCode = order.gclcodigo ?? client?.gclcodigo
-      if (gclcodigo && groupCode !== Number(gclcodigo)) continue
+      if (groupCodeFilterSet.size > 0 && !groupCodeFilterSet.has(Number(groupCode))) continue
 
       if (!customerMap[order.clicodigo]) {
         customerMap[order.clicodigo] = {
@@ -874,10 +907,10 @@ export async function GET(request) {
       }))
       .sort((a, b) => b.indice - a.indice)
 
-    if (customerIndiceFilter) customers = customers.filter(row => rowMatchesFilter(row, 'indice', customerIndiceFilter))
-    if (customerMediaDiasFilter) customers = customers.filter(row => rowMatchesFilter(row, 'mediaDias', customerMediaDiasFilter))
+    if (customerIndiceFilters.length > 0) customers = customers.filter(row => rowMatchesAnyFilter(row, 'indice', customerIndiceFilters))
+    if (customerMediaDiasFilters.length > 0) customers = customers.filter(row => rowMatchesAnyFilter(row, 'mediaDias', customerMediaDiasFilters))
 
-    if (customers.length > 0 && (customerIndiceFilter || customerMediaDiasFilter)) {
+    if (customers.length > 0 && (customerIndiceFilters.length > 0 || customerMediaDiasFilters.length > 0)) {
       const filteredClientIds = new Set(customers.map(row => String(row.clicodigo)))
       orders = orders.filter(row => filteredClientIds.has(String(row.clicodigo)))
     }
@@ -963,7 +996,7 @@ export async function GET(request) {
       perdas,
       orders,
       products: products.slice(0, 200),
-      traceability: pedcodigo ? traceability : traceability.slice(0, 150),
+      traceability: pedcodigoValues.length > 0 ? traceability : traceability.slice(0, 150),
       customers: customers.slice(0, 100),
       sellerRanking,
     })

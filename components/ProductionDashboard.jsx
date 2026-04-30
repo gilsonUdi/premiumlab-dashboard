@@ -19,29 +19,30 @@ const PerdasChart = dynamic(() => import('@/components/PerdasChart'), { ssr: fal
 const defaultFilters = () => ({
   dateStart: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
   dateEnd: format(new Date(), 'yyyy-MM-dd'),
-  dptcodigo: '',
-  clicodigo: '',
-  clinome: '',
-  pedcodigo: '',
-  gclcodigo: '',
-  status: '',
-  emissao: '',
-  indice: '',
-  previsto: '',
-  saida: '',
-  quantidade: '',
-  currentCell: '',
-  productStatus: '',
-  procodigo: '',
-  prodescricao: '',
-  productQuantidade: '',
-  customerIndice: '',
-  customerMediaDias: '',
+  clicodigo: [],
+  clinome: [],
+  pedcodigo: [],
+  gclcodigo: [],
+  status: [],
+  emissao: [],
+  indice: [],
+  previsto: [],
+  saida: [],
+  quantidade: [],
+  currentCell: [],
+  productStatus: [],
+  procodigo: [],
+  prodescricao: [],
+  productQuantidade: [],
+  customerIndice: [],
+  customerMediaDias: [],
 })
 
 const FILTER_LABELS = {
   pedcodigo: 'Pedido',
   clicodigo: 'Cliente',
+  clinome: 'Nome Cliente',
+  gclcodigo: 'Grupo Cliente',
   status: 'Status',
   emissao: 'Emissao',
   indice: 'Indice',
@@ -108,8 +109,9 @@ export default function ProductionDashboard({
   const [lastUpdated, setLastUpdated] = useState(null)
   const debounceRef = useRef(null)
 
-  const selectedOrder = filters.pedcodigo || null
-  const selectedClient = filters.clicodigo || null
+  const selectedOrder = filters.pedcodigo.length === 1 ? filters.pedcodigo[0] : null
+  const selectedOrderLabel = filters.pedcodigo.length > 1 ? `${filters.pedcodigo.length} pedidos` : selectedOrder
+  const selectedClient = filters.clicodigo.length === 1 ? filters.clicodigo[0] : null
 
   const getAuthorizedHeaders = useCallback(async () => {
     const { auth } = getFirebaseServices()
@@ -143,6 +145,11 @@ export default function ProductionDashboard({
     setLoading(true)
     const params = new URLSearchParams()
     Object.entries(filters).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        if (value.length > 0) params.set(key, value.join(','))
+        return
+      }
+
       if (value) params.set(key, value)
     })
     if (tenantSlug) params.set('tenant', tenantSlug)
@@ -177,9 +184,16 @@ export default function ProductionDashboard({
 
     setFilters(previous => {
       const normalized = value == null ? '' : String(value)
+      const currentValues = Array.isArray(previous[filterKey]) ? previous[filterKey] : []
+      const nextValues = !normalized
+        ? []
+        : currentValues.includes(normalized)
+          ? currentValues.filter(item => item !== normalized)
+          : [...currentValues, normalized]
+
       return {
         ...previous,
-        [filterKey]: String(previous[filterKey] || '') === normalized ? '' : normalized,
+        [filterKey]: nextValues,
       }
     })
   }, [])
@@ -189,22 +203,38 @@ export default function ProductionDashboard({
   }
 
   const activeChips = useMemo(() => {
+    const currentCellLabels = new Map(
+      [ ...(options?.stages || []).map(stage => [String(stage.label), stage.label]), ['PEDIDO FATURADO', 'PEDIDO FATURADO'] ]
+    )
+    const clientNameLabels = new Map((options?.clients || []).map(client => [String(client.clicodigo), client.label]))
+    const groupLabels = new Map((options?.clientGroups || []).map(group => [String(group.value), group.label]))
+    const statusLabels = new Map((options?.statuses || []).map(status => [String(status.value), status.label]))
+
+    const resolveChipValue = (key, value) => {
+      if (key === 'clinome') return clientNameLabels.get(String(value)) || value
+      if (key === 'gclcodigo') return groupLabels.get(String(value)) || value
+      if (key === 'status') return statusLabels.get(String(value)) || value
+      if (key === 'currentCell') return currentCellLabels.get(String(value)) || value
+      return value
+    }
+
     return Object.entries(filters)
-      .filter(([key, value]) => !['dateStart', 'dateEnd', 'dptcodigo', 'clicodigo', 'clinome', 'pedcodigo', 'gclcodigo', 'status'].includes(key) && value)
-      .map(([key, value]) => ({
-        key,
-        label: `${FILTER_LABELS[key] || key}: ${value}`,
-        onRemove: () => setFilters(previous => ({ ...previous, [key]: '' })),
-      }))
-      .concat(
-        filters.pedcodigo
-          ? [{ key: 'pedcodigo', label: `Pedido: ${filters.pedcodigo}`, onRemove: () => setFilters(previous => ({ ...previous, pedcodigo: '' })) }]
-          : [],
-        filters.clicodigo
-          ? [{ key: 'clicodigo', label: `Cliente: ${filters.clicodigo}`, onRemove: () => setFilters(previous => ({ ...previous, clicodigo: '', clinome: '' })) }]
-          : []
+      .filter(([key, value]) => !['dateStart', 'dateEnd'].includes(key) && Array.isArray(value) && value.length > 0)
+      .flatMap(([key, value]) =>
+        value.map(item => ({
+          key: `${key}-${item}`,
+          label: `${FILTER_LABELS[key] || key}: ${resolveChipValue(key, item)}`,
+          onRemove: () =>
+            setFilters(previous => ({
+              ...previous,
+              [key]: previous[key].filter(current => current !== item),
+            })),
+        }))
       )
-  }, [filters])
+      .concat(
+        []
+      )
+  }, [filters, options])
 
   const handleExport = useCallback(async () => {
     if (!data) return
@@ -219,6 +249,7 @@ export default function ProductionDashboard({
         'Cod. Pedido': row.pedcodigo,
         'Indice %': row.indice,
         Celula: row.currentCell || '-',
+        Caixa: row.caixa || '-',
         'Dt. Prevista': formatDateTimeLabel(row.previsto),
         'Dt. Saida': formatDateTimeLabel(row.saida),
         Quantidade: row.quantidade,
@@ -348,7 +379,7 @@ export default function ProductionDashboard({
           <div className="min-h-0 flex-1 overflow-hidden">
             <HistoricoPedidos
               data={data?.orders}
-              selectedOrder={selectedOrder}
+              selectedOrder={selectedOrderLabel}
               onColumnClick={handleColumnClick}
               loading={loading}
               compact
@@ -364,7 +395,7 @@ export default function ProductionDashboard({
 
             <HistoricoPedidos
               data={data?.orders}
-              selectedOrder={selectedOrder}
+              selectedOrder={selectedOrderLabel}
               onColumnClick={handleColumnClick}
               loading={loading}
             />
@@ -379,7 +410,7 @@ export default function ProductionDashboard({
             <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
               <RastreabilidadePedido
                 data={data?.traceability}
-                selectedOrder={selectedOrder}
+                selectedOrder={selectedOrderLabel}
                 onColumnClick={handleColumnClick}
                 loading={loading}
               />
