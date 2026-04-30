@@ -30,7 +30,9 @@ O fluxo automatico fica configurado para:
 - rodar a cada 5 minutos;
 - sincronizar apenas as tabelas com coluna de data;
 - incluir `PDPRD` e `PDSER` por vinculo com pedidos recentes;
+- incluir `JBXROTEIRO` por vinculo com a `ACOPED`;
 - trazer somente os ultimos 3 dias dessas tabelas;
+- substituir automaticamente os ultimos 30 dias de `JBXROTEIRO`, usando a `ACOPED` como referencia de recencia;
 - inserir apenas registros novos, preservando o historico anterior no Supabase;
 - nunca apagar a janela anterior nem sobrescrever registros ja existentes.
 
@@ -52,6 +54,13 @@ SYNC_INTERVAL_SECONDS=300
 
 As tabelas monitoradas por data ficam em `SYNC_DATE_COLUMNS`.
 As tabelas sem data propria, mas dependentes de pedidos recentes, ficam em `SYNC_LINKED_DATE_TABLES`.
+As tabelas sem data propria que precisam de refresh de janela ficam em `SYNC_REFRESH_LINKED_TABLES`.
+
+No caso da `JBXROTEIRO`, a automacao usa:
+
+- `ID_PEDIDO` como chave de relacao;
+- `ACOPED.APDATA` como relogio de recencia;
+- janela propria de 30 dias, mesmo que o resto do automatico use 3 dias.
 
 ## Carga completa inicial
 
@@ -87,9 +96,25 @@ Esse comando:
 ## Observacoes
 
 - O Supabase precisa ter as tabelas ja criadas com os mesmos nomes em minusculo.
-- Para PPS e Analise de Dados, as tabelas realmente necessarias sao: `CLIEN`, `FUNCIO`, `ALMOX`, `LOCALPED`, `USUARIO`, `REQUI`, `PEDID`, `PDPRD`, `PDSER`, `ACOPED` e `PEDFINALIDADE`.
+- Para PPS e Analise de Dados, as tabelas realmente necessarias sao: `CLIEN`, `FUNCIO`, `ALMOX`, `LOCALPED`, `USUARIO`, `REQUI`, `PEDID`, `PDPRD`, `PDSER`, `ACOPED`, `PEDFINALIDADE` e `JBXROTEIRO`.
 - As tabelas nao necessarias para esses dois modos sao: `BANCO`, `PRODU`, `CFOP`, `CIDADE`, `CCORR`, `PAGAR`, `RECEB`, `MOVIMENTACAO`, `GRUPOCLI`, `GRUPOROTULOS`, `PEDFO`, `NOTAS`, `TBFIS`, `COMPOPROROT` e `REGRAPROMO`.
 - Quando a tabela tiver chave primaria no Firebird, o script usa essa chave como conflito para ignorar duplicados no Supabase.
 - O modo padrao agora e `insert-only`: se o registro ja existir, ele e ignorado e nao atualizado.
+- Excecao: tabelas configuradas em `SYNC_REFRESH_LINKED_TABLES` sao recarregadas por janela recente antes da insercao. Hoje isso vale para `JBXROTEIRO`.
 - Se o computador desligar, a sincronizacao pausa e volta quando a tarefa rodar novamente.
 - Os logs ficam em `logs\sync.log`.
+
+## Sincronizar so a JBXROTEIRO
+
+Para testar ou atualizar so essa tabela:
+
+```powershell
+node sync.js --table JBXROTEIRO
+```
+
+Nesse caso, o sync:
+
+- busca apenas os registros de `JBXROTEIRO` ligados a pedidos com `ACOPED.APDATA` nos ultimos 30 dias;
+- apaga no Supabase so essa mesma janela de `JBXROTEIRO`;
+- reinsere os dados atualizados;
+- preserva o historico mais antigo.

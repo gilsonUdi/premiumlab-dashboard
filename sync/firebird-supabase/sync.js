@@ -234,16 +234,22 @@ function parseDateFilters() {
 
 function parseLinkedDateFilters() {
   const recentDays = Number(process.env.SYNC_RECENT_DAYS || 0);
-  const from = recentDays > 0 ? dateDaysAgo(recentDays) : cleanEnvValue(process.env.SYNC_DATE_FROM || "2025-01-01");
+  const defaultFrom =
+    recentDays > 0 ? dateDaysAgo(recentDays) : cleanEnvValue(process.env.SYNC_DATE_FROM || "2025-01-01");
 
   const entries = parseList(process.env.SYNC_LINKED_DATE_TABLES).map((item) => {
-    const [table, foreignKey, parentTable, parentDateColumn] = item.split(":").map((part) => part.trim());
+    const [table, foreignKey, parentTable, parentDateColumn, daysOverride] = item
+      .split(":")
+      .map((part) => part.trim());
+    const parsedDays = Number(daysOverride || 0);
+    const from = parsedDays > 0 ? dateDaysAgo(parsedDays) : defaultFrom;
     return [
       table.toUpperCase(),
       {
         foreignKey,
         parentTable,
         parentDateColumn,
+        daysOverride: parsedDays > 0 ? parsedDays : null,
         from,
       },
     ];
@@ -253,6 +259,37 @@ function parseLinkedDateFilters() {
     entries.filter(
       ([table, filter]) =>
         table && filter.foreignKey && filter.parentTable && filter.parentDateColumn
+    )
+  );
+}
+
+function parseRefreshLinkedTables() {
+  const recentDays = Number(process.env.SYNC_RECENT_DAYS || 0);
+  const defaultFrom =
+    recentDays > 0 ? dateDaysAgo(recentDays) : cleanEnvValue(process.env.SYNC_DATE_FROM || "2025-01-01");
+
+  const entries = parseList(process.env.SYNC_REFRESH_LINKED_TABLES).map((item) => {
+    const [table, foreignKey, parentTable, parentDateColumn, daysOverride] = item
+      .split(":")
+      .map((part) => part.trim());
+    const parsedDays = Number(daysOverride || 0);
+    const from = parsedDays > 0 ? dateDaysAgo(parsedDays) : defaultFrom;
+    return [
+      table.toUpperCase(),
+      {
+        foreignKey,
+        parentTable,
+        parentDateColumn,
+        days: parsedDays > 0 ? parsedDays : recentDays,
+        from,
+      },
+    ];
+  });
+
+  return Object.fromEntries(
+    entries.filter(
+      ([table, filter]) =>
+        table && filter.foreignKey && filter.parentTable && filter.parentDateColumn && filter.from
     )
   );
 }
@@ -353,8 +390,9 @@ async function insertOnlyBatch(supabase, tableName, rows, primaryKeys) {
   }
 }
 
-async function refreshRecentWindow(supabase, tables, days) {
-  if (!days || days <= 0 || tables.length === 0) return;
+async function refreshRecentWindow(supabase, tables, days, refreshLinkedTables = {}) {
+  if ((!days || days <= 0) && Object.keys(refreshLinkedTables).length === 0) return;
+  if (tables.length === 0) return;
 
   const from = dateDaysAgo(days);
   const wanted = new Set(tables.map((table) => String(table || "").trim().toUpperCase()));
@@ -395,10 +433,32 @@ async function refreshRecentWindow(supabase, tables, days) {
   ];
 
   const activeSteps = steps.filter((step) => step.enabled);
-  if (activeSteps.length === 0) return;
+  const refreshLinkedSteps = Object.entries(refreshLinkedTables)
+    .filter(([table]) => wanted.has(table))
+    .map(([table, filter]) => ({
+      table,
+      days: filter.days || days,
+      sql: `
+        delete from ${normalizeName(table)}
+        where "${filter.foreignKey}" in (
+          select distinct "${filter.foreignKey}"
+          from "${filter.parentTable}"
+          where "${filter.parentDateColumn}" >= '${filter.from}'
+        )
+      `,
+    }));
 
-  log(`Refresh  : limpando janela recente de ${days} dia(s) para ${activeSteps.map((step) => step.table).join(", ")}`);
-  for (const step of activeSteps) {
+  if (activeSteps.length === 0 && refreshLinkedSteps.length === 0) return;
+
+  if (activeSteps.length > 0) {
+    log(`Refresh  : limpando janela recente de ${days} dia(s) para ${activeSteps.map((step) => step.table).join(", ")}`);
+    for (const step of activeSteps) {
+      await execSupabaseSql(supabase, step.sql);
+    }
+  }
+
+  for (const step of refreshLinkedSteps) {
+    log(`Refresh  : limpando ${step.table} pela janela de ${step.days} dia(s) via tabela vinculada`);
     await execSupabaseSql(supabase, step.sql);
   }
 }
@@ -487,6 +547,7 @@ async function runOnce() {
   const refreshRecentDays = getNumberArg("--refresh-recent-days");
   const dateFilters = parseDateFilters();
   const linkedDateFilters = parseLinkedDateFilters();
+  const refreshLinkedTables = parseRefreshLinkedTables();
   const dateTablesOnly = args.includes("--date-tables-only") || envIsTrue("SYNC_DATE_TABLES_ONLY");
   const filterList = tablesArg.length > 0 ? tablesArg : tableArg ? [tableArg] : parseList(process.env.SYNC_TABLES);
   const tablesToSync =
@@ -523,8 +584,8 @@ async function runOnce() {
       return;
     }
 
-    if (!dryRun && refreshRecentDays && refreshRecentDays > 0) {
-      await refreshRecentWindow(supabase, tables, refreshRecentDays);
+    if (!dryRun && ((refreshRecentDays && refreshRecentDays > 0) || Object.keys(refreshLinkedTables).length > 0)) {
+      await refreshRecentWindow(supabase, tables, refreshRecentDays, refreshLinkedTables);
     }
 
     const effectiveFilters = applyRefreshWindowToFilters(dateFilters, linkedDateFilters, refreshRecentDays, tables);
