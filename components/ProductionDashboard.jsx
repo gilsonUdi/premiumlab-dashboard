@@ -390,6 +390,7 @@ export default function ProductionDashboard({
               compact
               fillHeight
               hideDeliveredColumn
+              showDelayDays
             />
           </div>
         ) : (

@@ -67,6 +67,21 @@ function fmtDt(value) {
   }
 }
 
+function fmtDelayDays(delayRank, status) {
+  if (!['delayed', 'delayed_completed'].includes(status)) return '-'
+
+  const minutes = Number(delayRank || 0)
+  if (minutes <= 0) return '-'
+
+  const days = minutes / 1440
+  const text = days.toLocaleString('pt-BR', {
+    minimumFractionDigits: days >= 10 ? 0 : 1,
+    maximumFractionDigits: 1,
+  })
+
+  return `${text} dia${days >= 2 ? 's' : ''}`
+}
+
 export default function HistoricoPedidos({
   data,
   selectedOrder,
@@ -75,6 +90,7 @@ export default function HistoricoPedidos({
   compact = false,
   fillHeight = false,
   hideDeliveredColumn = false,
+  showDelayDays = false,
 }) {
   const [sort, setSort] = useState({ col: 'delayRank', dir: 'desc' })
 
@@ -115,8 +131,12 @@ export default function HistoricoPedidos({
     { key: 'status', label: 'Status' },
   ]
 
+  if (showDelayDays) {
+    cols.splice(6, 0, { key: 'diasAtraso', label: 'Dias Atraso' })
+  }
+
   if (!hideDeliveredColumn) {
-    cols.splice(6, 0, { key: 'saida', label: 'Dt. Saida' })
+    cols.splice(showDelayDays ? 7 : 6, 0, { key: 'saida', label: 'Dt. Saida' })
   }
 
   const filterBy = (event, field, value) => {
@@ -217,6 +237,11 @@ export default function HistoricoPedidos({
                   <td onClick={event => filterBy(event, 'orders.previsto', row.previsto)} className="px-4 py-2.5 font-mono" style={{ color: '#d7e9ff' }}>
                     {fmtDt(row.previsto)}
                   </td>
+                  {showDelayDays ? (
+                    <td className="px-4 py-2.5 font-mono" style={{ color: '#e2e8f0' }}>
+                      {fmtDelayDays(row.delayRank, row.status)}
+                    </td>
+                  ) : null}
                   {!hideDeliveredColumn ? (
                     <td onClick={event => filterBy(event, 'orders.saida', row.saida)} className="px-4 py-2.5 font-mono" style={{ color: '#d7e9ff' }}>
                       {fmtDt(row.saida)}
