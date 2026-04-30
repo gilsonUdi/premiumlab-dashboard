@@ -131,7 +131,7 @@ export default function Filters({
     [...new Set(String(text || '').split(',').map(item => item.trim()).filter(Boolean))]
 
   return (
-    <div className="card mb-4">
+    <div className="card card-filters relative z-20 mb-4">
       <button
         className="flex w-full items-center justify-between px-4 py-3 text-left"
         style={{ borderBottom: open ? '1px solid #1a3355' : 'none' }}
@@ -152,7 +152,7 @@ export default function Filters({
       </button>
 
       {open ? (
-        <div className="p-4">
+        <div className="relative overflow-visible p-4">
           <div className={`grid gap-3 ${compact ? 'grid-cols-2 lg:grid-cols-4 xl:grid-cols-6' : 'grid-cols-2 md:grid-cols-4 xl:grid-cols-8'}`}>
             {showDateFilters ? (
               <>

@@ -109,6 +109,10 @@ body {
   overflow: hidden;
 }
 
+.card-filters {
+  overflow: visible;
+}
+
 /* Skeleton animation */
 @keyframes shimmer {
   0% { background-position: -1000px 0; }
