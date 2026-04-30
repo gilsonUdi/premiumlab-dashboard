@@ -217,9 +217,11 @@ export default function HistoricoPedidos({
                   <td onClick={event => filterBy(event, 'orders.previsto', row.previsto)} className="px-4 py-2.5 font-mono" style={{ color: '#d7e9ff' }}>
                     {fmtDt(row.previsto)}
                   </td>
-                  <td onClick={event => filterBy(event, 'orders.saida', row.saida)} className="px-4 py-2.5 font-mono" style={{ color: '#d7e9ff' }}>
-                    {fmtDt(row.saida)}
-                  </td>
+                  {!hideDeliveredColumn ? (
+                    <td onClick={event => filterBy(event, 'orders.saida', row.saida)} className="px-4 py-2.5 font-mono" style={{ color: '#d7e9ff' }}>
+                      {fmtDt(row.saida)}
+                    </td>
+                  ) : null}
                   <td onClick={event => filterBy(event, 'orders.quantidade', row.quantidade)} className="px-4 py-2.5 text-right" style={{ color: '#e2e8f0' }}>
                     {row.quantidade}
                   </td>
