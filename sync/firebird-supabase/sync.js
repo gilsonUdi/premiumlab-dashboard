@@ -368,6 +368,37 @@ async function execSupabaseSql(supabase, sql) {
   return data || [];
 }
 
+async function deleteSupabaseInChunks(supabase, tableName, whereClause, batchSize = 5000) {
+  const normalizedTable = normalizeName(tableName);
+  let totalDeleted = 0;
+
+  while (true) {
+    const rows = await execSupabaseSql(
+      supabase,
+      `
+        with deleted as (
+          delete from ${normalizedTable}
+          where ctid in (
+            select ctid
+            from ${normalizedTable}
+            where ${whereClause}
+            limit ${batchSize}
+          )
+          returning 1
+        )
+        select count(*)::int as deleted_count
+        from deleted
+      `
+    );
+
+    const deleted = Number(rows?.[0]?.deleted_count || 0);
+    totalDeleted += deleted;
+    if (deleted === 0) break;
+  }
+
+  return totalDeleted;
+}
+
 async function insertOnlyBatch(supabase, tableName, rows, primaryKeys) {
   if (rows.length === 0) return;
 
@@ -404,50 +435,35 @@ async function refreshRecentWindow(supabase, tables, days, refreshLinkedTables =
     {
       table: "REQUI",
       enabled: wanted.has("REQUI"),
-      sql: `
-        delete from requi
-        where reqdata >= '${from}T00:00:00'
-      `,
+      where: `reqdata >= '${from}T00:00:00'`,
     },
     {
       table: "ACOPED",
       enabled: wanted.has("ACOPED"),
-      sql: `
-        delete from acoped
-        where apdata >= '${from}'
-      `,
+      where: `apdata >= '${from}'`,
     },
     {
       table: "PDPRD",
       enabled: wanted.has("PDPRD"),
-      sql: `
-        delete from pdprd
-        where id_pedido in (
+      where: `id_pedido in (
           select id_pedido
           from pedid
           where peddtemis >= '${from}T00:00:00'
-        )
-      `,
+        )`,
     },
     {
       table: "PDSER",
       enabled: wanted.has("PDSER"),
-      sql: `
-        delete from pdser
-        where id_pedido in (
+      where: `id_pedido in (
           select id_pedido
           from pedid
           where peddtemis >= '${from}T00:00:00'
-        )
-      `,
+        )`,
     },
     {
       table: "PEDID",
       enabled: wanted.has("PEDID"),
-      sql: `
-        delete from pedid
-        where peddtemis >= '${from}T00:00:00'
-      `,
+      where: `peddtemis >= '${from}T00:00:00'`,
     },
   ];
 
@@ -457,14 +473,11 @@ async function refreshRecentWindow(supabase, tables, days, refreshLinkedTables =
     .map(([table, filter]) => ({
       table,
       days: filter.days || days,
-      sql: `
-        delete from ${normalizeName(table)}
-        where "${normalizeName(filter.foreignKey)}" in (
+      where: `"${normalizeName(filter.foreignKey)}" in (
           select distinct "${normalizeName(filter.foreignKey)}"
           from "${normalizeName(filter.parentTable)}"
           where "${normalizeName(filter.parentDateColumn)}" >= '${filter.from}'
-        )
-      `,
+        )`,
     }));
 
   if (activeSteps.length === 0 && refreshLinkedSteps.length === 0) return;
@@ -472,13 +485,13 @@ async function refreshRecentWindow(supabase, tables, days, refreshLinkedTables =
   if (activeSteps.length > 0) {
     log(`Refresh  : limpando janela recente de ${effectiveDays} dia(s) para ${activeSteps.map((step) => step.table).join(", ")}`);
     for (const step of activeSteps) {
-      await execSupabaseSql(supabase, step.sql);
+      await deleteSupabaseInChunks(supabase, step.table, step.where);
     }
   }
 
   for (const step of refreshLinkedSteps) {
     log(`Refresh  : limpando ${step.table} pela janela de ${step.days} dia(s) via tabela vinculada`);
-    await execSupabaseSql(supabase, step.sql);
+    await deleteSupabaseInChunks(supabase, step.table, step.where);
   }
 }
 
