@@ -35,6 +35,24 @@ const ROW_STYLES = {
   },
 }
 
+const ROUTE_STEP_STYLES = {
+  completed: {
+    background: 'rgba(34, 197, 94, 0.22)',
+    border: '1px solid rgba(34, 197, 94, 0.65)',
+    color: '#dcfce7',
+  },
+  delayed: {
+    background: 'rgba(239, 68, 68, 0.22)',
+    border: '1px solid rgba(239, 68, 68, 0.65)',
+    color: '#fee2e2',
+  },
+  pending: {
+    background: 'rgba(248, 250, 252, 0.08)',
+    border: '1px solid rgba(226, 232, 240, 0.18)',
+    color: '#e2e8f0',
+  },
+}
+
 function StatusBadge({ status }) {
   const item = STATUS_MAP[status] || { label: status, cls: 'badge-gray' }
   const dotColors = {
@@ -82,6 +100,32 @@ function fmtDelayDays(delayRank, status) {
   return `${text} dia${days >= 2 ? 's' : ''}`
 }
 
+function RouteSteps({ steps }) {
+  if (!Array.isArray(steps) || steps.length === 0) return <span style={{ color: '#4a6b8a' }}>-</span>
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {steps.map((step, index) => {
+        const tone = ROUTE_STEP_STYLES[step.state] || ROUTE_STEP_STYLES.pending
+        return (
+          <span
+            key={`${step.label}-${step.ordem}-${index}`}
+            className="rounded px-2 py-1 text-[11px] font-semibold"
+            style={{
+              ...tone,
+              lineHeight: 1.1,
+              whiteSpace: 'nowrap',
+            }}
+            title={step.descricao || step.label}
+          >
+            {step.label}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function HistoricoPedidos({
   data,
   selectedOrder,
@@ -123,12 +167,12 @@ export default function HistoricoPedidos({
   const cols = [
     { key: 'emissao', label: 'Data Emissao' },
     { key: 'pedcodigo', label: 'Cod. Pedido' },
-    { key: 'indice', label: '% Indice' },
     { key: 'currentCell', label: 'Celula' },
     { key: 'caixa', label: 'Caixa' },
     { key: 'previsto', label: 'Dt. Prevista' },
     { key: 'quantidade', label: 'Qtd.' },
     { key: 'status', label: 'Status' },
+    { key: 'roteiroResumo', label: 'Roteiro' },
   ]
 
   if (showDelayDays) {
@@ -214,20 +258,6 @@ export default function HistoricoPedidos({
                   <td onClick={event => filterBy(event, 'pedcodigo', row.pedcodigo)} className="px-4 py-2.5 font-mono font-medium" style={{ color: '#7dd3fc' }}>
                     {row.pedcodigo}
                   </td>
-                  <td onClick={event => filterBy(event, 'orders.indice', row.indice)} className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 flex-1 rounded-full" style={{ background: '#1a3355', maxWidth: 60 }}>
-                        <div
-                          className="h-1.5 rounded-full"
-                          style={{
-                            width: `${row.indice}%`,
-                            background: row.indice >= 80 ? '#22c55e' : row.indice >= 50 ? '#f59e0b' : '#ef4444',
-                          }}
-                        />
-                      </div>
-                      <span style={{ color: '#e2e8f0', minWidth: 32, textAlign: 'right' }}>{row.indice}%</span>
-                    </div>
-                  </td>
                   <td onClick={event => filterBy(event, 'orders.currentCell', row.currentCell)} className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>
                     {row.currentCell || '-'}
                   </td>
@@ -252,6 +282,9 @@ export default function HistoricoPedidos({
                   </td>
                   <td onClick={event => filterBy(event, 'orders.status', row.status)} className="px-4 py-2.5">
                     <StatusBadge status={row.status} />
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <RouteSteps steps={row.roteiro} />
                   </td>
                 </tr>
               ))

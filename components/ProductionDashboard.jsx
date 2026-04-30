@@ -252,13 +252,13 @@ export default function ProductionDashboard({
       const orderRows = (data.orders || []).map(row => ({
         'Data Emissao': formatDateTimeLabel(row.emissao),
         'Cod. Pedido': row.pedcodigo,
-        'Indice %': row.indice,
         Celula: row.currentCell || '-',
         Caixa: row.caixa || '-',
         'Dt. Prevista': formatDateTimeLabel(row.previsto),
         'Dt. Saida': formatDateTimeLabel(row.saida),
         Quantidade: row.quantidade,
         Status: STATUS_LABELS[row.status] || row.status,
+        Roteiro: (row.roteiro || []).map(step => step.label).join(' | '),
       }))
 
       const productRows = (data.products || []).map(row => ({

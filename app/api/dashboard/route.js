@@ -259,6 +259,20 @@ function buildStatusPriority(status) {
   return 0
 }
 
+function buildRouteStepLabel(alxcodigo, descricao) {
+  const normalizedDescription = normalizeText(descricao)
+  const ascii = normalizedDescription
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9 ]/g, ' ')
+    .trim()
+  const firstToken = ascii.split(/\s+/).find(Boolean) || ''
+  const shortCode = firstToken.slice(0, 3).toUpperCase()
+  const prefix = alxcodigo != null ? `${alxcodigo}` : ''
+  if (prefix && shortCode) return `${prefix}-${shortCode}`
+  return prefix || shortCode || '-'
+}
+
 async function fetchAllPages(queryFactory, { pageSize = PAGE_SIZE, maxRows = MAX_REQUI_ROWS } = {}) {
   const rows = []
 
@@ -321,6 +335,25 @@ async function execSql(supabase, sql) {
   const { data, error } = await supabase.rpc('exec_sql', { sql: compactSql })
   if (error) throw new Error(`exec_sql: ${error.message}`)
   return data || []
+}
+
+async function execOptionalSql(supabase, sql) {
+  try {
+    return await execSql(supabase, sql)
+  } catch (error) {
+    const message = String(error?.message || '')
+    if (
+      message.includes('Could not find the table') ||
+      message.includes('relation') ||
+      message.includes('does not exist') ||
+      message.includes('column') ||
+      message.includes('schema cache')
+    ) {
+      return []
+    }
+
+    throw error
+  }
 }
 
 function buildSalesSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], kind = 'products' }) {
@@ -538,6 +571,41 @@ function buildLatestCellsSql(orderIds) {
   `
 }
 
+function buildRoteiroSql(orderIds) {
+  const ids = asSqlIdList(orderIds)
+  if (!ids) return null
+
+  return `
+    select
+      jr.id_pedido,
+      jr.jbcodigo,
+      jr.jbrordem,
+      jr.alxcodigo,
+      a.alxdescricao::text as celula_descricao
+    from jbxroteiro jr
+    left join almox a on a.alxcodigo = jr.alxcodigo and a.empcodigo = jr.empcodigo
+    where jr.id_pedido in (${ids})
+    order by jr.id_pedido, jr.jbrordem asc, jr.alxcodigo asc
+  `
+}
+
+function buildRoutePassSql(orderIds) {
+  const ids = asSqlIdList(orderIds)
+  if (!ids) return null
+
+  return `
+    select distinct on (ac.id_pedido, ac.alxcodigo)
+      ac.id_pedido,
+      ac.alxcodigo,
+      ac.apdata,
+      ac.aphora
+    from acoped ac
+    where ac.id_pedido in (${ids})
+      and ac.alxcodigo is not null
+    order by ac.id_pedido, ac.alxcodigo, ac.apdata asc nulls last, ac.aphora asc nulls last
+  `
+}
+
 function buildTraceabilitySql(orderIds) {
   const ids = asSqlIdList(orderIds)
   if (!ids) return null
@@ -569,6 +637,18 @@ async function execSqlBatches(supabase, values, sqlBuilder, chunkSize = 500) {
       .map(chunk => sqlBuilder(chunk))
       .filter(Boolean)
       .map(sql => execSql(supabase, sql))
+  )
+
+  return results.flat()
+}
+
+async function execOptionalSqlBatches(supabase, values, sqlBuilder, chunkSize = 500) {
+  const chunks = chunkArray(values, chunkSize)
+  const results = await Promise.all(
+    chunks
+      .map(chunk => sqlBuilder(chunk))
+      .filter(Boolean)
+      .map(sql => execOptionalSql(supabase, sql))
   )
 
   return results.flat()
@@ -734,8 +814,10 @@ export async function GET(request) {
     const salesOrders = Object.values(salesOrderMap)
     const orderIds = salesOrders.map(order => Number(order.pedido)).filter(Number.isFinite)
 
-    const [latestCellsRows, productSalesRows, serviceSalesRows, traceabilityRows] = await Promise.all([
+    const [latestCellsRows, roteiroRows, routePassRows, productSalesRows, serviceSalesRows, traceabilityRows] = await Promise.all([
       orderIds.length > 0 ? execSqlBatches(supabase, orderIds, buildLatestCellsSql) : Promise.resolve([]),
+      orderIds.length > 0 ? execOptionalSqlBatches(supabase, orderIds, buildRoteiroSql) : Promise.resolve([]),
+      orderIds.length > 0 ? execOptionalSqlBatches(supabase, orderIds, buildRoutePassSql) : Promise.resolve([]),
       shouldLoadProductDetails && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildProductDetailsSql(ids, 'products')) : Promise.resolve([]),
       shouldLoadProductDetails && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildProductDetailsSql(ids, 'services')) : Promise.resolve([]),
       shouldLoadTraceability && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, buildTraceabilitySql) : Promise.resolve([]),
@@ -756,6 +838,47 @@ export async function GET(request) {
       cliente: normalizeText(row.cliente),
       descricao_produto: normalizeText(row.descricao_produto),
     }))
+
+    const routePassMap = {}
+    for (const row of routePassRows) {
+      const pedidoId = String(row.id_pedido || '')
+      const alxcodigo = row.alxcodigo != null ? String(row.alxcodigo) : ''
+      if (!pedidoId || !alxcodigo) continue
+      routePassMap[`${pedidoId}:${alxcodigo}`] = parseLocalDateTime(combineDateTime(row.apdata, row.aphora))
+    }
+
+    const roteiroByOrder = {}
+    for (const row of roteiroRows) {
+      const pedidoId = String(row.id_pedido || '')
+      if (!pedidoId) continue
+
+      const alxcodigo = row.alxcodigo != null ? String(row.alxcodigo) : ''
+      const passedAt = routePassMap[`${pedidoId}:${alxcodigo}`]
+      const order = salesOrderMap[pedidoId]
+      const expected = order?.expected || null
+
+      let state = 'pending'
+      if (passedAt) {
+        state = expected && passedAt > expected ? 'delayed' : 'completed'
+      }
+
+      if (!roteiroByOrder[pedidoId]) roteiroByOrder[pedidoId] = []
+      roteiroByOrder[pedidoId].push({
+        ordem: Number(row.jbrordem) || 0,
+        jbcodigo: normalizeText(row.jbcodigo),
+        alxcodigo,
+        label: buildRouteStepLabel(row.alxcodigo, row.celula_descricao),
+        descricao: normalizeText(row.celula_descricao),
+        state,
+      })
+    }
+
+    for (const pedidoId of Object.keys(roteiroByOrder)) {
+      roteiroByOrder[pedidoId].sort((a, b) => {
+        if (a.ordem !== b.ordem) return a.ordem - b.ordem
+        return String(a.alxcodigo).localeCompare(String(b.alxcodigo))
+      })
+    }
 
     for (const row of normalizedSalesRows) {
       const order = salesOrderMap[String(row.pedido)]
@@ -840,6 +963,8 @@ export async function GET(request) {
         status: resolvedStatus,
         currentCell: currentCell || '-',
         caixa: latestCellInfo.caixa || '-',
+        roteiro: roteiroByOrder[order.pedido] || [],
+        roteiroResumo: (roteiroByOrder[order.pedido] || []).map(step => step.label).join(' | '),
         delayRank: buildDelayRank(expected, delivered, now),
         statusPriority: buildStatusPriority(resolvedStatus),
         rowTone: resolveRowTone(resolvedStatus, expected, delivered, now),
