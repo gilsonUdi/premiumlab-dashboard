@@ -440,10 +440,10 @@ async function refreshRecentWindow(supabase, tables, days, refreshLinkedTables =
       days: filter.days || days,
       sql: `
         delete from ${normalizeName(table)}
-        where "${filter.foreignKey}" in (
-          select distinct "${filter.foreignKey}"
-          from "${filter.parentTable}"
-          where "${filter.parentDateColumn}" >= '${filter.from}'
+        where "${normalizeName(filter.foreignKey)}" in (
+          select distinct "${normalizeName(filter.foreignKey)}"
+          from "${normalizeName(filter.parentTable)}"
+          where "${normalizeName(filter.parentDateColumn)}" >= '${filter.from}'
         )
       `,
     }));
