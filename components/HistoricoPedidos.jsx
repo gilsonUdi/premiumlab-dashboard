@@ -104,17 +104,24 @@ function RouteSteps({ steps }) {
   if (!Array.isArray(steps) || steps.length === 0) return <span style={{ color: '#4a6b8a' }}>-</span>
 
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div
+      className="grid gap-1.5"
+      style={{
+        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+        minWidth: 260,
+      }}
+    >
       {steps.map((step, index) => {
         const tone = ROUTE_STEP_STYLES[step.state] || ROUTE_STEP_STYLES.pending
         return (
           <span
             key={`${step.label}-${step.ordem}-${index}`}
-            className="rounded px-2 py-1 text-[11px] font-semibold"
+            className="rounded px-2 py-1 text-center text-[11px] font-semibold"
             style={{
               ...tone,
               lineHeight: 1.1,
               whiteSpace: 'nowrap',
+              minWidth: 0,
             }}
             title={step.descricao || step.label}
           >
