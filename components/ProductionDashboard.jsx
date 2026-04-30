@@ -112,6 +112,11 @@ export default function ProductionDashboard({
   const selectedOrder = filters.pedcodigo.length === 1 ? filters.pedcodigo[0] : null
   const selectedOrderLabel = filters.pedcodigo.length > 1 ? `${filters.pedcodigo.length} pedidos` : selectedOrder
   const selectedClient = filters.clicodigo.length === 1 ? filters.clicodigo[0] : null
+  const displayedOrders = useMemo(() => {
+    const orders = data?.orders || []
+    if (!isPpsMode) return orders
+    return orders.filter(row => !['completed', 'delayed_completed'].includes(row.status))
+  }, [data?.orders, isPpsMode])
 
   const getAuthorizedHeaders = useCallback(async () => {
     const { auth } = getFirebaseServices()
@@ -378,7 +383,7 @@ export default function ProductionDashboard({
         {isPpsMode ? (
           <div className="min-h-0 flex-1 overflow-hidden">
             <HistoricoPedidos
-              data={data?.orders}
+              data={displayedOrders}
               selectedOrder={selectedOrderLabel}
               onColumnClick={handleColumnClick}
               loading={loading}
@@ -394,7 +399,7 @@ export default function ProductionDashboard({
             </div>
 
             <HistoricoPedidos
-              data={data?.orders}
+              data={displayedOrders}
               selectedOrder={selectedOrderLabel}
               onColumnClick={handleColumnClick}
               loading={loading}
