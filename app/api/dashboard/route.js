@@ -632,26 +632,30 @@ function buildTraceabilitySql(orderIds) {
 
 async function execSqlBatches(supabase, values, sqlBuilder, chunkSize = 500) {
   const chunks = chunkArray(values, chunkSize)
-  const results = await Promise.all(
-    chunks
-      .map(chunk => sqlBuilder(chunk))
-      .filter(Boolean)
-      .map(sql => execSql(supabase, sql))
-  )
+  const rows = []
 
-  return results.flat()
+  for (const chunk of chunks) {
+    const sql = sqlBuilder(chunk)
+    if (!sql) continue
+    const batchRows = await execSql(supabase, sql)
+    rows.push(...batchRows)
+  }
+
+  return rows
 }
 
 async function execOptionalSqlBatches(supabase, values, sqlBuilder, chunkSize = 500) {
   const chunks = chunkArray(values, chunkSize)
-  const results = await Promise.all(
-    chunks
-      .map(chunk => sqlBuilder(chunk))
-      .filter(Boolean)
-      .map(sql => execOptionalSql(supabase, sql))
-  )
+  const rows = []
 
-  return results.flat()
+  for (const chunk of chunks) {
+    const sql = sqlBuilder(chunk)
+    if (!sql) continue
+    const batchRows = await execOptionalSql(supabase, sql)
+    rows.push(...batchRows)
+  }
+
+  return rows
 }
 
 async function getTenantSupabase(request, tenantSlug) {
@@ -814,10 +818,21 @@ export async function GET(request) {
     const salesOrders = Object.values(salesOrderMap)
     const orderIds = salesOrders.map(order => Number(order.pedido)).filter(Number.isFinite)
 
-    const [latestCellsRows, roteiroRows, routePassRows, productSalesRows, serviceSalesRows, traceabilityRows] = await Promise.all([
+    let roteiroRows = []
+    let routePassRows = []
+    try {
+      ;[roteiroRows, routePassRows] = await Promise.all([
+        orderIds.length > 0 ? execOptionalSqlBatches(supabase, orderIds, buildRoteiroSql) : Promise.resolve([]),
+        orderIds.length > 0 ? execOptionalSqlBatches(supabase, orderIds, buildRoutePassSql) : Promise.resolve([]),
+      ])
+    } catch (error) {
+      console.error('[dashboard][roteiro]', error)
+      roteiroRows = []
+      routePassRows = []
+    }
+
+    const [latestCellsRows, productSalesRows, serviceSalesRows, traceabilityRows] = await Promise.all([
       orderIds.length > 0 ? execSqlBatches(supabase, orderIds, buildLatestCellsSql) : Promise.resolve([]),
-      orderIds.length > 0 ? execOptionalSqlBatches(supabase, orderIds, buildRoteiroSql) : Promise.resolve([]),
-      orderIds.length > 0 ? execOptionalSqlBatches(supabase, orderIds, buildRoutePassSql) : Promise.resolve([]),
       shouldLoadProductDetails && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildProductDetailsSql(ids, 'products')) : Promise.resolve([]),
       shouldLoadProductDetails && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildProductDetailsSql(ids, 'services')) : Promise.resolve([]),
       shouldLoadTraceability && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, buildTraceabilitySql) : Promise.resolve([]),
