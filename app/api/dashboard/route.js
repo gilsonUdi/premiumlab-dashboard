@@ -12,6 +12,7 @@ const MAX_SALES_ROWS = 20000
 const PRODUCTION_TIME_ZONE = 'America/Sao_Paulo'
 const EXPECTED_TIME_SQL = `(date_trunc('hour', ped.pedhrentre::time) - interval '3 hours')::time`
 const ACTUAL_TIME_SQL = `(ped.pedhrsaida::time - interval '3 hours')::time`
+const ACTUAL_DATETIME_SQL = `coalesce((ped.peddtsaida::date + ${ACTUAL_TIME_SQL}), ped.peddtsaida::timestamp)`
 const NORMALIZED_PEDCODIGO_SQL = `coalesce(nullif(ltrim(replace(ped.pedcodigo::text, '.000', ''), '0'), ''), '0')`
 const EXCLUDED_CLIENT_CODES = [489]
 const EXCLUDED_COMPANY_CODES = [2]
@@ -389,10 +390,10 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], g
       ${ACTUAL_TIME_SQL} as hora_saida,
       ped.pedpzentre::date as data_prazo,
       ${EXPECTED_TIME_SQL} as hora_prev,
-      (ped.peddtsaida::date + ${ACTUAL_TIME_SQL}) as data_hora_saida,
+      ${ACTUAL_DATETIME_SQL} as data_hora_saida,
       (ped.pedpzentre::date + ${EXPECTED_TIME_SQL}) as data_hora_prevista,
       floor(extract(epoch from (
-        coalesce((ped.peddtsaida::date + ${ACTUAL_TIME_SQL}), current_timestamp)
+        coalesce(${ACTUAL_DATETIME_SQL}, current_timestamp)
         - (ped.pedpzentre::date + ${EXPECTED_TIME_SQL})
       )) / 60)::integer as atraso_minutos,
       ped.clicodigo as codigo_cliente,
@@ -436,9 +437,9 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], 
     select
       ped.peddtemis::date as data_venda,
       (ped.pedpzentre::date + ${EXPECTED_TIME_SQL}) as data_hora_prevista,
-      (ped.peddtsaida::date + ${ACTUAL_TIME_SQL}) as data_hora_saida,
+      ${ACTUAL_DATETIME_SQL} as data_hora_saida,
       floor(extract(epoch from (
-        coalesce((ped.peddtsaida::date + ${ACTUAL_TIME_SQL}), current_timestamp)
+        coalesce(${ACTUAL_DATETIME_SQL}, current_timestamp)
         - (ped.pedpzentre::date + ${EXPECTED_TIME_SQL})
       )) / 60)::integer as atraso_minutos,
       ped.clicodigo as codigo_cliente,
@@ -545,7 +546,7 @@ function buildProductDetailsSql(orderIds, kind = 'products') {
       ${itemAlias}.${joinColumn}::text as codigo_produto,
       ${itemAlias}.${descriptionColumn}::text as descricao_produto,
       ${itemAlias}.${quantityColumn}::numeric as qtde_produtos,
-      (ped.peddtsaida::date + ${ACTUAL_TIME_SQL}) as data_hora_saida,
+      ${ACTUAL_DATETIME_SQL} as data_hora_saida,
       coalesce(cli.clinomefant, cli.clirazsocial) as cliente
     from pedid ped
     join ${itemTable} ${itemAlias} on ped.id_pedido = ${itemAlias}.id_pedido
@@ -1147,3 +1148,4 @@ export async function GET(request) {
     return NextResponse.json({ error: error.message }, { status: getErrorStatus(error) })
   }
 }
+

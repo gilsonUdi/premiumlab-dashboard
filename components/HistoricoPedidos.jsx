@@ -108,7 +108,7 @@ function RouteSteps({ steps }) {
       className="grid gap-1.5"
       style={{
         gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-        minWidth: 260,
+        minWidth: 252,
       }}
     >
       {steps.map((step, index) => {
@@ -177,18 +177,12 @@ export default function HistoricoPedidos({
     { key: 'currentCell', label: 'Celula' },
     { key: 'caixa', label: 'Caixa' },
     { key: 'previsto', label: 'Dt. Prevista' },
+    ...(showDelayDays ? [{ key: 'diasAtraso', label: 'Dias em Atraso' }] : []),
+    ...(!hideDeliveredColumn ? [{ key: 'saida', label: 'Dt. Saida' }] : []),
     { key: 'quantidade', label: 'Qtd.' },
     { key: 'status', label: 'Status' },
     { key: 'roteiroResumo', label: 'Roteiro' },
   ]
-
-  if (showDelayDays) {
-    cols.splice(6, 0, { key: 'diasAtraso', label: 'Dias em Atraso' })
-  }
-
-  if (!hideDeliveredColumn) {
-    cols.splice(showDelayDays ? 7 : 6, 0, { key: 'saida', label: 'Dt. Saida' })
-  }
 
   const filterBy = (event, field, value) => {
     event.stopPropagation()

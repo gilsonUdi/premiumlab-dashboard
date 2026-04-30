@@ -391,13 +391,32 @@ async function insertOnlyBatch(supabase, tableName, rows, primaryKeys) {
 }
 
 async function refreshRecentWindow(supabase, tables, days, refreshLinkedTables = {}) {
-  if ((!days || days <= 0) && Object.keys(refreshLinkedTables).length === 0) return;
+  const envRecentDays = Number(process.env.SYNC_RECENT_DAYS || 0);
+  const effectiveDays = days && days > 0 ? days : envRecentDays;
+
+  if ((!effectiveDays || effectiveDays <= 0) && Object.keys(refreshLinkedTables).length === 0) return;
   if (tables.length === 0) return;
 
-  const from = dateDaysAgo(days);
+  const from = dateDaysAgo(effectiveDays);
   const wanted = new Set(tables.map((table) => String(table || "").trim().toUpperCase()));
 
   const steps = [
+    {
+      table: "REQUI",
+      enabled: wanted.has("REQUI"),
+      sql: `
+        delete from requi
+        where reqdata >= '${from}T00:00:00'
+      `,
+    },
+    {
+      table: "ACOPED",
+      enabled: wanted.has("ACOPED"),
+      sql: `
+        delete from acoped
+        where apdata >= '${from}'
+      `,
+    },
     {
       table: "PDPRD",
       enabled: wanted.has("PDPRD"),
@@ -451,7 +470,7 @@ async function refreshRecentWindow(supabase, tables, days, refreshLinkedTables =
   if (activeSteps.length === 0 && refreshLinkedSteps.length === 0) return;
 
   if (activeSteps.length > 0) {
-    log(`Refresh  : limpando janela recente de ${days} dia(s) para ${activeSteps.map((step) => step.table).join(", ")}`);
+    log(`Refresh  : limpando janela recente de ${effectiveDays} dia(s) para ${activeSteps.map((step) => step.table).join(", ")}`);
     for (const step of activeSteps) {
       await execSupabaseSql(supabase, step.sql);
     }
@@ -571,7 +590,7 @@ async function runOnce() {
   log(`Tabelas  : ${tablesToSync.length > 0 ? tablesToSync.join(", ") : "todas"}`);
   if (dateTablesOnly && !tableArg && tablesArg.length === 0) log("Modo     : somente tabelas com filtro de data");
   if (refreshRecentDays && refreshRecentDays > 0) log(`Refresh  : substituindo somente os ultimos ${refreshRecentDays} dia(s) das tabelas selecionadas`);
-  log("Escrita  : insert-only (nao apaga e nao sobrescreve registros existentes)");
+  log("Escrita  : tabelas recentes/vinculadas usam refresh por janela; demais seguem em insert-only");
   if (dryRun) log("Modo     : dry-run");
 
   const db = await fbConnect(fbOptions);
