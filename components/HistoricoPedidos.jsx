@@ -74,6 +74,7 @@ export default function HistoricoPedidos({
   loading,
   compact = false,
   fillHeight = false,
+  hideDeliveredColumn = false,
 }) {
   const [sort, setSort] = useState({ col: 'delayRank', dir: 'desc' })
 
@@ -110,10 +111,13 @@ export default function HistoricoPedidos({
     { key: 'currentCell', label: 'Celula' },
     { key: 'caixa', label: 'Caixa' },
     { key: 'previsto', label: 'Dt. Prevista' },
-    { key: 'saida', label: 'Dt. Saida' },
     { key: 'quantidade', label: 'Qtd.' },
     { key: 'status', label: 'Status' },
   ]
+
+  if (!hideDeliveredColumn) {
+    cols.splice(6, 0, { key: 'saida', label: 'Dt. Saida' })
+  }
 
   const filterBy = (event, field, value) => {
     event.stopPropagation()

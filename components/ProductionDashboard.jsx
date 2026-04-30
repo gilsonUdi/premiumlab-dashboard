@@ -389,6 +389,7 @@ export default function ProductionDashboard({
               loading={loading}
               compact
               fillHeight
+              hideDeliveredColumn
             />
           </div>
         ) : (
@@ -403,6 +404,7 @@ export default function ProductionDashboard({
               selectedOrder={selectedOrderLabel}
               onColumnClick={handleColumnClick}
               loading={loading}
+              hideDeliveredColumn={false}
             />
 
             <DetalhesProdutos
