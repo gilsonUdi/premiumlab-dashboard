@@ -974,6 +974,7 @@ export async function GET(request) {
 
     const totalOrders = orders.length
     const completed = orders.filter(row => row.status === 'completed' || row.status === 'delayed_completed').length
+    const deliveredOnTime = orders.filter(row => row.status === 'completed').length
     const onTime = orders.filter(row => row.status === 'completed' || row.status === 'in_progress').length
     const inProduction = orders.filter(row => row.status === 'in_progress').length
     const inProductionDelayed = orders.filter(row => row.status === 'delayed').length
@@ -987,6 +988,7 @@ export async function GET(request) {
       perdas: perdas.percentage,
       atrasados: deliveredDelayed,
       entregueAtraso: deliveredDelayed,
+      entregueNoPrazo: deliveredOnTime,
       concluidos: completed,
     }
 
