@@ -370,33 +370,37 @@ async function execSupabaseSql(supabase, sql) {
 
 async function deleteSupabaseInChunks(supabase, tableName, whereClause, batchSize = 5000) {
   const normalizedTable = normalizeName(tableName);
-  let totalDeleted = 0;
 
   while (true) {
-    const rows = await execSupabaseSql(
+    const probeRows = await execSupabaseSql(
       supabase,
       `
-        with deleted as (
-          delete from ${normalizedTable}
-          where ctid in (
-            select ctid
-            from ${normalizedTable}
-            where ${whereClause}
-            limit ${batchSize}
-          )
-          returning 1
-        )
-        select count(*)::int as deleted_count
-        from deleted
+        select ctid
+        from ${normalizedTable}
+        where ${whereClause}
+        limit ${batchSize}
       `
     );
 
-    const deleted = Number(rows?.[0]?.deleted_count || 0);
-    totalDeleted += deleted;
-    if (deleted === 0) break;
-  }
+    if (!probeRows || probeRows.length === 0) break;
 
-  return totalDeleted;
+    const ctids = probeRows
+      .map((row) => row.ctid)
+      .filter(Boolean)
+      .map((ctid) => `'${String(ctid).replace(/'/g, "''")}'`);
+
+    if (ctids.length === 0) break;
+
+    await execSupabaseSql(
+      supabase,
+      `
+        delete from ${normalizedTable}
+        where ctid in (${ctids.join(", ")})
+      `
+    );
+
+    if (ctids.length < batchSize) break;
+  }
 }
 
 async function insertOnlyBatch(supabase, tableName, rows, primaryKeys) {
