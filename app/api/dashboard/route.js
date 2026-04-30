@@ -607,6 +607,21 @@ function buildRoutePassSql(orderIds) {
   `
 }
 
+function buildRouteCacheSql(orderIds) {
+  const ids = asSqlIdList(orderIds)
+  if (!ids) return null
+
+  return `
+    select
+      id_pedido,
+      pedcodigo,
+      roteiro_resumo,
+      roteiro_json
+    from pedido_roteiro_cache
+    where id_pedido in (${ids})
+  `
+}
+
 function buildTraceabilitySql(orderIds) {
   const ids = asSqlIdList(orderIds)
   if (!ids) return null
@@ -819,8 +834,13 @@ export async function GET(request) {
     const salesOrders = Object.values(salesOrderMap)
     const orderIds = salesOrders.map(order => Number(order.pedido)).filter(Number.isFinite)
 
-    const roteiroRows = []
-    const routePassRows = []
+    let routeCacheRows = []
+    try {
+      routeCacheRows = orderIds.length > 0 ? await execOptionalSqlBatches(supabase, orderIds, buildRouteCacheSql) : []
+    } catch (error) {
+      console.error('[dashboard][roteiro-cache]', error)
+      routeCacheRows = []
+    }
 
     const [latestCellsRows, productSalesRows, serviceSalesRows, traceabilityRows] = await Promise.all([
       orderIds.length > 0 ? execSqlBatches(supabase, orderIds, buildLatestCellsSql) : Promise.resolve([]),
@@ -845,45 +865,23 @@ export async function GET(request) {
       descricao_produto: normalizeText(row.descricao_produto),
     }))
 
-    const routePassMap = {}
-    for (const row of routePassRows) {
-      const pedidoId = String(row.id_pedido || '')
-      const alxcodigo = row.alxcodigo != null ? String(row.alxcodigo) : ''
-      if (!pedidoId || !alxcodigo) continue
-      routePassMap[`${pedidoId}:${alxcodigo}`] = parseLocalDateTime(combineDateTime(row.apdata, row.aphora))
-    }
-
     const roteiroByOrder = {}
-    for (const row of roteiroRows) {
+    const roteiroResumoByOrder = {}
+    for (const row of routeCacheRows) {
       const pedidoId = String(row.id_pedido || '')
       if (!pedidoId) continue
 
-      const alxcodigo = row.alxcodigo != null ? String(row.alxcodigo) : ''
-      const passedAt = routePassMap[`${pedidoId}:${alxcodigo}`]
-      const order = salesOrderMap[pedidoId]
-      const expected = order?.expected || null
-
-      let state = 'pending'
-      if (passedAt) {
-        state = expected && passedAt > expected ? 'delayed' : 'completed'
+      let roteiro = row.roteiro_json
+      if (typeof roteiro === 'string') {
+        try {
+          roteiro = JSON.parse(roteiro)
+        } catch {
+          roteiro = []
+        }
       }
 
-      if (!roteiroByOrder[pedidoId]) roteiroByOrder[pedidoId] = []
-      roteiroByOrder[pedidoId].push({
-        ordem: Number(row.jbrordem) || 0,
-        jbcodigo: normalizeText(row.jbcodigo),
-        alxcodigo,
-        label: buildRouteStepLabel(row.alxcodigo, row.celula_descricao),
-        descricao: normalizeText(row.celula_descricao),
-        state,
-      })
-    }
-
-    for (const pedidoId of Object.keys(roteiroByOrder)) {
-      roteiroByOrder[pedidoId].sort((a, b) => {
-        if (a.ordem !== b.ordem) return a.ordem - b.ordem
-        return String(a.alxcodigo).localeCompare(String(b.alxcodigo))
-      })
+      roteiroByOrder[pedidoId] = Array.isArray(roteiro) ? roteiro : []
+      roteiroResumoByOrder[pedidoId] = String(row.roteiro_resumo || '').trim()
     }
 
     for (const row of normalizedSalesRows) {
@@ -970,7 +968,7 @@ export async function GET(request) {
         currentCell: currentCell || '-',
         caixa: latestCellInfo.caixa || '-',
         roteiro: roteiroByOrder[order.pedido] || [],
-        roteiroResumo: (roteiroByOrder[order.pedido] || []).map(step => step.label).join(' | '),
+        roteiroResumo: roteiroResumoByOrder[order.pedido] || '',
         delayRank: buildDelayRank(expected, delivered, now),
         statusPriority: buildStatusPriority(resolvedStatus),
         rowTone: resolveRowTone(resolvedStatus, expected, delivered, now),

@@ -31,10 +31,11 @@ O fluxo automatico fica configurado para:
 - sincronizar apenas as tabelas com coluna de data;
 - incluir `PDPRD` e `PDSER` por vinculo com pedidos recentes;
 - incluir `JBXROTEIRO` por vinculo com a `ACOPED`;
+- recalcular `pedido_roteiro_cache` no fim da sincronizacao para a coluna de roteiro do dashboard;
 - trazer somente os ultimos 3 dias dessas tabelas;
 - substituir automaticamente os ultimos 30 dias de `JBXROTEIRO`, usando a `ACOPED` como referencia de recencia;
 - inserir apenas registros novos, preservando o historico anterior no Supabase;
-- nunca apagar a janela anterior nem sobrescrever registros ja existentes.
+- atualizar por upsert as tabelas mutaveis recentes para refletir mudancas operacionais.
 
 Para criar a tarefa do usuario no Agendador do Windows:
 
@@ -55,6 +56,7 @@ SYNC_INTERVAL_SECONDS=300
 As tabelas monitoradas por data ficam em `SYNC_DATE_COLUMNS`.
 As tabelas sem data propria, mas dependentes de pedidos recentes, ficam em `SYNC_LINKED_DATE_TABLES`.
 As tabelas sem data propria que precisam de refresh de janela ficam em `SYNC_REFRESH_LINKED_TABLES`.
+As tabelas recentes que devem atualizar registros existentes ficam em `SYNC_UPSERT_TABLES`.
 
 No caso da `JBXROTEIRO`, a automacao usa:
 
@@ -96,11 +98,12 @@ Esse comando:
 ## Observacoes
 
 - O Supabase precisa ter as tabelas ja criadas com os mesmos nomes em minusculo.
+- O sync cria automaticamente a tabela `pedido_roteiro_cache` no Supabase quando necessario.
 - Para PPS e Analise de Dados, as tabelas realmente necessarias sao: `CLIEN`, `FUNCIO`, `ALMOX`, `LOCALPED`, `USUARIO`, `REQUI`, `PEDID`, `PDPRD`, `PDSER`, `ACOPED`, `PEDFINALIDADE` e `JBXROTEIRO`.
 - As tabelas nao necessarias para esses dois modos sao: `BANCO`, `PRODU`, `CFOP`, `CIDADE`, `CCORR`, `PAGAR`, `RECEB`, `MOVIMENTACAO`, `GRUPOCLI`, `GRUPOROTULOS`, `PEDFO`, `NOTAS`, `TBFIS`, `COMPOPROROT` e `REGRAPROMO`.
 - Quando a tabela tiver chave primaria no Firebird, o script usa essa chave como conflito para ignorar duplicados no Supabase.
-- O modo padrao agora e `insert-only`: se o registro ja existir, ele e ignorado e nao atualizado.
-- Excecao: tabelas configuradas em `SYNC_REFRESH_LINKED_TABLES` sao recarregadas por janela recente antes da insercao. Hoje isso vale para `JBXROTEIRO`.
+- O modo padrao continua conservador, mas tabelas listadas em `SYNC_UPSERT_TABLES` usam upsert para atualizar registros recentes.
+- Excecao: tabelas configuradas em `SYNC_REFRESH_LINKED_TABLES` ainda podem ser recarregadas por janela recente quando necessario.
 - Se o computador desligar, a sincronizacao pausa e volta quando a tarefa rodar novamente.
 - Os logs ficam em `logs\sync.log`.
 

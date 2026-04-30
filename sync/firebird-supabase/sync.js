@@ -112,6 +112,64 @@ function formatTimestamp(value) {
   return value instanceof Date ? value.toISOString() : null;
 }
 
+function extractDatePart(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const text = String(value).trim();
+  const match = text.match(/(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : null;
+}
+
+function extractTimePart(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(11, 19);
+  const text = String(value).trim();
+  const fullMatch = text.match(/(\d{2}:\d{2}:\d{2})/);
+  if (fullMatch) return fullMatch[1];
+  const shortMatch = text.match(/(\d{2}:\d{2})(?!:)/);
+  return shortMatch ? `${shortMatch[1]}:00` : null;
+}
+
+function combineDateTime(dateValue, timeValue) {
+  const datePart = extractDatePart(dateValue);
+  if (!datePart) return null;
+  const timePart = extractTimePart(timeValue);
+  return timePart ? `${datePart}T${timePart}` : `${datePart}T00:00:00`;
+}
+
+function parseLocalDateTime(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return new Date(
+      value.getFullYear(),
+      value.getMonth(),
+      value.getDate(),
+      value.getHours(),
+      value.getMinutes(),
+      value.getSeconds()
+    );
+  }
+
+  const text = String(value).trim();
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!match) return null;
+  const [, year, month, day, hour = "00", minute = "00", second = "00"] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+}
+
+function buildRouteStepLabel(alxcodigo, descricao) {
+  const ascii = String(descricao || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9 ]/g, " ")
+    .trim();
+  const firstToken = ascii.split(/\s+/).find(Boolean) || "";
+  const shortCode = firstToken.slice(0, 3).toUpperCase();
+  const prefix = alxcodigo != null ? `${alxcodigo}` : "";
+  if (prefix && shortCode) return `${prefix}-${shortCode}`;
+  return prefix || shortCode || "-";
+}
+
 function normalizeValue(value, targetColumn) {
   if (value == null) return null;
   if (value instanceof Date) {
@@ -373,6 +431,153 @@ async function execSupabaseSql(supabase, sql) {
   }
 
   return data || [];
+}
+
+async function ensureRoteiroCacheTable(supabase) {
+  await execSupabaseSql(
+    supabase,
+    `
+      create table if not exists public.pedido_roteiro_cache (
+        id_pedido bigint primary key,
+        pedcodigo text not null,
+        roteiro_resumo text,
+        roteiro_json jsonb not null default '[]'::jsonb,
+        updated_at timestamptz not null default now()
+      )
+    `
+  );
+}
+
+async function rebuildRoteiroCache(supabase, fromDate) {
+  await ensureRoteiroCacheTable(supabase);
+
+  const orders = await execSupabaseSql(
+    supabase,
+    `
+      select
+        ped.id_pedido,
+        ped.pedcodigo,
+        ped.pedpzentre,
+        ped.pedhrentre,
+        ped.peddtemis,
+        ped.pedsitped
+      from pedid ped
+      where ped.peddtemis >= '${fromDate}T00:00:00'
+        and ped.pedsitped <> 'C'
+      order by ped.id_pedido
+    `
+  );
+
+  if (!orders.length) return;
+
+  const orderMap = new Map();
+  const orderIds = [];
+  for (const row of orders) {
+    const id = Number(row.id_pedido);
+    if (!Number.isFinite(id)) continue;
+    orderIds.push(id);
+    orderMap.set(String(id), {
+      id_pedido: id,
+      pedcodigo: String(row.pedcodigo || "").trim(),
+      expected: parseLocalDateTime(combineDateTime(row.pedpzentre, row.pedhrentre)),
+    });
+  }
+
+  const roteiroRows = [];
+  const passRows = [];
+  for (let index = 0; index < orderIds.length; index += 500) {
+    const chunk = orderIds.slice(index, index + 500).join(", ");
+    const routeChunk = await execSupabaseSql(
+      supabase,
+      `
+        select
+          jr.id_pedido,
+          jr.jbrordem,
+          jr.alxcodigo,
+          a.alxdescricao::text as celula_descricao
+        from jbxroteiro jr
+        left join almox a on a.alxcodigo = jr.alxcodigo and a.empcodigo = jr.empcodigo
+        where jr.id_pedido in (${chunk})
+        order by jr.id_pedido, jr.jbrordem asc, jr.alxcodigo asc
+      `
+    );
+    roteiroRows.push(...routeChunk);
+
+    const passChunk = await execSupabaseSql(
+      supabase,
+      `
+        select distinct on (ac.id_pedido, ac.alxcodigo)
+          ac.id_pedido,
+          ac.alxcodigo,
+          ac.apdata,
+          ac.aphora
+        from acoped ac
+        where ac.id_pedido in (${chunk})
+          and ac.alxcodigo is not null
+        order by ac.id_pedido, ac.alxcodigo, ac.apdata asc nulls last, ac.aphora asc nulls last
+      `
+    );
+    passRows.push(...passChunk);
+  }
+
+  const passMap = new Map();
+  for (const row of passRows) {
+    const orderId = String(row.id_pedido || "");
+    const alx = row.alxcodigo != null ? String(row.alxcodigo) : "";
+    if (!orderId || !alx) continue;
+    passMap.set(`${orderId}:${alx}`, parseLocalDateTime(combineDateTime(row.apdata, row.aphora)));
+  }
+
+  const cacheByOrder = new Map();
+  for (const row of roteiroRows) {
+    const orderId = String(row.id_pedido || "");
+    if (!orderId || !orderMap.has(orderId)) continue;
+    const alx = row.alxcodigo != null ? String(row.alxcodigo) : "";
+    const expected = orderMap.get(orderId).expected;
+    const passedAt = passMap.get(`${orderId}:${alx}`);
+
+    let state = "pending";
+    if (passedAt) state = expected && passedAt > expected ? "delayed" : "completed";
+
+    if (!cacheByOrder.has(orderId)) cacheByOrder.set(orderId, []);
+    cacheByOrder.get(orderId).push({
+      ordem: Number(row.jbrordem) || 0,
+      alxcodigo: alx,
+      label: buildRouteStepLabel(row.alxcodigo, row.celula_descricao),
+      descricao: String(row.celula_descricao || "").trim(),
+      state,
+    });
+  }
+
+  const cacheRows = [];
+  for (const orderId of orderIds.map(String)) {
+    const route = (cacheByOrder.get(orderId) || []).sort((a, b) => {
+      if (a.ordem !== b.ordem) return a.ordem - b.ordem;
+      return String(a.alxcodigo).localeCompare(String(b.alxcodigo));
+    });
+    const order = orderMap.get(orderId);
+    cacheRows.push({
+      id_pedido: order.id_pedido,
+      pedcodigo: order.pedcodigo,
+      roteiro_resumo: route.map((step) => step.label).join(" | "),
+      roteiro_json: route,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  for (let index = 0; index < cacheRows.length; index += 500) {
+    const chunk = cacheRows.slice(index, index + 500);
+    const { error } = await supabase.from("pedido_roteiro_cache").upsert(chunk, {
+      onConflict: "id_pedido",
+      ignoreDuplicates: false,
+      defaultToNull: true,
+    });
+    if (error) {
+      throw new Error(`Supabase pedido_roteiro_cache: ${error.message}`);
+    }
+  }
+
+  log(`Cache    : pedido_roteiro_cache atualizado para ${cacheRows.length.toLocaleString("pt-BR")} pedido(s).`);
 }
 
 async function deleteSupabaseInChunks(supabase, tableName, whereClause, batchSize = 5000) {
@@ -683,6 +888,9 @@ async function runOnce() {
     };
 
     log(`Concluido: ${ok} tabela(s) OK, ${failed} erro(s), ${totalRows.toLocaleString("pt-BR")} linha(s).`);
+    if (!dryRun && ok > 0) {
+      await rebuildRoteiroCache(supabase, dateDaysAgo(Number(process.env.SYNC_RECENT_DAYS || 30)));
+    }
     log(`Resumo   : ${JSON.stringify(summary)}`);
 
     if (failed > 0) process.exitCode = 1;
