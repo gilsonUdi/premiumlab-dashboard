@@ -819,18 +819,8 @@ export async function GET(request) {
     const salesOrders = Object.values(salesOrderMap)
     const orderIds = salesOrders.map(order => Number(order.pedido)).filter(Number.isFinite)
 
-    let roteiroRows = []
-    let routePassRows = []
-    try {
-      ;[roteiroRows, routePassRows] = await Promise.all([
-        orderIds.length > 0 ? execOptionalSqlBatches(supabase, orderIds, buildRoteiroSql) : Promise.resolve([]),
-        orderIds.length > 0 ? execOptionalSqlBatches(supabase, orderIds, buildRoutePassSql) : Promise.resolve([]),
-      ])
-    } catch (error) {
-      console.error('[dashboard][roteiro]', error)
-      roteiroRows = []
-      routePassRows = []
-    }
+    const roteiroRows = []
+    const routePassRows = []
 
     const [latestCellsRows, productSalesRows, serviceSalesRows, traceabilityRows] = await Promise.all([
       orderIds.length > 0 ? execSqlBatches(supabase, orderIds, buildLatestCellsSql) : Promise.resolve([]),
