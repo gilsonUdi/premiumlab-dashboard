@@ -23,11 +23,11 @@ npm run sync:dry
 npm run sync
 ```
 
-## Atualizacao automatica a cada 15 minutos
+## Atualizacao automatica a cada 10 minutos
 
 O fluxo automatico fica configurado para:
 
-- rodar a cada 15 minutos;
+- rodar a cada 10 minutos;
 - sincronizar apenas as tabelas com coluna de data;
 - incluir `PDPRD` e `PDSER` por vinculo com pedidos recentes;
 - incluir `JBXROTEIRO` por vinculo com a `ACOPED`;
@@ -50,7 +50,7 @@ Se a politica do Windows bloquear tarefas agendadas, use `run-watch.bat` e deixe
 SYNC_INCREMENTAL=true
 SYNC_RECENT_DAYS=90
 SYNC_DATE_TABLES_ONLY=true
-SYNC_INTERVAL_SECONDS=900
+SYNC_INTERVAL_SECONDS=600
 ```
 
 As tabelas monitoradas por data ficam em `SYNC_DATE_COLUMNS`.

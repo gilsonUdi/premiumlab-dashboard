@@ -183,6 +183,16 @@ export default function ProductionDashboard({
     return () => clearTimeout(debounceRef.current)
   }, [fetchData])
 
+  useEffect(() => {
+    if (!isPpsMode) return undefined
+
+    const intervalId = setInterval(() => {
+      fetchData()
+    }, 10 * 60 * 1000)
+
+    return () => clearInterval(intervalId)
+  }, [fetchData, isPpsMode])
+
   const handleColumnClick = useCallback((field, value) => {
     const filterKey = INTERACTIVE_FIELD_MAP[field]
     if (!filterKey) return
