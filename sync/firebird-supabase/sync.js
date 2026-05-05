@@ -959,7 +959,8 @@ async function runOnce() {
   const supabase = getSupabase();
 
   try {
-    const tables = await getTableNames(db, regularRequestedTables);
+    const tables =
+      regularRequestedTables.length > 0 ? await getTableNames(db, regularRequestedTables) : [];
     if (tables.length === 0 && manualTablesToSync.length === 0) {
       log("Nenhuma tabela encontrada para sincronizar.");
       return;
