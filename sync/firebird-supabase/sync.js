@@ -748,7 +748,7 @@ async function syncManualTable(db, supabase, tableName, definition, options) {
     .filter((row) => Object.keys(row).length > 0);
 
   if (!options.dryRun && definition.replaceAll) {
-    await execSupabaseSql(supabase, `delete from ${normalizedTable}`);
+    await execSupabaseSql(supabase, `delete from ${normalizedTable} where true`);
   }
 
   if (!options.dryRun) {
