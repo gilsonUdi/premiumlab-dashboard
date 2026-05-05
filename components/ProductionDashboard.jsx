@@ -39,7 +39,7 @@ const defaultFilters = () => ({
 })
 
 const FILTER_LABELS = {
-  pedcodigo: 'Pedido',
+  pedcodigo: 'ID Pedido',
   clicodigo: 'Cliente',
   clinome: 'Nome Cliente',
   gclcodigo: 'Grupo Cliente',
@@ -251,7 +251,8 @@ export default function ProductionDashboard({
 
       const orderRows = (data.orders || []).map(row => ({
         'Data Emissao': formatDateTimeLabel(row.emissao),
-        'Cod. Pedido': row.pedcodigo,
+        'ID Pedido': row.pedidoId,
+        PEDCODIGO: row.pedcodigo,
         Celula: row.currentCell || '-',
         Caixa: row.caixa || '-',
         'Dt. Prevista': formatDateTimeLabel(row.previsto),
@@ -262,7 +263,8 @@ export default function ProductionDashboard({
       }))
 
       const productRows = (data.products || []).map(row => ({
-        'Cod. Pedido': row.pedcodigo,
+        'ID Pedido': row.pedidoId,
+        PEDCODIGO: row.pedcodigo,
         Status: row.status,
         'Cod. Produto': row.procodigo,
         Descricao: row.prodescricao,
@@ -274,7 +276,8 @@ export default function ProductionDashboard({
         Celula: row.celula,
         'Data e Hora': formatDateTimeLabel(row.dataHora),
         Usuario: row.usuario,
-        Pedido: row.pedcodigo,
+        'ID Pedido': row.pedidoId,
+        PEDCODIGO: row.pedcodigo,
       }))
 
       const customerRows = (data.customers || []).map(row => ({

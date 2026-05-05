@@ -318,6 +318,20 @@ function asSqlOrderCode(value) {
   return normalized || '0'
 }
 
+function buildOrderSearchClauses(values) {
+  const rawValues = [...new Set((values || []).map(value => String(value || '').trim()).filter(Boolean))]
+  if (rawValues.length === 0) return []
+
+  const pedidoIds = [...new Set(rawValues.map(asSqlNumber).filter(Number.isFinite))]
+  const pedidoCodes = [...new Set(rawValues.map(asSqlOrderCode).filter(Boolean))]
+  const clauses = []
+
+  if (pedidoIds.length > 0) clauses.push(`ped.id_pedido in (${pedidoIds.join(', ')})`)
+  if (pedidoCodes.length > 0) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} in (${pedidoCodes.map(code => `'${code}'`).join(', ')})`)
+
+  return clauses.length > 0 ? [`(${clauses.join(' or ')})`] : []
+}
+
 function asSqlIdList(values) {
   const ids = [...new Set((values || []).map(value => Number(value)).filter(Number.isFinite))]
   return ids.length > 0 ? ids.join(',') : null
@@ -366,11 +380,10 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], g
     ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
   ]
 
-  const pedidoList = [...new Set((pedcodigos || []).map(asSqlOrderCode).filter(Boolean))]
   const clienteList = [...new Set((clicodigos || []).map(asSqlNumber).filter(Number.isFinite))]
   const grupoList = [...new Set((gclcodigos || []).map(asSqlNumber).filter(Number.isFinite))]
 
-  if (pedidoList.length > 0) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} in (${pedidoList.map(code => `'${code}'`).join(', ')})`)
+  clauses.push(...buildOrderSearchClauses(pedcodigos))
   if (clienteList.length > 0) clauses.push(`ped.clicodigo in (${clienteList.join(', ')})`)
   if (grupoList.length > 0) clauses.push(`cli.gclcodigo in (${grupoList.join(', ')})`)
 
@@ -425,11 +438,10 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], 
     ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
   ]
 
-  const pedidoList = [...new Set((pedcodigos || []).map(asSqlOrderCode).filter(Boolean))]
   const clienteList = [...new Set((clicodigos || []).map(asSqlNumber).filter(Number.isFinite))]
   const grupoList = [...new Set((gclcodigos || []).map(asSqlNumber).filter(Number.isFinite))]
 
-  if (pedidoList.length > 0) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} in (${pedidoList.map(code => `'${code}'`).join(', ')})`)
+  clauses.push(...buildOrderSearchClauses(pedcodigos))
   if (clienteList.length > 0) clauses.push(`ped.clicodigo in (${clienteList.join(', ')})`)
   if (grupoList.length > 0) clauses.push(`cli.gclcodigo in (${grupoList.join(', ')})`)
 
@@ -480,11 +492,10 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
     ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
   ]
 
-  const pedidoList = [...new Set((pedcodigos || []).map(asSqlOrderCode).filter(Boolean))]
   const clienteList = [...new Set((clicodigos || []).map(asSqlNumber).filter(Number.isFinite))]
   const grupoList = [...new Set((gclcodigos || []).map(asSqlNumber).filter(Number.isFinite))]
 
-  if (pedidoList.length > 0) clauses.push(`${NORMALIZED_PEDCODIGO_SQL} in (${pedidoList.map(code => `'${code}'`).join(', ')})`)
+  clauses.push(...buildOrderSearchClauses(pedcodigos))
   if (clienteList.length > 0) clauses.push(`ped.clicodigo in (${clienteList.join(', ')})`)
   if (grupoList.length > 0) clauses.push(`cli.gclcodigo in (${grupoList.join(', ')})`)
 

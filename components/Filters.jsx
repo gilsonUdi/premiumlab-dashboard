@@ -206,10 +206,10 @@ export default function Filters({
             />
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium" style={{ color: '#7ba3cc' }}>Cod. Pedido (PEDCODIGO)</label>
+              <label className="text-xs font-medium" style={{ color: '#7ba3cc' }}>ID Pedido</label>
               <input
                 type="text"
-                placeholder="PEDCODIGOs separados por virgula"
+                placeholder="IDs separados por virgula"
                 className="dashboard-input"
                 value={joinValues(filters.pedcodigo)}
                 onChange={event => set('pedcodigo', splitValues(event.target.value))}

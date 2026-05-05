@@ -173,7 +173,7 @@ export default function HistoricoPedidos({
 
   const cols = [
     { key: 'emissao', label: 'Data Emissao' },
-    { key: 'pedcodigo', label: 'Cod. Pedido (PEDCODIGO)' },
+    { key: 'pedidoId', label: 'ID Pedido' },
     { key: 'currentCell', label: 'Celula' },
     { key: 'caixa', label: 'Caixa' },
     { key: 'previsto', label: 'Dt. Prevista' },
@@ -202,7 +202,7 @@ export default function HistoricoPedidos({
         </h2>
         {selectedOrder ? (
           <button className="filter-chip" onClick={() => onColumnClick('pedcodigo', null)}>
-            PEDCODIGO: {selectedOrder} x
+            ID Pedido: {selectedOrder} x
           </button>
         ) : null}
       </div>
@@ -246,8 +246,8 @@ export default function HistoricoPedidos({
             ) : (
               rows.map((row, index) => (
                 <tr
-                  key={`${row.pedcodigo}-${index}`}
-                  className={selectedOrder && row.pedcodigo === selectedOrder ? 'table-row-active' : 'table-row-hover'}
+                  key={`${row.pedidoId}-${index}`}
+                  className={selectedOrder && String(row.pedidoId) === String(selectedOrder) ? 'table-row-active' : 'table-row-hover'}
                   style={{
                     borderTop: '1px solid #0d1f38',
                     ...(ROW_STYLES[row.rowTone] || {}),
@@ -257,12 +257,12 @@ export default function HistoricoPedidos({
                     {fmtDt(row.emissao)}
                   </td>
                   <td
-                    onClick={event => filterBy(event, 'pedcodigo', row.pedcodigo)}
+                    onClick={event => filterBy(event, 'pedcodigo', row.pedidoId)}
                     className="px-4 py-2.5 font-mono font-medium"
                     style={{ color: '#7dd3fc' }}
-                    title={`PEDCODIGO: ${row.pedcodigo} | ID_PEDIDO: ${row.pedidoId}`}
+                    title={`ID_PEDIDO: ${row.pedidoId} | PEDCODIGO: ${row.pedcodigo}`}
                   >
-                    {row.pedcodigo}
+                    {row.pedidoId}
                   </td>
                   <td onClick={event => filterBy(event, 'orders.currentCell', row.currentCell)} className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>
                     {row.currentCell || '-'}
