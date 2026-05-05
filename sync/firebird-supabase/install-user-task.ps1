@@ -11,11 +11,11 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 $action = New-ScheduledTaskAction `
   -Execute $node `
-  -Argument "`"$script`" --date-tables-only >> `"$logDir\scheduled-task.log`" 2>&1" `
+  -Argument "`"$script`" >> `"$logDir\scheduled-task.log`" 2>&1" `
   -WorkingDirectory $ProjectDir
 
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
-  -RepetitionInterval (New-TimeSpan -Minutes 5) `
+  -RepetitionInterval (New-TimeSpan -Minutes 15) `
   -RepetitionDuration (New-TimeSpan -Days 3650)
 
 $settings = New-ScheduledTaskSettingsSet `
@@ -29,7 +29,7 @@ Register-ScheduledTask `
   -Action $action `
   -Trigger $trigger `
   -Settings $settings `
-  -Description "Sincroniza Firebird com Supabase a cada 5 minutos." `
+  -Description "Sincroniza Firebird com Supabase a cada 15 minutos (janela de 3 meses)." `
   -Force | Out-Null
 
 Write-Host "Tarefa criada: $TaskName"

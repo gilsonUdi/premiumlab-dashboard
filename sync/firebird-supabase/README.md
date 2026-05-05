@@ -23,18 +23,17 @@ npm run sync:dry
 npm run sync
 ```
 
-## Atualizacao automatica a cada 5 minutos
+## Atualizacao automatica a cada 15 minutos
 
 O fluxo automatico fica configurado para:
 
-- rodar a cada 5 minutos;
+- rodar a cada 15 minutos;
 - sincronizar apenas as tabelas com coluna de data;
 - incluir `PDPRD` e `PDSER` por vinculo com pedidos recentes;
 - incluir `JBXROTEIRO` por vinculo com a `ACOPED`;
 - recalcular `pedido_roteiro_cache` no fim da sincronizacao para a coluna de roteiro do dashboard;
-- trazer somente os ultimos 3 dias dessas tabelas;
-- substituir automaticamente os ultimos 30 dias de `JBXROTEIRO`, usando a `ACOPED` como referencia de recencia;
-- inserir apenas registros novos, preservando o historico anterior no Supabase;
+- trazer os ultimos 3 meses dessas tabelas;
+- atualizar `JBXROTEIRO` por vinculo com a `ACOPED` usando a mesma janela de 3 meses;
 - atualizar por upsert as tabelas mutaveis recentes para refletir mudancas operacionais.
 
 Para criar a tarefa do usuario no Agendador do Windows:
@@ -48,9 +47,10 @@ Se a politica do Windows bloquear tarefas agendadas, use `run-watch.bat` e deixe
 ## Configuracao recomendada
 
 ```env
-SYNC_RECENT_DAYS=3
+SYNC_INCREMENTAL=true
+SYNC_RECENT_DAYS=90
 SYNC_DATE_TABLES_ONLY=true
-SYNC_INTERVAL_SECONDS=300
+SYNC_INTERVAL_SECONDS=900
 ```
 
 As tabelas monitoradas por data ficam em `SYNC_DATE_COLUMNS`.
@@ -62,7 +62,7 @@ No caso da `JBXROTEIRO`, a automacao usa:
 
 - `ID_PEDIDO` como chave de relacao;
 - `ACOPED.APDATA` como relogio de recencia;
-- janela propria de 30 dias, mesmo que o resto do automatico use 3 dias.
+- janela propria de 90 dias, alinhada com o restante do automatico.
 
 ## Carga completa inicial
 
@@ -76,7 +76,7 @@ Remove-Item Env:\SYNC_RECENT_DAYS
 Remove-Item Env:\SYNC_DATE_TABLES_ONLY
 ```
 
-Depois disso, deixe o automatico seguir so com a janela movel de 3 dias.
+Depois disso, deixe o automatico seguir so com a janela movel de 3 meses.
 
 ## Refresh corretivo so da janela recente
 
@@ -117,7 +117,7 @@ node sync.js --table JBXROTEIRO
 
 Nesse caso, o sync:
 
-- busca apenas os registros de `JBXROTEIRO` ligados a pedidos com `ACOPED.APDATA` nos ultimos 30 dias;
+- busca apenas os registros de `JBXROTEIRO` ligados a pedidos com `ACOPED.APDATA` nos ultimos 90 dias;
 - apaga no Supabase so essa mesma janela de `JBXROTEIRO`;
 - reinsere os dados atualizados;
 - preserva o historico mais antigo.
