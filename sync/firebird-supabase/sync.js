@@ -412,6 +412,12 @@ function envIsTrue(name) {
   return String(process.env[name] || "").trim().toLowerCase() === "true";
 }
 
+function incrementalSyncEnabled() {
+  const value = String(process.env.SYNC_INCREMENTAL || "").trim().toLowerCase();
+  if (!value) return true;
+  return !["false", "0", "no", "off"].includes(value);
+}
+
 function getSupabase() {
   const url = cleanEnvValue(process.env.SUPABASE_URL);
   const key = cleanEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -509,9 +515,11 @@ async function rebuildRoteiroCache(supabase, fromDate) {
         select distinct on (ac.id_pedido, ac.alxcodigo)
           ac.id_pedido,
           ac.alxcodigo,
+          a.alxdescricao::text as celula_descricao,
           ac.apdata,
           ac.aphora
         from acoped ac
+        left join almox a on a.alxcodigo = ac.alxcodigo and a.empcodigo = ac.empcodigo
         where ac.id_pedido in (${chunk})
           and ac.alxcodigo is not null
         order by ac.id_pedido, ac.alxcodigo, ac.apdata asc nulls last, ac.aphora asc nulls last
@@ -521,11 +529,21 @@ async function rebuildRoteiroCache(supabase, fromDate) {
   }
 
   const passMap = new Map();
+  const observedByOrder = new Map();
   for (const row of passRows) {
     const orderId = String(row.id_pedido || "");
     const alx = row.alxcodigo != null ? String(row.alxcodigo) : "";
     if (!orderId || !alx) continue;
-    passMap.set(`${orderId}:${alx}`, parseLocalDateTime(combineDateTime(row.apdata, row.aphora)));
+    const passedAt = parseLocalDateTime(combineDateTime(row.apdata, row.aphora));
+    passMap.set(`${orderId}:${alx}`, passedAt);
+
+    if (!observedByOrder.has(orderId)) observedByOrder.set(orderId, []);
+    observedByOrder.get(orderId).push({
+      ordem: Number.MAX_SAFE_INTEGER,
+      alxcodigo: alx,
+      descricao: String(row.celula_descricao || "").trim(),
+      passedAt,
+    });
   }
 
   const cacheByOrder = new Map();
@@ -551,10 +569,31 @@ async function rebuildRoteiroCache(supabase, fromDate) {
 
   const cacheRows = [];
   for (const orderId of orderIds.map(String)) {
-    const route = (cacheByOrder.get(orderId) || []).sort((a, b) => {
+    let route = (cacheByOrder.get(orderId) || []).sort((a, b) => {
       if (a.ordem !== b.ordem) return a.ordem - b.ordem;
       return String(a.alxcodigo).localeCompare(String(b.alxcodigo));
     });
+
+    if (route.length === 0) {
+      const order = orderMap.get(orderId);
+      const expected = order?.expected || null;
+      route = (observedByOrder.get(orderId) || [])
+        .slice()
+        .sort((a, b) => {
+          const timeA = a.passedAt ? a.passedAt.getTime() : Number.MAX_SAFE_INTEGER;
+          const timeB = b.passedAt ? b.passedAt.getTime() : Number.MAX_SAFE_INTEGER;
+          if (timeA !== timeB) return timeA - timeB;
+          return String(a.alxcodigo).localeCompare(String(b.alxcodigo));
+        })
+        .map((step, index) => ({
+          ordem: index + 1,
+          alxcodigo: step.alxcodigo,
+          label: buildRouteStepLabel(step.alxcodigo, step.descricao),
+          descricao: step.descricao,
+          state: step.passedAt && expected && step.passedAt > expected ? "delayed" : "completed",
+        }));
+    }
+
     const order = orderMap.get(orderId);
     cacheRows.push({
       id_pedido: order.id_pedido,
@@ -808,11 +847,13 @@ async function runOnce() {
   const tableArg = getTableArg();
   const tablesArg = getTablesArg();
   const refreshRecentDays = getNumberArg("--refresh-recent-days");
-  const dateFilters = parseDateFilters();
-  const linkedDateFilters = parseLinkedDateFilters();
-  const refreshLinkedTables = parseRefreshLinkedTables();
+  const incrementalEnabled = incrementalSyncEnabled();
+  const dateFilters = incrementalEnabled ? parseDateFilters() : {};
+  const linkedDateFilters = incrementalEnabled ? parseLinkedDateFilters() : {};
+  const refreshLinkedTables = incrementalEnabled ? parseRefreshLinkedTables() : {};
   const upsertTables = new Set(parseUpsertTables());
-  const dateTablesOnly = args.includes("--date-tables-only") || envIsTrue("SYNC_DATE_TABLES_ONLY");
+  const dateTablesOnly =
+    incrementalEnabled && (args.includes("--date-tables-only") || envIsTrue("SYNC_DATE_TABLES_ONLY"));
   const filterList = tablesArg.length > 0 ? tablesArg : tableArg ? [tableArg] : parseList(process.env.SYNC_TABLES);
   const tablesToSync =
     dateTablesOnly && !tableArg && tablesArg.length === 0
@@ -833,6 +874,7 @@ async function runOnce() {
   log(`Firebird : ${fbOptions.host}:${fbOptions.port} / ${fbOptions.database}`);
   log(`Supabase : ${cleanEnvValue(process.env.SUPABASE_URL)}`);
   log(`Tabelas  : ${tablesToSync.length > 0 ? tablesToSync.join(", ") : "todas"}`);
+  log(`Modo     : ${incrementalEnabled ? "incremental" : "normal completo"}`);
   if (dateTablesOnly && !tableArg && tablesArg.length === 0) log("Modo     : somente tabelas com filtro de data");
   if (refreshRecentDays && refreshRecentDays > 0) log(`Refresh  : substituindo somente os ultimos ${refreshRecentDays} dia(s) das tabelas selecionadas`);
   log(`Escrita  : upsert para ${[...upsertTables].join(", ")}; demais seguem em insert-only`);
@@ -889,7 +931,10 @@ async function runOnce() {
 
     log(`Concluido: ${ok} tabela(s) OK, ${failed} erro(s), ${totalRows.toLocaleString("pt-BR")} linha(s).`);
     if (!dryRun && ok > 0) {
-      await rebuildRoteiroCache(supabase, dateDaysAgo(Number(process.env.SYNC_RECENT_DAYS || 30)));
+      const roteiroFromDate = incrementalEnabled
+        ? dateDaysAgo(Number(process.env.SYNC_RECENT_DAYS || 30))
+        : cleanEnvValue(process.env.SYNC_DATE_FROM || "2025-01-01");
+      await rebuildRoteiroCache(supabase, roteiroFromDate);
     }
     log(`Resumo   : ${JSON.stringify(summary)}`);
 
