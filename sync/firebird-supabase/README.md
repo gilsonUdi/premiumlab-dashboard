@@ -101,6 +101,7 @@ Esse comando:
 - O sync cria automaticamente a tabela `pedido_roteiro_cache` no Supabase quando necessario.
 - Para PPS e Analise de Dados, as tabelas realmente necessarias sao: `CLIEN`, `FUNCIO`, `ALMOX`, `LOCALPED`, `USUARIO`, `REQUI`, `PEDID`, `PDPRD`, `PDSER`, `ACOPED`, `PEDFINALIDADE` e `JBXROTEIRO`.
 - As tabelas nao necessarias para esses dois modos sao: `BANCO`, `PRODU`, `CFOP`, `CIDADE`, `CCORR`, `PAGAR`, `RECEB`, `MOVIMENTACAO`, `GRUPOCLI`, `GRUPOROTULOS`, `PEDFO`, `NOTAS`, `TBFIS`, `COMPOPROROT` e `REGRAPROMO`.
+- A tabela derivada `CLIENCRM` fica fora do automatico. Ela pode ser sincronizada manualmente quando voce quiser atualizar a visao de CRM.
 - Quando a tabela tiver chave primaria no Firebird, o script usa essa chave como conflito para ignorar duplicados no Supabase.
 - O modo padrao continua conservador, mas tabelas listadas em `SYNC_UPSERT_TABLES` usam upsert para atualizar registros recentes.
 - Excecao: tabelas configuradas em `SYNC_REFRESH_LINKED_TABLES` ainda podem ser recarregadas por janela recente quando necessario.
@@ -121,3 +122,20 @@ Nesse caso, o sync:
 - apaga no Supabase so essa mesma janela de `JBXROTEIRO`;
 - reinsere os dados atualizados;
 - preserva o historico mais antigo.
+
+## Sincronizar a tabela derivada CLIENCRM
+
+A `CLIENCRM` e uma tabela derivada montada por uma consulta agregada no Firebird.
+Ela nao entra no automatico de 10 em 10 minutos.
+
+Para atualizar so ela:
+
+```powershell
+node sync.js --table CLIENCRM
+```
+
+Esse comando:
+
+- roda a consulta de CRM direto no Firebird;
+- substitui completamente o conteudo de `cliencrm` no Supabase;
+- nao mexe nas tabelas operacionais do dashboard.

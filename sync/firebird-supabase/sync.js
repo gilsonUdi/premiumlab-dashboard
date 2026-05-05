@@ -170,6 +170,47 @@ function buildRouteStepLabel(alxcodigo, descricao) {
   return prefix || shortCode || "-";
 }
 
+const MANUAL_TABLE_DEFINITIONS = {
+  CLIENCRM: {
+    targetTable: "cliencrm",
+    primaryKeys: ["clicodigo"],
+    replaceAll: true,
+    query: `
+      SELECT
+          c.CLICODIGO,
+          c.CLIRAZSOCIAL,
+          c.CLINOMEFANT,
+          c.CLICNPJCPF,
+          c.CLILIMCRED,
+          c.CLIPCDESCPRODU,
+          rt.ROTULOS,
+          pc.DATA_ULTIMA_COMPRA,
+          DATEDIFF(DAY FROM pc.DATA_ULTIMA_COMPRA TO CURRENT_DATE) AS DIAS_SEM_COMPRAR
+      FROM CLIEN c
+      LEFT JOIN (
+          SELECT
+              n.CLICODIGO,
+              LIST(r.RTCNOME, ', ') AS ROTULOS
+          FROM NROTULOSCLIEN n
+          INNER JOIN ROTULOSCLIEN r
+              ON r.RTCCODIGO = n.RTCCODIGO
+          GROUP BY
+              n.CLICODIGO
+      ) rt
+          ON rt.CLICODIGO = c.CLICODIGO
+      LEFT JOIN (
+          SELECT
+              p.CLICODIGO,
+              MAX(p.PEDDTEMIS) AS DATA_ULTIMA_COMPRA
+          FROM PEDID p
+          GROUP BY
+              p.CLICODIGO
+      ) pc
+          ON pc.CLICODIGO = c.CLICODIGO
+    `,
+  },
+};
+
 function normalizeValue(value, targetColumn) {
   if (value == null) return null;
   if (value instanceof Date) {
@@ -249,6 +290,10 @@ async function getTableNames(db, filterList) {
 
   const wanted = new Set(filterList.map((name) => name.toUpperCase()));
   return all.filter((name) => wanted.has(name.toUpperCase()));
+}
+
+function getManualTableDefinition(tableName) {
+  return MANUAL_TABLE_DEFINITIONS[String(tableName || "").trim().toUpperCase()] || null;
 }
 
 async function getPrimaryKeys(db, tableName) {
@@ -690,6 +735,34 @@ async function writeBatch(supabase, tableName, rows, primaryKeys, mode = "insert
   }
 }
 
+async function syncManualTable(db, supabase, tableName, definition, options) {
+  const normalizedTable = normalizeName(definition.targetTable || tableName);
+  const targetColumns = await getTargetColumns(supabase, normalizedTable);
+  const primaryKeys = (definition.primaryKeys || []).map((key) => normalizeName(key));
+  const rows = await fbQuery(db, definition.query);
+
+  process.stdout.write(`  ${tableName} -> ${normalizedTable}: `);
+
+  const normalizedRows = rows
+    .map((row) => normalizeRow(row, targetColumns))
+    .filter((row) => Object.keys(row).length > 0);
+
+  if (!options.dryRun && definition.replaceAll) {
+    await execSupabaseSql(supabase, `delete from ${normalizedTable}`);
+  }
+
+  if (!options.dryRun) {
+    for (let index = 0; index < normalizedRows.length; index += options.insertBatch) {
+      const chunk = normalizedRows.slice(index, index + options.insertBatch);
+      await writeBatch(supabase, normalizedTable, chunk, primaryKeys, "upsert");
+      process.stdout.write(".");
+    }
+  }
+
+  console.log(` ${normalizedRows.length.toLocaleString("pt-BR")} linha(s)${options.dryRun ? " [dry-run]" : ""}`);
+  return normalizedRows.length;
+}
+
 async function refreshRecentWindow(supabase, tables, days, refreshLinkedTables = {}) {
   const envRecentDays = Number(process.env.SYNC_RECENT_DAYS || 0);
   const effectiveDays = days && days > 0 ? days : envRecentDays;
@@ -855,10 +928,12 @@ async function runOnce() {
   const dateTablesOnly =
     incrementalEnabled && (args.includes("--date-tables-only") || envIsTrue("SYNC_DATE_TABLES_ONLY"));
   const filterList = tablesArg.length > 0 ? tablesArg : tableArg ? [tableArg] : parseList(process.env.SYNC_TABLES);
-  const tablesToSync =
+  const requestedTables =
     dateTablesOnly && !tableArg && tablesArg.length === 0
       ? [...new Set([...Object.keys(dateFilters), ...Object.keys(linkedDateFilters)])]
       : filterList;
+  const manualTablesToSync = [...new Set(requestedTables.filter((table) => getManualTableDefinition(table)).map((table) => table.toUpperCase()))];
+  const regularRequestedTables = requestedTables.filter((table) => !getManualTableDefinition(table));
 
   const fbOptions = {
     host: cleanEnvValue(process.env.FIREBIRD_HOST),
@@ -873,7 +948,7 @@ async function runOnce() {
   log("=== Firebird -> Supabase Sync ===");
   log(`Firebird : ${fbOptions.host}:${fbOptions.port} / ${fbOptions.database}`);
   log(`Supabase : ${cleanEnvValue(process.env.SUPABASE_URL)}`);
-  log(`Tabelas  : ${tablesToSync.length > 0 ? tablesToSync.join(", ") : "todas"}`);
+  log(`Tabelas  : ${requestedTables.length > 0 ? requestedTables.join(", ") : "todas"}`);
   log(`Modo     : ${incrementalEnabled ? "incremental" : "normal completo"}`);
   if (dateTablesOnly && !tableArg && tablesArg.length === 0) log("Modo     : somente tabelas com filtro de data");
   if (refreshRecentDays && refreshRecentDays > 0) log(`Refresh  : substituindo somente os ultimos ${refreshRecentDays} dia(s) das tabelas selecionadas`);
@@ -884,8 +959,8 @@ async function runOnce() {
   const supabase = getSupabase();
 
   try {
-    const tables = await getTableNames(db, tablesToSync);
-    if (tables.length === 0) {
+    const tables = await getTableNames(db, regularRequestedTables);
+    if (tables.length === 0 && manualTablesToSync.length === 0) {
       log("Nenhuma tabela encontrada para sincronizar.");
       return;
     }
@@ -920,6 +995,16 @@ async function runOnce() {
       }
     }
 
+    for (const table of manualTablesToSync) {
+      try {
+        totalRows += await syncManualTable(db, supabase, table, getManualTableDefinition(table), options);
+        ok += 1;
+      } catch (error) {
+        failed += 1;
+        log(`  ERRO ${table}: ${error.message}`);
+      }
+    }
+
     const summary = {
       ok: failed === 0,
       tablesOk: ok,
@@ -930,7 +1015,11 @@ async function runOnce() {
     };
 
     log(`Concluido: ${ok} tabela(s) OK, ${failed} erro(s), ${totalRows.toLocaleString("pt-BR")} linha(s).`);
-    if (!dryRun && ok > 0) {
+    const shouldRebuildRouteCache = tables.some((table) =>
+      ["PEDID", "ACOPED", "JBXROTEIRO", "ALMOX"].includes(String(table || "").toUpperCase())
+    );
+
+    if (!dryRun && ok > 0 && shouldRebuildRouteCache) {
       const roteiroFromDate = incrementalEnabled
         ? dateDaysAgo(Number(process.env.SYNC_RECENT_DAYS || 30))
         : cleanEnvValue(process.env.SYNC_DATE_FROM || "2025-01-01");
