@@ -173,7 +173,7 @@ export default function HistoricoPedidos({
 
   const cols = [
     { key: 'emissao', label: 'Data Emissao' },
-    { key: 'pedcodigo', label: 'Cod. Pedido' },
+    { key: 'pedcodigo', label: 'Cod. Pedido (PEDCODIGO)' },
     { key: 'currentCell', label: 'Celula' },
     { key: 'caixa', label: 'Caixa' },
     { key: 'previsto', label: 'Dt. Prevista' },
@@ -202,7 +202,7 @@ export default function HistoricoPedidos({
         </h2>
         {selectedOrder ? (
           <button className="filter-chip" onClick={() => onColumnClick('pedcodigo', null)}>
-            Pedido: {selectedOrder} x
+            PEDCODIGO: {selectedOrder} x
           </button>
         ) : null}
       </div>
@@ -256,7 +256,12 @@ export default function HistoricoPedidos({
                   <td onClick={event => filterBy(event, 'orders.emissao', row.emissao)} className="px-4 py-2.5 font-mono" style={{ color: '#d7e9ff' }}>
                     {fmtDt(row.emissao)}
                   </td>
-                  <td onClick={event => filterBy(event, 'pedcodigo', row.pedcodigo)} className="px-4 py-2.5 font-mono font-medium" style={{ color: '#7dd3fc' }}>
+                  <td
+                    onClick={event => filterBy(event, 'pedcodigo', row.pedcodigo)}
+                    className="px-4 py-2.5 font-mono font-medium"
+                    style={{ color: '#7dd3fc' }}
+                    title={`PEDCODIGO: ${row.pedcodigo} | ID_PEDIDO: ${row.pedidoId}`}
+                  >
                     {row.pedcodigo}
                   </td>
                   <td onClick={event => filterBy(event, 'orders.currentCell', row.currentCell)} className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>
