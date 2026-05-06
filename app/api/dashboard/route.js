@@ -302,6 +302,51 @@ async function fetchOptionalPages(queryFactory, options) {
   return result
 }
 
+async function fetchOrderBaseRows(supabase, { dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [] }) {
+  const pedidoIds = [...new Set((pedcodigos || []).map(asSqlNumber).filter(Number.isFinite))]
+  const pedidoCodes = [...new Set((pedcodigos || []).map(value => String(value || '').trim()).filter(Boolean))]
+  const clienteList = [...new Set((clicodigos || []).map(asSqlNumber).filter(Number.isFinite))]
+
+  const result = await fetchAllPages(() => {
+    let query = supabase
+      .from('pedid')
+      .select('peddtemis,pedpzentre,pedhrentre,peddtsaida,pedhrsaida,clicodigo,funcodigo,pedcodigo,id_pedido,pedsitped,empcodigo')
+      .gte('peddtemis', `${dateStart}T00:00:00`)
+      .lt('peddtemis', `${dateEnd}T23:59:59`)
+      .neq('pedsitped', 'C')
+      .order('peddtemis', { ascending: false })
+
+    for (const code of EXCLUDED_CLIENT_CODES) {
+      query = query.neq('clicodigo', code)
+    }
+
+    for (const code of EXCLUDED_COMPANY_CODES) {
+      query = query.neq('empcodigo', code)
+    }
+
+    if (clienteList.length > 0) {
+      query = query.in('clicodigo', clienteList)
+    }
+
+    if (pedidoIds.length > 0) {
+      query = query.in('id_pedido', pedidoIds)
+    } else if (pedidoCodes.length > 0) {
+      query = query.in('pedcodigo', pedidoCodes)
+    }
+
+    return query
+  }, { maxRows: MAX_SALES_ROWS })
+
+  if (result.error) return result
+
+  const rows = (result.data || []).filter(row => {
+    if (!Array.isArray(gclcodigos) || gclcodigos.length === 0) return true
+    return true
+  })
+
+  return { data: rows, error: null }
+}
+
 function asSqlDate(value, fallback) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? value : fallback
 }
@@ -793,10 +838,13 @@ export async function GET(request) {
     const finalityData = finalityRes.data || []
     const lossFinalityCodes = resolveLossFinalityCodes(finalityData)
 
-    const salesOrdersRaw = await execSql(
+    const salesOrdersBaseRes = await fetchOrderBaseRows(
       supabase,
-      buildOrdersSql({ dateStart, dateEnd, pedcodigos: pedcodigoValues, clicodigos: clientCodeFilters, gclcodigos: gclcodigoValues })
+      { dateStart, dateEnd, pedcodigos: pedcodigoValues, clicodigos: clientCodeFilters, gclcodigos: gclcodigoValues }
     )
+    if (salesOrdersBaseRes.error) {
+      throw new Error(`pedid: ${salesOrdersBaseRes.error.message}`)
+    }
 
     let lossMetricsRows = []
     try {
@@ -830,12 +878,6 @@ export async function GET(request) {
       ...step,
       lpdescricao: normalizeText(step.lpdescricao),
     }))
-    const normalizedSalesOrdersRaw = salesOrdersRaw.map(row => ({
-      ...row,
-      cliente: normalizeText(row.cliente),
-      status: normalizeText(row.status),
-    }))
-
     const cellByDpt = Object.fromEntries(normalizedCellsData.map(cell => [cell.dptcodigo, cell]))
     const empMap = Object.fromEntries(normalizedEmpData.map(employee => [employee.funcodigo, employee.funnome]))
     const userMap = Object.fromEntries(normalizedUserData.map(user => [user.usucodigo, user.usunome]))
@@ -854,6 +896,27 @@ export async function GET(request) {
       const code = fallbackLocalPedByDpt[movement.dptcodigo]?.[movement.reqentsai]
       return localPedByCode[code] || (movement.reqentsai === 'S' ? 'Saida' : 'Entrada')
     }
+
+    const normalizedSalesOrdersRaw = (salesOrdersBaseRes.data || [])
+      .map(row => {
+        const client = clientsByCode[row.clicodigo]
+        return {
+          pedido: row.id_pedido,
+          numero_venda: row.pedcodigo,
+          codigo_cliente: row.clicodigo,
+          cliente: normalizeText(client?.clinomefant || client?.clirazsocial),
+          gclcodigo: client?.gclcodigo ?? null,
+          vendedor_codigo: row.funcodigo,
+          data_venda: row.peddtemis,
+          data_hora_prevista: combineDateTime(row.pedpzentre, row.pedhrentre),
+          data_hora_saida: combineDateTime(row.peddtsaida, row.pedhrsaida),
+          status: normalizeText(row.pedsitped),
+        }
+      })
+      .filter(row => {
+        if (groupCodeFilterSet.size === 0) return true
+        return groupCodeFilterSet.has(Number(row.gclcodigo))
+      })
 
     const salesOrderMap = {}
     for (const row of normalizedSalesOrdersRaw) {
