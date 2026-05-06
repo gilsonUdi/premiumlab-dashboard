@@ -4,7 +4,6 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { format, startOfMonth } from 'date-fns'
 import { ArrowLeft, Building2, Download, RefreshCw, X } from 'lucide-react'
-import { onAuthStateChanged } from 'firebase/auth'
 import Filters from '@/components/Filters'
 import KPICards, { CompactPpsKpis } from '@/components/KPICards'
 import HistoricoPedidos from '@/components/HistoricoPedidos'
@@ -12,7 +11,7 @@ import DetalhesProdutos from '@/components/DetalhesProdutos'
 import RastreabilidadePedido from '@/components/RastreabilidadePedido'
 import IndiceAtendimento from '@/components/IndiceAtendimento'
 import RankingVendedores from '@/components/RankingVendedores'
-import { getFirebaseServices } from '@/lib/firebase-client'
+import { getCurrentPortalSession, getPortalAccessToken } from '@/lib/portal-store'
 
 const PontualidadeChart = dynamic(() => import('@/components/PontualidadeChart'), { ssr: false })
 const PerdasChart = dynamic(() => import('@/components/PerdasChart'), { ssr: false })
@@ -111,7 +110,7 @@ export default function ProductionDashboard({
   const [exporting, setExporting] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [authResolved, setAuthResolved] = useState(false)
-  const [authUser, setAuthUser] = useState(null)
+  const [requestError, setRequestError] = useState('')
   const debounceRef = useRef(null)
 
   const selectedOrder = filters.pedcodigo.length === 1 ? filters.pedcodigo[0] : null
@@ -124,22 +123,37 @@ export default function ProductionDashboard({
   }, [data?.orders, isPpsMode])
 
   useEffect(() => {
-    const { auth } = getFirebaseServices()
+    let active = true
 
-    const unsubscribe = onAuthStateChanged(auth, user => {
-      setAuthUser(user)
-      setAuthResolved(true)
-    })
+    async function hydrateAuth() {
+      try {
+        const session = await getCurrentPortalSession()
+        if (!active) return
 
-    return () => unsubscribe()
+        if (!session) {
+          setRequestError('Sessao expirada. Entre novamente no portal.')
+        }
+      } catch (error) {
+        console.error(error)
+        if (active) {
+          setRequestError('Nao foi possivel validar a sessao do portal.')
+        }
+      } finally {
+        if (active) setAuthResolved(true)
+      }
+    }
+
+    hydrateAuth()
+
+    return () => {
+      active = false
+    }
   }, [])
 
   const getAuthorizedHeaders = useCallback(async () => {
-    if (!authUser) return {}
-
-    const token = await authUser.getIdToken()
+    const token = await getPortalAccessToken()
     return token ? { Authorization: `Bearer ${token}` } : {}
-  }, [authUser])
+  }, [])
 
   useEffect(() => {
     if (!authResolved) return undefined
@@ -155,8 +169,10 @@ export default function ProductionDashboard({
         const payload = await response.json()
         if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar opcoes.')
         setOptions(payload)
+        setRequestError('')
       } catch (error) {
         console.error(error)
+        setRequestError(error.message || 'Falha ao carregar opcoes do dashboard.')
       }
     }
 
@@ -168,6 +184,7 @@ export default function ProductionDashboard({
     if (!authResolved) return
 
     setLoading(true)
+    setRequestError('')
     const params = new URLSearchParams()
     Object.entries(filters).forEach(([key, value]) => {
       if (Array.isArray(value)) {
@@ -189,6 +206,8 @@ export default function ProductionDashboard({
       setLastUpdated(new Date())
     } catch (error) {
       console.error(error)
+      setData(null)
+      setRequestError(error.message || 'Falha ao carregar os dados do dashboard.')
     } finally {
       setLoading(false)
     }
@@ -409,6 +428,12 @@ export default function ProductionDashboard({
                 <X size={10} />
               </button>
             ))}
+          </div>
+        ) : null}
+
+        {requestError ? (
+          <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+            {requestError}
           </div>
         ) : null}
 
