@@ -302,8 +302,8 @@ function normalizeRow(row, targetColumns) {
   const normalized = {};
   for (const [key, value] of Object.entries(row)) {
     const normalizedKey = normalizeName(key);
-    const targetColumn = targetColumns[normalizedKey];
-    if (!targetColumn) continue;
+    const targetColumn = targetColumns ? targetColumns[normalizedKey] : null;
+    if (targetColumns && !targetColumn) continue;
     normalized[normalizedKey] = normalizeValue(value, targetColumn);
   }
   return normalized;
@@ -1043,14 +1043,13 @@ async function writeBatch(supabase, tableName, rows, primaryKeys, mode = "insert
 
 async function syncManualTable(db, supabase, tableName, definition, options) {
   const normalizedTable = normalizeName(definition.targetTable || tableName);
-  const targetColumns = await getTargetColumns(supabase, normalizedTable);
   const primaryKeys = (definition.primaryKeys || []).map((key) => normalizeName(key));
   const rows = await fbQuery(db, definition.query);
 
   process.stdout.write(`  ${tableName} -> ${normalizedTable}: `);
 
   const normalizedRows = rows
-    .map((row) => normalizeRow(row, targetColumns))
+    .map((row) => normalizeRow(row))
     .filter((row) => Object.keys(row).length > 0);
 
   if (!options.dryRun && definition.replaceAll) {
@@ -1149,9 +1148,9 @@ async function syncTable(db, supabase, tableName, options) {
   const linkedDateFilter = options.linkedDateFilters[tableName.toUpperCase()] || null;
   const writeMode = options.upsertTables.has(tableName.toUpperCase()) ? "upsert" : "insert-only";
   const primaryKeys = await getPrimaryKeys(db, tableName);
-  const targetColumns = await getTargetColumns(supabase, normalizedTable);
-  const fetchBatch = options.fetchBatch;
-  const insertBatch = options.insertBatch;
+  const heavyTable = options.heavyTables.has(tableName.toUpperCase());
+  const fetchBatch = heavyTable ? options.heavyFetchBatch : options.fetchBatch;
+  const insertBatch = heavyTable ? options.heavyInsertBatch : options.insertBatch;
   const whereClause = dateFilter
     ? `WHERE "${dateFilter.column}" >= '${dateFilter.from}'`
     : linkedDateFilter
@@ -1190,7 +1189,7 @@ async function syncTable(db, supabase, tableName, options) {
     if (rows.length === 0) break;
 
     for (const row of rows) {
-      const normalized = normalizeRow(row, targetColumns);
+      const normalized = normalizeRow(row);
       if (Object.keys(normalized).length === 0) continue;
       pendingRows.push(normalized);
       totalRows += 1;
@@ -1231,6 +1230,7 @@ async function runOnce() {
   const linkedDateFilters = incrementalEnabled ? parseLinkedDateFilters() : {};
   const refreshLinkedTables = incrementalEnabled ? parseRefreshLinkedTables() : {};
   const upsertTables = new Set(parseUpsertTables());
+  const heavyTables = new Set(parseList(process.env.SYNC_HEAVY_TABLES || "ACOPED,PDPRD,PEDID,REQUI"));
   const dateTablesOnly =
     incrementalEnabled && (args.includes("--date-tables-only") || envIsTrue("SYNC_DATE_TABLES_ONLY"));
   const filterList = tablesArg.length > 0 ? tablesArg : tableArg ? [tableArg] : parseList(process.env.SYNC_TABLES);
@@ -1282,9 +1282,12 @@ async function runOnce() {
       dryRun,
       fetchBatch: Number(process.env.SYNC_FETCH_BATCH || 1000),
       insertBatch: Number(process.env.SYNC_INSERT_BATCH || 500),
+      heavyFetchBatch: Number(process.env.SYNC_HEAVY_FETCH_BATCH || 250),
+      heavyInsertBatch: Number(process.env.SYNC_HEAVY_INSERT_BATCH || 100),
       dateFilters: effectiveFilters.dateFilters,
       linkedDateFilters: effectiveFilters.linkedDateFilters,
       upsertTables,
+      heavyTables,
     };
 
     let ok = 0;
