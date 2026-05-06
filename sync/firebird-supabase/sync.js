@@ -409,6 +409,75 @@ function dateDaysAgo(days) {
   return date.toISOString().slice(0, 10);
 }
 
+function addDaysToDateString(dateString, days) {
+  const base = new Date(`${String(dateString).slice(0, 10)}T00:00:00Z`);
+  base.setUTCDate(base.getUTCDate() + days);
+  return base.toISOString().slice(0, 10);
+}
+
+function buildDateBoundary(value, includeTime = false) {
+  const datePart = String(value || "").slice(0, 10);
+  return includeTime ? `${datePart}T00:00:00` : datePart;
+}
+
+function buildWindowedWhereClause(dateFilter, linkedDateFilter, windowStart, windowEnd) {
+  if (dateFilter) {
+    const lower = buildDateBoundary(windowStart, String(dateFilter.from || "").includes("T"));
+    const upper = buildDateBoundary(windowEnd, String(dateFilter.from || "").includes("T"));
+    return `WHERE "${dateFilter.column}" >= '${lower}' AND "${dateFilter.column}" < '${upper}'`;
+  }
+
+  if (linkedDateFilter) {
+    const useTime = String(linkedDateFilter.from || "").includes("T");
+    const lower = buildDateBoundary(windowStart, useTime);
+    const upper = buildDateBoundary(windowEnd, useTime);
+    return `WHERE "${linkedDateFilter.foreignKey}" IN (
+          SELECT "${linkedDateFilter.foreignKey}"
+          FROM "${linkedDateFilter.parentTable}"
+          WHERE "${linkedDateFilter.parentDateColumn}" >= '${lower}'
+            AND "${linkedDateFilter.parentDateColumn}" < '${upper}'
+        )`;
+  }
+
+  return "";
+}
+
+function buildOpenEndedWhereClause(dateFilter, linkedDateFilter) {
+  if (dateFilter) {
+    const lower = buildDateBoundary(dateFilter.from, String(dateFilter.from || "").includes("T"));
+    return `WHERE "${dateFilter.column}" >= '${lower}'`;
+  }
+
+  if (linkedDateFilter) {
+    const lower = buildDateBoundary(linkedDateFilter.from, String(linkedDateFilter.from || "").includes("T"));
+    return `WHERE "${linkedDateFilter.foreignKey}" IN (
+          SELECT "${linkedDateFilter.foreignKey}"
+          FROM "${linkedDateFilter.parentTable}"
+          WHERE "${linkedDateFilter.parentDateColumn}" >= '${lower}'
+        )`;
+  }
+
+  return "";
+}
+
+function buildProcessingWindows(dateFilter, linkedDateFilter, windowDays) {
+  const filterFrom = dateFilter?.from || linkedDateFilter?.from;
+  if (!filterFrom || !windowDays || windowDays <= 0) return [null];
+
+  const start = String(filterFrom).slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  const windows = [];
+  let cursor = start;
+
+  while (cursor <= today) {
+    const next = addDaysToDateString(cursor, windowDays);
+    windows.push({ start: cursor, end: next });
+    cursor = next;
+  }
+
+  return windows.length > 0 ? windows : [null];
+}
+
 function parseDateFilters() {
   const recentDays = Number(process.env.SYNC_RECENT_DAYS || 0);
   const from = recentDays > 0 ? dateDaysAgo(recentDays) : cleanEnvValue(process.env.SYNC_DATE_FROM || "2025-01-01");
@@ -1168,15 +1237,7 @@ async function syncTable(db, supabase, tableName, options) {
   const heavyTable = options.heavyTables.has(tableName.toUpperCase());
   const fetchBatch = heavyTable ? options.heavyFetchBatch : options.fetchBatch;
   const insertBatch = heavyTable ? options.heavyInsertBatch : options.insertBatch;
-  const whereClause = dateFilter
-    ? `WHERE "${dateFilter.column}" >= '${dateFilter.from}'`
-    : linkedDateFilter
-      ? `WHERE "${linkedDateFilter.foreignKey}" IN (
-          SELECT "${linkedDateFilter.foreignKey}"
-          FROM "${linkedDateFilter.parentTable}"
-          WHERE "${linkedDateFilter.parentDateColumn}" >= '${linkedDateFilter.from}'
-        )`
-      : "";
+  const whereClause = buildOpenEndedWhereClause(dateFilter, linkedDateFilter);
 
   const filterLabel = dateFilter
     ? ` [>= ${dateFilter.from}]`
@@ -1186,9 +1247,9 @@ async function syncTable(db, supabase, tableName, options) {
 
   process.stdout.write(`  ${tableName} -> ${normalizedTable}${filterLabel}: `);
 
-  let skip = 0;
   let totalRows = 0;
   let pendingRows = [];
+  const windows = heavyTable ? buildProcessingWindows(dateFilter, linkedDateFilter, options.heavyWindowDays) : [null];
 
   async function flushPending() {
     if (pendingRows.length === 0 || options.dryRun) return;
@@ -1197,27 +1258,34 @@ async function syncTable(db, supabase, tableName, options) {
     process.stdout.write(".");
   }
 
-  while (true) {
-    const rows = await fbQuery(
-      db,
-      `SELECT FIRST ${fetchBatch} SKIP ${skip} * FROM "${tableName}" ${whereClause}`
-    );
+  for (const window of windows) {
+    const effectiveWhereClause = window
+      ? buildWindowedWhereClause(dateFilter, linkedDateFilter, window.start, window.end)
+      : whereClause;
 
-    if (rows.length === 0) break;
+    let skip = 0;
+    while (true) {
+      const rows = await fbQuery(
+        db,
+        `SELECT FIRST ${fetchBatch} SKIP ${skip} * FROM "${tableName}" ${effectiveWhereClause}`
+      );
 
-    for (const row of rows) {
-      const normalized = normalizeRow(sanitizeRowForTable(tableName, row));
-      if (Object.keys(normalized).length === 0) continue;
-      pendingRows.push(normalized);
-      totalRows += 1;
+      if (rows.length === 0) break;
 
-      if (pendingRows.length >= insertBatch) {
-        await flushPending();
+      for (const row of rows) {
+        const normalized = normalizeRow(sanitizeRowForTable(tableName, row));
+        if (Object.keys(normalized).length === 0) continue;
+        pendingRows.push(normalized);
+        totalRows += 1;
+
+        if (pendingRows.length >= insertBatch) {
+          await flushPending();
+        }
       }
-    }
 
-    if (rows.length < fetchBatch) break;
-    skip += rows.length;
+      if (rows.length < fetchBatch) break;
+      skip += rows.length;
+    }
   }
 
   if (!options.dryRun && pendingRows.length > 0) {
@@ -1301,6 +1369,7 @@ async function runOnce() {
       insertBatch: Number(process.env.SYNC_INSERT_BATCH || 500),
       heavyFetchBatch: Number(process.env.SYNC_HEAVY_FETCH_BATCH || 100),
       heavyInsertBatch: Number(process.env.SYNC_HEAVY_INSERT_BATCH || 50),
+      heavyWindowDays: Number(process.env.SYNC_HEAVY_WINDOW_DAYS || 7),
       dateFilters: effectiveFilters.dateFilters,
       linkedDateFilters: effectiveFilters.linkedDateFilters,
       upsertTables,
