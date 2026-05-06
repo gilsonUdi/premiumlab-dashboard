@@ -280,6 +280,10 @@ const MANUAL_TABLE_DEFINITIONS = {
   },
 };
 
+const TABLE_COLUMN_OMISSIONS = {
+  REQUI: new Set(["reqdtreceb"]),
+};
+
 function normalizeValue(value, targetColumn) {
   if (value == null) return null;
   if (value instanceof Date) {
@@ -296,6 +300,19 @@ function normalizeValue(value, targetColumn) {
   if (typeof value === "bigint") return value.toString();
   if (typeof value === "function") return null;
   return value;
+}
+
+function sanitizeRowForTable(tableName, row) {
+  const omissions = TABLE_COLUMN_OMISSIONS[String(tableName || "").trim().toUpperCase()];
+  if (!omissions || omissions.size === 0) return row;
+
+  const sanitized = {};
+  for (const [key, value] of Object.entries(row)) {
+    const normalizedKey = normalizeName(key);
+    if (omissions.has(normalizedKey)) continue;
+    sanitized[key] = value;
+  }
+  return sanitized;
 }
 
 function normalizeRow(row, targetColumns) {
@@ -1189,7 +1206,7 @@ async function syncTable(db, supabase, tableName, options) {
     if (rows.length === 0) break;
 
     for (const row of rows) {
-      const normalized = normalizeRow(row);
+      const normalized = normalizeRow(sanitizeRowForTable(tableName, row));
       if (Object.keys(normalized).length === 0) continue;
       pendingRows.push(normalized);
       totalRows += 1;
@@ -1282,8 +1299,8 @@ async function runOnce() {
       dryRun,
       fetchBatch: Number(process.env.SYNC_FETCH_BATCH || 1000),
       insertBatch: Number(process.env.SYNC_INSERT_BATCH || 500),
-      heavyFetchBatch: Number(process.env.SYNC_HEAVY_FETCH_BATCH || 250),
-      heavyInsertBatch: Number(process.env.SYNC_HEAVY_INSERT_BATCH || 100),
+      heavyFetchBatch: Number(process.env.SYNC_HEAVY_FETCH_BATCH || 100),
+      heavyInsertBatch: Number(process.env.SYNC_HEAVY_INSERT_BATCH || 50),
       dateFilters: effectiveFilters.dateFilters,
       linkedDateFilters: effectiveFilters.linkedDateFilters,
       upsertTables,
@@ -1292,6 +1309,8 @@ async function runOnce() {
 
     let ok = 0;
     let failed = 0;
+    const succeededTables = new Set();
+    const failedTables = new Set();
     let totalRows = 0;
     const startedAt = Date.now();
 
@@ -1299,8 +1318,10 @@ async function runOnce() {
       try {
         totalRows += await syncTable(db, supabase, table, options);
         ok += 1;
+        succeededTables.add(String(table || "").toUpperCase());
       } catch (error) {
         failed += 1;
+        failedTables.add(String(table || "").toUpperCase());
         log(`  ERRO ${table}: ${error.message}`);
       }
     }
@@ -1309,8 +1330,10 @@ async function runOnce() {
       try {
         totalRows += await syncManualTable(db, supabase, table, getManualTableDefinition(table), options);
         ok += 1;
+        succeededTables.add(String(table || "").toUpperCase());
       } catch (error) {
         failed += 1;
+        failedTables.add(String(table || "").toUpperCase());
         log(`  ERRO ${table}: ${error.message}`);
       }
     }
@@ -1325,6 +1348,7 @@ async function runOnce() {
     };
 
     log(`Concluido: ${ok} tabela(s) OK, ${failed} erro(s), ${totalRows.toLocaleString("pt-BR")} linha(s).`);
+    const requestedSet = new Set(requestedTables.map((table) => String(table || "").toUpperCase()));
     const shouldRebuildRouteCache = tables.some((table) =>
       ["PEDID", "ACOPED", "JBXROTEIRO", "ALMOX"].includes(String(table || "").toUpperCase())
     );
@@ -1332,17 +1356,28 @@ async function runOnce() {
       ["PEDID", "ACOPED", "REQUI", "PDPRD", "PDSER", "CLIEN", "FUNCIO", "LOCALPED", "JBXROTEIRO", "ALMOX"].includes(String(table || "").toUpperCase())
     );
 
+    const routeCacheDependencies = ["PEDID", "ACOPED", "JBXROTEIRO"];
+    const dashboardCacheDependencies = ["PEDID", "ACOPED", "REQUI", "PDPRD", "PDSER"];
+    const dependenciesSucceeded = (dependencies) =>
+      dependencies
+        .filter((table) => requestedSet.has(table))
+        .every((table) => succeededTables.has(table) && !failedTables.has(table));
+
     if (!dryRun && ok > 0 && (shouldRebuildRouteCache || shouldRebuildDashboardCache)) {
       const cacheFromDate = incrementalEnabled
         ? dateDaysAgo(Number(process.env.SYNC_RECENT_DAYS || 30))
         : cleanEnvValue(process.env.SYNC_DATE_FROM || "2025-01-01");
 
-      if (shouldRebuildRouteCache) {
+      if (shouldRebuildRouteCache && dependenciesSucceeded(routeCacheDependencies)) {
         await rebuildRoteiroCache(supabase, cacheFromDate);
+      } else if (shouldRebuildRouteCache) {
+        log("Cache    : pedido_roteiro_cache ignorado nesta execucao por falhas nas tabelas-base.");
       }
 
-      if (shouldRebuildDashboardCache) {
+      if (shouldRebuildDashboardCache && dependenciesSucceeded(dashboardCacheDependencies)) {
         await rebuildDashboardCache(supabase, cacheFromDate);
+      } else if (shouldRebuildDashboardCache) {
+        log("Cache    : pedido_dashboard_cache ignorado nesta execucao por falhas nas tabelas-base.");
       }
     }
     log(`Resumo   : ${JSON.stringify(summary)}`);
