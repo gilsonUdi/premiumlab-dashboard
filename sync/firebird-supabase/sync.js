@@ -170,6 +170,75 @@ function buildRouteStepLabel(alxcodigo, descricao) {
   return prefix || shortCode || "-";
 }
 
+function normalizeText(value) {
+  if (value == null) return "";
+
+  const original = String(value).trim();
+  if (!original) return "";
+
+  let best = original;
+
+  try {
+    const repaired = Buffer.from(original, "latin1").toString("utf8").trim();
+    const repairedLooksBetter =
+      repaired &&
+      /[A-Za-zÀ-ÿ]/.test(repaired) &&
+      (repaired.match(/[ï¿½ÃƒÃ‚]/g) || []).length < (best.match(/[ï¿½ÃƒÃ‚]/g) || []).length;
+
+    if (repairedLooksBetter) best = repaired;
+  } catch {
+    // ignore best-effort decoding failures
+  }
+
+  return best.replace(/\uFFFD/g, "").trim();
+}
+
+function nowInProductionTimeZone() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return new Date(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second)
+  );
+}
+
+function orderIsDelayed(expected, delivered, now) {
+  if (!expected) return false;
+  return (delivered && delivered > expected) || (!delivered && now > expected);
+}
+
+function resolveStatus(expected, delivered, now) {
+  if (delivered) return delivered > expected ? "delayed_completed" : "completed";
+  return expected && now > expected ? "delayed" : "in_progress";
+}
+
+function buildStatusPriority(status) {
+  if (status === "delayed") return 4;
+  if (status === "in_progress" || status === "pending") return 3;
+  if (status === "delayed_completed") return 2;
+  if (status === "completed") return 1;
+  return 0;
+}
+
+function buildDelayRank(expected, delivered, now) {
+  if (!expected) return Number.MIN_SAFE_INTEGER;
+  return Math.floor(((delivered || now).getTime() - expected.getTime()) / 60000);
+}
+
 const MANUAL_TABLE_DEFINITIONS = {
   CLIENCRM: {
     targetTable: "cliencrm",
@@ -499,6 +568,37 @@ async function ensureRoteiroCacheTable(supabase) {
   );
 }
 
+async function ensureDashboardCacheTable(supabase) {
+  await execSupabaseSql(
+    supabase,
+    `
+      create table if not exists public.pedido_dashboard_cache (
+        id_pedido bigint primary key,
+        pedcodigo text not null,
+        clicodigo bigint,
+        clinome text,
+        gclcodigo bigint,
+        vendedor_codigo bigint,
+        vendedor_nome text,
+        emissao timestamptz,
+        previsto timestamptz,
+        saida timestamptz,
+        quantidade numeric not null default 0,
+        status text,
+        current_cell text,
+        caixa text,
+        indice integer not null default 0,
+        delay_rank bigint not null default 0,
+        status_priority integer not null default 0,
+        row_tone text,
+        roteiro_resumo text,
+        roteiro_json jsonb not null default '[]'::jsonb,
+        updated_at timestamptz not null default now()
+      )
+    `
+  );
+}
+
 async function rebuildRoteiroCache(supabase, fromDate) {
   await ensureRoteiroCacheTable(supabase);
 
@@ -662,6 +762,212 @@ async function rebuildRoteiroCache(supabase, fromDate) {
   }
 
   log(`Cache    : pedido_roteiro_cache atualizado para ${cacheRows.length.toLocaleString("pt-BR")} pedido(s).`);
+}
+
+async function rebuildDashboardCache(supabase, fromDate) {
+  await ensureDashboardCacheTable(supabase);
+  await deleteSupabaseInChunks(supabase, "pedido_dashboard_cache", `emissao >= '${fromDate}T00:00:00'`);
+
+  const now = nowInProductionTimeZone();
+  const orders = await execSupabaseSql(
+    supabase,
+    `
+      select
+        ped.id_pedido,
+        ped.pedcodigo,
+        ped.clicodigo,
+        coalesce(cli.clinomefant, cli.clirazsocial) as clinome,
+        cli.gclcodigo,
+        ped.funcodigo as vendedor_codigo,
+        f.funnome as vendedor_nome,
+        ped.peddtemis,
+        ped.pedpzentre,
+        ped.pedhrentre,
+        ped.peddtsaida,
+        ped.pedhrsaida,
+        ped.pedsitped
+      from pedid ped
+      left join clien cli on cli.clicodigo = ped.clicodigo
+      left join funcio f on f.funcodigo = ped.funcodigo
+      where ped.peddtemis >= '${fromDate}T00:00:00'
+        and ped.pedsitped <> 'C'
+      order by ped.id_pedido
+    `
+  );
+
+  if (!orders.length) return;
+
+  const orderIds = [];
+  const orderMap = new Map();
+  for (const row of orders) {
+    const orderId = Number(row.id_pedido);
+    if (!Number.isFinite(orderId)) continue;
+    orderIds.push(orderId);
+    orderMap.set(String(orderId), {
+      id_pedido: orderId,
+      pedcodigo: String(row.pedcodigo || "").trim(),
+      clicodigo: row.clicodigo != null ? Number(row.clicodigo) : null,
+      clinome: normalizeText(row.clinome),
+      gclcodigo: row.gclcodigo != null ? Number(row.gclcodigo) : null,
+      vendedor_codigo: row.vendedor_codigo != null ? Number(row.vendedor_codigo) : null,
+      vendedor_nome: normalizeText(row.vendedor_nome),
+      emitted: parseLocalDateTime(row.peddtemis),
+      expected: parseLocalDateTime(combineDateTime(row.pedpzentre, row.pedhrentre)),
+      delivered: parseLocalDateTime(combineDateTime(row.peddtsaida, row.pedhrsaida)),
+    });
+  }
+
+  const latestCellMap = new Map();
+  const fallbackCellMap = new Map();
+  const quantityMap = new Map();
+  const roteiroCacheMap = new Map();
+
+  for (let index = 0; index < orderIds.length; index += 500) {
+    const chunk = orderIds.slice(index, index + 500).join(", ");
+
+    const [latestCellRows, fallbackRows, productQuantityRows, serviceQuantityRows, roteiroRows] = await Promise.all([
+      execSupabaseSql(
+        supabase,
+        `
+          select distinct on (ac.id_pedido)
+            ac.id_pedido,
+            lp.lpdescricao::text as celula,
+            ac.jbcodigo::text as caixa
+          from acoped ac
+          left join localped lp on lp.lpcodigo = ac.lpcodigo
+          where ac.id_pedido in (${chunk})
+          order by ac.id_pedido, ac.apdata desc nulls last, ac.aphora desc nulls last
+        `
+      ),
+      execOptionalSql(
+        supabase,
+        `
+          select distinct on (rq.pdccodigo)
+            rq.pdccodigo as id_pedido,
+            al.alxdescricao::text as estoque_descricao,
+            rq.reqentsai,
+            rq.dptcodigo
+          from requi rq
+          left join almox al on al.dptcodigo = rq.dptcodigo
+          where rq.pdccodigo in (${chunk})
+          order by rq.pdccodigo, rq.reqdata desc nulls last, rq.reqhora desc nulls last, rq.reqcodigo desc
+        `
+      ),
+      execSupabaseSql(
+        supabase,
+        `
+          select
+            id_pedido,
+            coalesce(sum(pdpqtdade)::numeric, 0) as quantidade_total
+          from pdprd
+          where id_pedido in (${chunk})
+          group by id_pedido
+        `
+      ),
+      execSupabaseSql(
+        supabase,
+        `
+          select
+            id_pedido,
+            coalesce(sum(pdsqtdade)::numeric, 0) as quantidade_total
+          from pdser
+          where id_pedido in (${chunk})
+          group by id_pedido
+        `
+      ),
+      execOptionalSql(
+        supabase,
+        `
+          select
+            id_pedido,
+            roteiro_resumo,
+            roteiro_json
+          from pedido_roteiro_cache
+          where id_pedido in (${chunk})
+        `
+      ),
+    ]);
+
+    for (const row of latestCellRows) {
+      latestCellMap.set(String(row.id_pedido), {
+        current_cell: normalizeText(row.celula),
+        caixa: normalizeText(row.caixa),
+      });
+    }
+
+    for (const row of fallbackRows) {
+      const currentCell =
+        normalizeText(row.estoque_descricao) || (row.reqentsai === "S" ? "Saida" : row.dptcodigo != null ? `Depto ${row.dptcodigo}` : "");
+      fallbackCellMap.set(String(row.id_pedido), currentCell);
+    }
+
+    for (const row of [...productQuantityRows, ...serviceQuantityRows]) {
+      const key = String(row.id_pedido);
+      quantityMap.set(key, (quantityMap.get(key) || 0) + (Number(row.quantidade_total) || 0));
+    }
+
+    for (const row of roteiroRows) {
+      let roteiro = row.roteiro_json;
+      if (typeof roteiro === "string") {
+        try {
+          roteiro = JSON.parse(roteiro);
+        } catch {
+          roteiro = [];
+        }
+      }
+
+      roteiroCacheMap.set(String(row.id_pedido), {
+        roteiro_resumo: String(row.roteiro_resumo || "").trim(),
+        roteiro_json: Array.isArray(roteiro) ? roteiro : [],
+      });
+    }
+  }
+
+  const cacheRows = [];
+  for (const [orderId, order] of orderMap.entries()) {
+    const currentCellInfo = latestCellMap.get(orderId);
+    const fallbackCell = fallbackCellMap.get(orderId);
+    const resolvedStatus = resolveStatus(order.expected, order.delivered, now);
+    const roteiroCache = roteiroCacheMap.get(orderId) || { roteiro_resumo: "", roteiro_json: [] };
+
+    cacheRows.push({
+      id_pedido: order.id_pedido,
+      pedcodigo: order.pedcodigo,
+      clicodigo: order.clicodigo,
+      clinome: order.clinome,
+      gclcodigo: order.gclcodigo,
+      vendedor_codigo: order.vendedor_codigo,
+      vendedor_nome: order.vendedor_nome,
+      emissao: order.emitted ? order.emitted.toISOString() : null,
+      previsto: order.expected ? order.expected.toISOString() : null,
+      saida: order.delivered ? order.delivered.toISOString() : null,
+      quantidade: quantityMap.get(orderId) || 0,
+      status: resolvedStatus,
+      current_cell: currentCellInfo?.current_cell || fallbackCell || (order.delivered ? "PEDIDO FATURADO" : "-"),
+      caixa: currentCellInfo?.caixa || "-",
+      indice: orderIsDelayed(order.expected, order.delivered, now) ? 0 : 100,
+      delay_rank: buildDelayRank(order.expected, order.delivered, now),
+      status_priority: buildStatusPriority(resolvedStatus),
+      row_tone: resolvedStatus === "delayed" || resolvedStatus === "delayed_completed" ? "danger" : "success",
+      roteiro_resumo: roteiroCache.roteiro_resumo,
+      roteiro_json: roteiroCache.roteiro_json,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  for (let index = 0; index < cacheRows.length; index += 500) {
+    const chunk = cacheRows.slice(index, index + 500);
+    const { error } = await supabase.from("pedido_dashboard_cache").upsert(chunk, {
+      onConflict: "id_pedido",
+      ignoreDuplicates: false,
+      defaultToNull: true,
+    });
+    if (error) {
+      throw new Error(`Supabase pedido_dashboard_cache: ${error.message}`);
+    }
+  }
+
+  log(`Cache    : pedido_dashboard_cache atualizado para ${cacheRows.length.toLocaleString("pt-BR")} pedido(s).`);
 }
 
 async function deleteSupabaseInChunks(supabase, tableName, whereClause, batchSize = 5000) {
@@ -1019,12 +1325,22 @@ async function runOnce() {
     const shouldRebuildRouteCache = tables.some((table) =>
       ["PEDID", "ACOPED", "JBXROTEIRO", "ALMOX"].includes(String(table || "").toUpperCase())
     );
+    const shouldRebuildDashboardCache = tables.some((table) =>
+      ["PEDID", "ACOPED", "REQUI", "PDPRD", "PDSER", "CLIEN", "FUNCIO", "LOCALPED", "JBXROTEIRO", "ALMOX"].includes(String(table || "").toUpperCase())
+    );
 
-    if (!dryRun && ok > 0 && shouldRebuildRouteCache) {
-      const roteiroFromDate = incrementalEnabled
+    if (!dryRun && ok > 0 && (shouldRebuildRouteCache || shouldRebuildDashboardCache)) {
+      const cacheFromDate = incrementalEnabled
         ? dateDaysAgo(Number(process.env.SYNC_RECENT_DAYS || 30))
         : cleanEnvValue(process.env.SYNC_DATE_FROM || "2025-01-01");
-      await rebuildRoteiroCache(supabase, roteiroFromDate);
+
+      if (shouldRebuildRouteCache) {
+        await rebuildRoteiroCache(supabase, cacheFromDate);
+      }
+
+      if (shouldRebuildDashboardCache) {
+        await rebuildDashboardCache(supabase, cacheFromDate);
+      }
     }
     log(`Resumo   : ${JSON.stringify(summary)}`);
 

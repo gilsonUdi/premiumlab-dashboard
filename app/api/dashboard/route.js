@@ -347,6 +347,32 @@ async function fetchOrderBaseRows(supabase, { dateStart, dateEnd, pedcodigos = [
   return { data: rows, error: null }
 }
 
+async function fetchDashboardCacheRows(supabase, { dateStart, dateEnd, clicodigos = [], gclcodigos = [] }) {
+  const clientIds = [...new Set((clicodigos || []).map(asSqlNumber).filter(Number.isFinite))]
+  const groupIds = [...new Set((gclcodigos || []).map(asSqlNumber).filter(Number.isFinite))]
+
+  const result = await fetchAllPages(() => {
+    let query = supabase
+      .from('pedido_dashboard_cache')
+      .select('id_pedido,pedcodigo,clicodigo,clinome,gclcodigo,vendedor_codigo,vendedor_nome,emissao,previsto,saida,quantidade,status,current_cell,caixa,indice,delay_rank,status_priority,row_tone,roteiro_resumo,roteiro_json')
+      .gte('emissao', `${dateStart}T00:00:00`)
+      .lt('emissao', `${dateEnd}T23:59:59`)
+      .order('emissao', { ascending: false })
+
+    if (clientIds.length > 0) {
+      query = query.in('clicodigo', clientIds)
+    }
+
+    if (groupIds.length > 0) {
+      query = query.in('gclcodigo', groupIds)
+    }
+
+    return query
+  }, { maxRows: MAX_SALES_ROWS })
+
+  return result
+}
+
 function asSqlDate(value, fallback) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? value : fallback
 }
@@ -810,41 +836,20 @@ export async function GET(request) {
     const shouldLoadProductDetails = pedcodigoValues.length > 0
     const groupCodeFilterSet = new Set(gclcodigoValues.map(Number).filter(Number.isFinite))
 
-    const [cellsRes, empRes, userRes, clientsRes, localPedRes, finalityRes] = await Promise.all([
-      supabase.from('almox').select('empcodigo, alxcodigo, alxdescricao, dptcodigo, alxordem, alxtipocel').order('alxordem'),
-      supabase.from('funcio').select('funcodigo, funnome').limit(300),
-      supabase.from('usuario').select('usucodigo, usunome').limit(300),
-      fetchAllPages(() => {
-        let query = supabase
-          .from('clien')
-          .select('clicodigo, clirazsocial, clinomefant, gclcodigo')
-          .eq('clicliente', 'S')
-          .order('clicodigo')
-        return query
-      }, { maxRows: 10000 }),
-      supabase.from('localped').select('lpcodigo, lpdescricao').order('lpcodigo'),
+    const [finalityRes, dashboardCacheRes] = await Promise.all([
       fetchOptionalPages(() => supabase.from('pedfinalidade').select('pdfcodigo, pdfdescricao').order('pdfcodigo'), { maxRows: 200 }),
+      fetchDashboardCacheRows(
+        supabase,
+        { dateStart, dateEnd, pedcodigos: pedcodigoValues, clicodigos: clientCodeFilters, gclcodigos: gclcodigoValues }
+      ),
     ])
 
-    for (const [name, res] of Object.entries({ almox: cellsRes, funcio: empRes, usuario: userRes, clien: clientsRes, localped: localPedRes, pedfinalidade: finalityRes })) {
+    for (const [name, res] of Object.entries({ pedfinalidade: finalityRes, pedido_dashboard_cache: dashboardCacheRes })) {
       if (res.error) throw new Error(`${name}: ${res.error.message}`)
     }
 
-    const cellsData = cellsRes.data || []
-    const empData = empRes.data || []
-    const userData = userRes.data || []
-    const clientsData = clientsRes.data || []
-    const localPedData = localPedRes.data || []
     const finalityData = finalityRes.data || []
     const lossFinalityCodes = resolveLossFinalityCodes(finalityData)
-
-    const salesOrdersBaseRes = await fetchOrderBaseRows(
-      supabase,
-      { dateStart, dateEnd, pedcodigos: pedcodigoValues, clicodigos: clientCodeFilters, gclcodigos: gclcodigoValues }
-    )
-    if (salesOrdersBaseRes.error) {
-      throw new Error(`pedid: ${salesOrdersBaseRes.error.message}`)
-    }
 
     let lossMetricsRows = []
     try {
@@ -857,154 +862,7 @@ export async function GET(request) {
       lossMetricsRows = []
     }
 
-    const normalizedCellsData = cellsData.map(cell => ({
-      ...cell,
-      alxdescricao: normalizeText(cell.alxdescricao),
-    }))
-    const normalizedEmpData = empData.map(employee => ({
-      ...employee,
-      funnome: normalizeText(employee.funnome),
-    }))
-    const normalizedUserData = userData.map(user => ({
-      ...user,
-      usunome: normalizeText(user.usunome),
-    }))
-    const normalizedClientsData = clientsData.map(client => ({
-      ...client,
-      clirazsocial: normalizeText(client.clirazsocial),
-      clinomefant: normalizeText(client.clinomefant),
-    }))
-    const normalizedLocalPedData = localPedData.map(step => ({
-      ...step,
-      lpdescricao: normalizeText(step.lpdescricao),
-    }))
-    const cellByDpt = Object.fromEntries(normalizedCellsData.map(cell => [cell.dptcodigo, cell]))
-    const empMap = Object.fromEntries(normalizedEmpData.map(employee => [employee.funcodigo, employee.funnome]))
-    const userMap = Object.fromEntries(normalizedUserData.map(user => [user.usucodigo, user.usunome]))
-    const clientsByCode = Object.fromEntries(normalizedClientsData.map(client => [client.clicodigo, client]))
-    const localPedByCode = Object.fromEntries(normalizedLocalPedData.map(step => [step.lpcodigo, step.lpdescricao]))
-
-    const fallbackLocalPedByDpt = {
-      4: { E: 4, S: 5 },
-      5: { E: 2, S: 3 },
-      6: { E: 11, S: 12 },
-      7: { E: 9, S: 10 },
-      8: { E: 7, S: 8 },
-    }
-
-    const getFallbackStepDescription = movement => {
-      const code = fallbackLocalPedByDpt[movement.dptcodigo]?.[movement.reqentsai]
-      return localPedByCode[code] || (movement.reqentsai === 'S' ? 'Saida' : 'Entrada')
-    }
-
-    const normalizedSalesOrdersRaw = (salesOrdersBaseRes.data || [])
-      .map(row => {
-        const client = clientsByCode[row.clicodigo]
-        return {
-          pedido: row.id_pedido,
-          numero_venda: row.pedcodigo,
-          codigo_cliente: row.clicodigo,
-          cliente: normalizeText(client?.clinomefant || client?.clirazsocial),
-          gclcodigo: client?.gclcodigo ?? null,
-          vendedor_codigo: row.funcodigo,
-          data_venda: row.peddtemis,
-          data_hora_prevista: combineDateTime(row.pedpzentre, row.pedhrentre),
-          data_hora_saida: combineDateTime(row.peddtsaida, row.pedhrsaida),
-          status: normalizeText(row.pedsitped),
-        }
-      })
-      .filter(row => {
-        if (groupCodeFilterSet.size === 0) return true
-        return groupCodeFilterSet.has(Number(row.gclcodigo))
-      })
-
-    const salesOrderMap = {}
-    for (const row of normalizedSalesOrdersRaw) {
-      if (!row.pedido) continue
-      salesOrderMap[String(row.pedido)] = {
-        pedido: String(row.pedido),
-        numeroVenda: normalizeOrderCode(row.numero_venda),
-        clicodigo: row.codigo_cliente,
-        clinome: row.cliente,
-        gclcodigo: row.gclcodigo,
-        vendedorCodigo: row.vendedor_codigo,
-        vendedorNome: normalizeText(empMap[row.vendedor_codigo]) || `Vendedor ${row.vendedor_codigo || '-'}`,
-        emitted: parseLocalDateTime(row.data_venda),
-        emittedText: localDateTimeText(row.data_venda),
-        expected: parseLocalDateTime(row.data_hora_prevista),
-        expectedText: localDateTimeText(row.data_hora_prevista),
-        delivered: parseLocalDateTime(row.data_hora_saida),
-        deliveredText: localDateTimeText(row.data_hora_saida),
-        quantidade: 0,
-        products: [],
-        statusRaw: row.status,
-      }
-    }
-
-    const salesOrders = Object.values(salesOrderMap)
-    const orderIds = salesOrders.map(order => Number(order.pedido)).filter(Number.isFinite)
-
-    let routeCacheRows = []
-    try {
-      routeCacheRows = orderIds.length > 0 ? await execOptionalSqlBatches(supabase, orderIds, buildRouteCacheSql) : []
-    } catch (error) {
-      console.error('[dashboard][roteiro-cache]', error)
-      routeCacheRows = []
-    }
-
-    let requiData = []
-    if (!shouldLoadTraceability && orderIds.length > 0) {
-      try {
-        requiData = await execOptionalSqlBatches(
-          supabase,
-          orderIds,
-          ids => buildRequiTraceabilitySql(ids, dateStart, dateEnd),
-          300
-        )
-      } catch (error) {
-        console.error('[dashboard][requi-traceability]', error)
-        requiData = []
-      }
-    }
-
-    const [latestCellsRows, orderProductQuantityRows, orderServiceQuantityRows, productSalesRows, serviceSalesRows, traceabilityRows] = await Promise.all([
-      orderIds.length > 0 ? execSqlBatches(supabase, orderIds, buildLatestCellsSql) : Promise.resolve([]),
-      orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildOrderQuantitiesSql(ids, 'products')) : Promise.resolve([]),
-      orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildOrderQuantitiesSql(ids, 'services')) : Promise.resolve([]),
-      shouldLoadProductDetails && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildProductDetailsSql(ids, 'products')) : Promise.resolve([]),
-      shouldLoadProductDetails && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildProductDetailsSql(ids, 'services')) : Promise.resolve([]),
-      shouldLoadTraceability && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, buildTraceabilitySql) : Promise.resolve([]),
-    ])
-
-    const latestCellByOrder = Object.fromEntries(
-      latestCellsRows.map(row => [
-        String(row.id_pedido),
-        {
-          celula: normalizeText(row.celula),
-          caixa: normalizeText(row.caixa),
-        },
-      ])
-    )
-
-    const normalizedSalesRows = [...productSalesRows, ...serviceSalesRows].map(row => ({
-      ...row,
-      cliente: normalizeText(row.cliente),
-      descricao_produto: normalizeText(row.descricao_produto),
-    }))
-
-    const quantityByOrder = {}
-    for (const row of [...orderProductQuantityRows, ...orderServiceQuantityRows]) {
-      const pedidoId = String(row.id_pedido || '')
-      if (!pedidoId) continue
-      quantityByOrder[pedidoId] = (quantityByOrder[pedidoId] || 0) + (Number(row.quantidade_total) || 0)
-    }
-
-    const roteiroByOrder = {}
-    const roteiroResumoByOrder = {}
-    for (const row of routeCacheRows) {
-      const pedidoId = String(row.id_pedido || '')
-      if (!pedidoId) continue
-
+    let cachedOrders = (dashboardCacheRes.data || []).map(row => {
       let roteiro = row.roteiro_json
       if (typeof roteiro === 'string') {
         try {
@@ -1014,17 +872,87 @@ export async function GET(request) {
         }
       }
 
-      roteiroByOrder[pedidoId] = Array.isArray(roteiro) ? roteiro : []
-      roteiroResumoByOrder[pedidoId] = String(row.roteiro_resumo || '').trim()
+      return {
+        pedcodigo: normalizeOrderCode(row.pedcodigo || row.id_pedido),
+        pedidoId: String(row.id_pedido),
+        emissao: localDateTimeText(row.emissao),
+        indice: Number(row.indice) || 0,
+        previsto: localDateTimeText(row.previsto),
+        saida: localDateTimeText(row.saida),
+        quantidade: Number(row.quantidade) || 0,
+        status: String(row.status || '').trim(),
+        currentCell: normalizeText(row.current_cell) || '-',
+        caixa: normalizeText(row.caixa) || '-',
+        roteiro: Array.isArray(roteiro) ? roteiro : [],
+        roteiroResumo: String(row.roteiro_resumo || '').trim(),
+        delayRank: Number(row.delay_rank) || 0,
+        statusPriority: Number(row.status_priority) || 0,
+        rowTone: String(row.row_tone || '').trim() || 'success',
+        clicodigo: row.clicodigo,
+        clinome: normalizeText(row.clinome),
+        gclcodigo: row.gclcodigo,
+        vendedorCodigo: row.vendedor_codigo,
+        vendedorNome: normalizeText(row.vendedor_nome),
+        emittedDate: parseLocalDateTime(row.emissao),
+        expectedDate: parseLocalDateTime(row.previsto),
+        deliveredDate: parseLocalDateTime(row.saida),
+      }
+    })
+
+    if (pedcodigoValues.length > 0) {
+      const wanted = new Set(pedcodigoValues.map(value => String(value || '').trim()))
+      cachedOrders = cachedOrders.filter(row => wanted.has(String(row.pedidoId)) || wanted.has(String(row.pedcodigo)))
     }
 
-    for (const row of normalizedSalesRows) {
-      const order = salesOrderMap[String(row.pedido)]
-      if (!order) continue
-      order.products.push(row)
-    }
+    let orders = cachedOrders.map(order => ({
+      pedcodigo: order.pedcodigo,
+      pedidoId: order.pedidoId,
+      emissao: order.emissao,
+      indice: order.indice,
+      previsto: order.previsto,
+      saida: order.saida,
+      quantidade: order.quantidade,
+      status: order.status,
+      currentCell: order.currentCell,
+      caixa: order.caixa,
+      roteiro: order.roteiro,
+      roteiroResumo: order.roteiroResumo,
+      delayRank: order.delayRank,
+      statusPriority: order.statusPriority,
+      rowTone: order.rowTone,
+      clicodigo: order.clicodigo,
+      clinome: order.clinome,
+    }))
 
-    const orderNumberById = Object.fromEntries(salesOrders.map(order => [order.pedido, order.numeroVenda]))
+    if (statusFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'status', statusFilters))
+    if (emissaoFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'emissao', emissaoFilters))
+    if (indiceFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'indice', indiceFilters))
+    if (previstoFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'previsto', previstoFilters))
+    if (saidaFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'saida', saidaFilters))
+    if (quantidadeFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'quantidade', quantidadeFilters))
+    if (currentCellFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'currentCell', currentCellFilters))
+
+    orders.sort((a, b) => {
+      if (b.statusPriority !== a.statusPriority) return b.statusPriority - a.statusPriority
+      return b.delayRank - a.delayRank
+    })
+
+    const visibleOrderIds = new Set(orders.map(row => row.pedidoId))
+    const selectedCachedOrders = cachedOrders.filter(order => visibleOrderIds.has(order.pedidoId))
+    const orderIds = selectedCachedOrders.map(order => Number(order.pedidoId)).filter(Number.isFinite)
+    const orderNumberById = Object.fromEntries(selectedCachedOrders.map(order => [order.pedidoId, order.pedcodigo]))
+
+    const [productSalesRows, serviceSalesRows, traceabilityRows] = await Promise.all([
+      shouldLoadProductDetails && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildProductDetailsSql(ids, 'products')) : Promise.resolve([]),
+      shouldLoadProductDetails && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildProductDetailsSql(ids, 'services')) : Promise.resolve([]),
+      shouldLoadTraceability && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, buildTraceabilitySql) : Promise.resolve([]),
+    ])
+
+    const normalizedSalesRows = [...productSalesRows, ...serviceSalesRows].map(row => ({
+      ...row,
+      cliente: normalizeText(row.cliente),
+      descricao_produto: normalizeText(row.descricao_produto),
+    }))
 
     let products = normalizedSalesRows.map(row => ({
       pedcodigo: normalizeOrderCode(row.numero_venda || row.pedido),
@@ -1051,21 +979,6 @@ export async function GET(request) {
         }))
       : []
 
-    if (!shouldLoadTraceability) {
-      traceability = requiData
-        .filter(row => row.pdccodigo)
-        .map(row => ({
-          estoque: normalizeText(cellByDpt[row.dptcodigo]?.alxdescricao) || `Depto ${row.dptcodigo}`,
-          celula: normalizeText(getFallbackStepDescription(row)),
-          dataHora: combineDateTime(row.reqdata, row.reqhora),
-          usuario: normalizeText(empMap[row.funcodigo]) || `Func ${row.funcodigo}`,
-          pedcodigo: normalizeOrderCode(orderNumberById[String(row.pdccodigo)] || row.pdccodigo),
-          pedidoId: String(row.pdccodigo),
-          clicodigo: null,
-          clinome: '-',
-        }))
-    }
-
     traceability.sort((a, b) => {
       if (!a.dataHora && !b.dataHora) return 0
       if (!a.dataHora) return 1
@@ -1073,89 +986,32 @@ export async function GET(request) {
       return new Date(a.dataHora) - new Date(b.dataHora)
     })
 
-    const latestTraceByOrder = {}
-    for (const row of traceability) {
-      if (!row.pedidoId) continue
-      latestTraceByOrder[row.pedidoId] = row
-    }
-
-    let orders = salesOrders.map(order => {
-      const expected = order.expected || (order.emitted ? addDays(order.emitted, 5) : null)
-      const delivered = order.delivered
-      const resolvedStatus = resolveStatus(expected, delivered, now)
-      const currentTrace = latestTraceByOrder[order.pedido]
-      const latestCellInfo = latestCellByOrder[order.pedido] || {}
-      const currentCell =
-        latestCellInfo.celula ||
-        normalizeText(currentTrace?.celula) ||
-        (order.delivered ? 'PEDIDO FATURADO' : '')
-
-      return {
-        pedcodigo: order.numeroVenda,
-        pedidoId: order.pedido,
-        emissao: order.emittedText,
-        indice: orderIsDelayed(expected, delivered, now) ? 0 : 100,
-        previsto: order.expectedText,
-        saida: order.deliveredText,
-        quantidade: quantityByOrder[order.pedido] || order.quantidade || order.products.length,
-        status: resolvedStatus,
-        currentCell: currentCell || '-',
-        caixa: latestCellInfo.caixa || '-',
-        roteiro: roteiroByOrder[order.pedido] || [],
-        roteiroResumo: roteiroResumoByOrder[order.pedido] || '',
-        delayRank: buildDelayRank(expected, delivered, now),
-        statusPriority: buildStatusPriority(resolvedStatus),
-        rowTone: resolveRowTone(resolvedStatus, expected, delivered, now),
-        clicodigo: order.clicodigo,
-        clinome: normalizeText(order.clinome),
-      }
-    })
-
-    if (statusFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'status', statusFilters))
-    if (emissaoFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'emissao', emissaoFilters))
-    if (indiceFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'indice', indiceFilters))
-    if (previstoFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'previsto', previstoFilters))
-    if (saidaFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'saida', saidaFilters))
-    if (quantidadeFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'quantidade', quantidadeFilters))
-    if (currentCellFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'currentCell', currentCellFilters))
-
     if (productStatusFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'status', productStatusFilters))
     if (procodigoFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'procodigo', procodigoFilters))
     if (prodescricaoFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'prodescricao', prodescricaoFilters))
     if (productQuantidadeFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'quantidade', productQuantidadeFilters))
-
-    orders.sort((a, b) => {
-      if (b.statusPriority !== a.statusPriority) return b.statusPriority - a.statusPriority
-      return b.delayRank - a.delayRank
-    })
-
-    let customerMap = {}
-    const visibleOrderIds = new Set(orders.map(row => row.pedidoId))
     products = products.filter(row => visibleOrderIds.has(row.pedidoId))
     traceability = traceability.filter(row => visibleOrderIds.has(row.pedidoId))
 
-    for (const order of salesOrders.filter(item => visibleOrderIds.has(item.pedido))) {
-      const client = clientsByCode[order.clicodigo]
-      const groupCode = order.gclcodigo ?? client?.gclcodigo
-      if (groupCodeFilterSet.size > 0 && !groupCodeFilterSet.has(Number(groupCode))) continue
-
+    let customerMap = {}
+    for (const order of selectedCachedOrders) {
       if (!customerMap[order.clicodigo]) {
         customerMap[order.clicodigo] = {
           clicodigo: order.clicodigo,
-          clinome: order.clinome || client?.clinomefant || client?.clirazsocial || `Cliente ${order.clicodigo}`,
+          clinome: order.clinome || `Cliente ${order.clicodigo}`,
           total: 0,
           onTime: 0,
           daysTotal: 0,
           daysCount: 0,
-          gclcodigo: groupCode,
+          gclcodigo: order.gclcodigo,
         }
       }
 
       const customer = customerMap[order.clicodigo]
       customer.total += 1
-      customer.onTime += orderIsDelayed(order.expected, order.delivered, now) ? 0 : 1
-      if (order.emitted && order.delivered) {
-        customer.daysTotal += Math.max(0, differenceInDays(order.delivered, order.emitted))
+      customer.onTime += order.indice >= 100 ? 1 : 0
+      if (order.emittedDate && order.deliveredDate) {
+        customer.daysTotal += Math.max(0, differenceInDays(order.deliveredDate, order.emittedDate))
         customer.daysCount += 1
       }
     }
@@ -1182,8 +1038,9 @@ export async function GET(request) {
     products = products.filter(row => finalOrderIds.has(row.pedidoId))
     traceability = traceability.filter(row => finalOrderIds.has(row.pedidoId))
 
+    const finalCachedOrders = selectedCachedOrders.filter(order => finalOrderIds.has(order.pedidoId))
     const sellerMap = {}
-    for (const order of salesOrders.filter(item => finalOrderIds.has(item.pedido))) {
+    for (const order of finalCachedOrders) {
       const sellerCode = String(order.vendedorCodigo || '')
       const sellerName = normalizeText(order.vendedorNome)
 
