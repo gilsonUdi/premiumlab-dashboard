@@ -4,6 +4,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { format, startOfMonth } from 'date-fns'
 import { ArrowLeft, Building2, Download, RefreshCw, X } from 'lucide-react'
+import { onAuthStateChanged } from 'firebase/auth'
 import Filters from '@/components/Filters'
 import KPICards, { CompactPpsKpis } from '@/components/KPICards'
 import HistoricoPedidos from '@/components/HistoricoPedidos'
@@ -122,7 +123,14 @@ export default function ProductionDashboard({
 
   const getAuthorizedHeaders = useCallback(async () => {
     const { auth } = getFirebaseServices()
-    const authUser = auth.currentUser
+    const authUser =
+      auth.currentUser ||
+      (await new Promise(resolve => {
+        const unsubscribe = onAuthStateChanged(auth, user => {
+          unsubscribe()
+          resolve(user)
+        })
+      }))
     if (!authUser) return {}
 
     const token = await authUser.getIdToken()
@@ -139,6 +147,7 @@ export default function ProductionDashboard({
           headers: await getAuthorizedHeaders(),
         })
         const payload = await response.json()
+        if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar opcoes.')
         setOptions(payload)
       } catch (error) {
         console.error(error)
@@ -166,6 +175,7 @@ export default function ProductionDashboard({
         headers: await getAuthorizedHeaders(),
       })
       const payload = await response.json()
+      if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar dashboard.')
       setData(payload)
       setLastUpdated(new Date())
     } catch (error) {
