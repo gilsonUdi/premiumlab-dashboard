@@ -460,17 +460,30 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], 
       ped.funcodigo as vendedor_codigo,
       ped.pedcodigo as numero_venda,
       ped.id_pedido as pedido,
-      (
-        coalesce((select sum(prd.pdpqtdade)::numeric from pdprd prd where prd.id_pedido = ped.id_pedido), 0)
-        +
-        coalesce((select sum(pds.pdsqtdade)::numeric from pdser pds where pds.id_pedido = ped.id_pedido), 0)
-      ) as quantidade_total,
       ped.pedsitped::text as status
     from pedid ped
     left join clien cli on ped.clicodigo = cli.clicodigo
     where ${clauses.join(' and ')}
     order by data_venda desc, pedido desc
     limit ${MAX_SALES_ROWS}
+  `
+}
+
+function buildOrderQuantitiesSql(orderIds, kind = 'products') {
+  const ids = asSqlIdList(orderIds)
+  if (!ids) return null
+
+  const isService = kind === 'services'
+  const itemTable = isService ? 'pdser' : 'pdprd'
+  const quantityColumn = isService ? 'pdsqtdade' : 'pdpqtdade'
+
+  return `
+    select
+      id_pedido,
+      coalesce(sum(${quantityColumn})::numeric, 0) as quantidade_total
+    from ${itemTable}
+    where id_pedido in (${ids})
+    group by id_pedido
   `
 }
 
@@ -780,10 +793,21 @@ export async function GET(request) {
     const finalityData = finalityRes.data || []
     const lossFinalityCodes = resolveLossFinalityCodes(finalityData)
 
-    const [salesOrdersRaw, lossMetricsRows] = await Promise.all([
-      execSql(supabase, buildOrdersSql({ dateStart, dateEnd, pedcodigos: pedcodigoValues, clicodigos: clientCodeFilters, gclcodigos: gclcodigoValues })),
-      execSql(supabase, buildLossMetricsSql({ dateStart, dateEnd, pedcodigos: pedcodigoValues, clicodigos: clientCodeFilters, gclcodigos: gclcodigoValues, lossFinalityCodes })),
-    ])
+    const salesOrdersRaw = await execSql(
+      supabase,
+      buildOrdersSql({ dateStart, dateEnd, pedcodigos: pedcodigoValues, clicodigos: clientCodeFilters, gclcodigos: gclcodigoValues })
+    )
+
+    let lossMetricsRows = []
+    try {
+      lossMetricsRows = await execOptionalSql(
+        supabase,
+        buildLossMetricsSql({ dateStart, dateEnd, pedcodigos: pedcodigoValues, clicodigos: clientCodeFilters, gclcodigos: gclcodigoValues, lossFinalityCodes })
+      )
+    } catch (error) {
+      console.error('[dashboard][loss-metrics]', error)
+      lossMetricsRows = []
+    }
 
     const normalizedCellsData = cellsData.map(cell => ({
       ...cell,
@@ -848,7 +872,7 @@ export async function GET(request) {
         expectedText: localDateTimeText(row.data_hora_prevista),
         delivered: parseLocalDateTime(row.data_hora_saida),
         deliveredText: localDateTimeText(row.data_hora_saida),
-        quantidade: Number(row.quantidade_total) || 0,
+        quantidade: 0,
         products: [],
         statusRaw: row.status,
       }
@@ -880,8 +904,10 @@ export async function GET(request) {
       }
     }
 
-    const [latestCellsRows, productSalesRows, serviceSalesRows, traceabilityRows] = await Promise.all([
+    const [latestCellsRows, orderProductQuantityRows, orderServiceQuantityRows, productSalesRows, serviceSalesRows, traceabilityRows] = await Promise.all([
       orderIds.length > 0 ? execSqlBatches(supabase, orderIds, buildLatestCellsSql) : Promise.resolve([]),
+      orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildOrderQuantitiesSql(ids, 'products')) : Promise.resolve([]),
+      orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildOrderQuantitiesSql(ids, 'services')) : Promise.resolve([]),
       shouldLoadProductDetails && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildProductDetailsSql(ids, 'products')) : Promise.resolve([]),
       shouldLoadProductDetails && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, ids => buildProductDetailsSql(ids, 'services')) : Promise.resolve([]),
       shouldLoadTraceability && orderIds.length > 0 ? execSqlBatches(supabase, orderIds, buildTraceabilitySql) : Promise.resolve([]),
@@ -902,6 +928,13 @@ export async function GET(request) {
       cliente: normalizeText(row.cliente),
       descricao_produto: normalizeText(row.descricao_produto),
     }))
+
+    const quantityByOrder = {}
+    for (const row of [...orderProductQuantityRows, ...orderServiceQuantityRows]) {
+      const pedidoId = String(row.id_pedido || '')
+      if (!pedidoId) continue
+      quantityByOrder[pedidoId] = (quantityByOrder[pedidoId] || 0) + (Number(row.quantidade_total) || 0)
+    }
 
     const roteiroByOrder = {}
     const roteiroResumoByOrder = {}
@@ -1001,7 +1034,7 @@ export async function GET(request) {
         indice: orderIsDelayed(expected, delivered, now) ? 0 : 100,
         previsto: order.expectedText,
         saida: order.deliveredText,
-        quantidade: order.quantidade || order.products.length,
+        quantidade: quantityByOrder[order.pedido] || order.quantidade || order.products.length,
         status: resolvedStatus,
         currentCell: currentCell || '-',
         caixa: latestCellInfo.caixa || '-',
