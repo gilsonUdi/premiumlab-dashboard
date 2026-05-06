@@ -7,6 +7,7 @@ import {
   USERS_COLLECTION,
   requireAdmin,
 } from '@/lib/server-auth'
+import { buildDefaultUserPermissions, normalizeCompanyPortalSettings } from '@/lib/portal-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,7 @@ function slugifyCompanyName(value) {
 
 function normalizeCompanyPayload(payload = {}) {
   const slug = slugifyCompanyName(payload.slug || payload.name || payload.id)
+  const portalSettings = normalizeCompanyPortalSettings(payload)
 
   return {
     id: payload.id || slug,
@@ -43,28 +45,27 @@ function normalizeCompanyPayload(payload = {}) {
     tools: Array.isArray(payload.tools) && payload.tools.length > 0 ? [...new Set(payload.tools)] : ['dashboard'],
     isPremiumLab: Boolean(payload.isPremiumLab),
     dashboardMode: payload.dashboardMode || (payload.isPremiumLab ? 'premium' : 'external'),
+    supabaseEnabled: portalSettings.supabaseEnabled,
+    externalDashboardUrl: portalSettings.externalDashboardUrl,
     createdAt: payload.createdAt || new Date().toISOString(),
   }
 }
 
 async function upsertAuthUser(company, existingCompany) {
   const auth = getFirebaseAdminAuth()
+  const authPayload = {
+    email: company.email,
+    displayName: company.name,
+  }
+  if (company.password) authPayload.password = company.password
 
   if (existingCompany?.authUid) {
-    return auth.updateUser(existingCompany.authUid, {
-      email: company.email,
-      password: company.password,
-      displayName: company.name,
-    })
+    return auth.updateUser(existingCompany.authUid, authPayload)
   }
 
   try {
     const existingAuthUser = await auth.getUserByEmail(company.email)
-    return auth.updateUser(existingAuthUser.uid, {
-      email: company.email,
-      password: company.password,
-      displayName: company.name,
-    })
+    return auth.updateUser(existingAuthUser.uid, authPayload)
   } catch (error) {
     if (error.code !== 'auth/user-not-found') throw error
 
@@ -92,15 +93,20 @@ export async function POST(request) {
     const payload = await request.json()
     const company = normalizeCompanyPayload(payload)
 
-    if (!company.name || !company.slug || !company.email || !company.password) {
-      return NextResponse.json({ error: 'Nome, slug, email e senha sao obrigatorios.' }, { status: 400 })
+    if (!company.name || !company.slug || !company.email) {
+      return NextResponse.json({ error: 'Nome, slug e email sao obrigatorios.' }, { status: 400 })
     }
 
     const db = getFirebaseAdminDb()
     const companyRef = db.collection(COMPANIES_COLLECTION).doc(company.id)
     const existingSnapshot = await companyRef.get()
     const existingCompany = existingSnapshot.exists ? { id: existingSnapshot.id, ...existingSnapshot.data() } : null
+    if (!existingCompany && !company.password) {
+      return NextResponse.json({ error: 'Senha obrigatoria para novas empresas.' }, { status: 400 })
+    }
     const authUser = await upsertAuthUser(company, existingCompany)
+    const mainUserRef = db.collection(USERS_COLLECTION).doc(authUser.uid)
+    const mainUserSnapshot = await mainUserRef.get()
 
     const supabaseUrl = company.supabaseUrl || existingCompany?.supabaseUrl || getPremiumFallbackUrl(company)
     const supabaseServiceRoleKey =
@@ -119,6 +125,8 @@ export async function POST(request) {
         tools: company.tools,
         isPremiumLab: company.isPremiumLab,
         dashboardMode: company.dashboardMode,
+        supabaseEnabled: company.supabaseEnabled,
+        externalDashboardUrl: company.externalDashboardUrl,
         authUid: authUser.uid,
         hasServiceRoleKey: Boolean(supabaseServiceRoleKey),
         createdAt: existingCompany?.createdAt || company.createdAt,
@@ -127,13 +135,17 @@ export async function POST(request) {
       { merge: true }
     )
 
-    await db.collection(USERS_COLLECTION).doc(authUser.uid).set(
+    await mainUserRef.set(
       {
         role: 'company',
         email: company.email,
         name: company.name,
         companyId: company.id,
         companySlug: company.slug,
+        companyName: company.name,
+        permissions: mainUserSnapshot.exists
+          ? mainUserSnapshot.data()?.permissions || buildDefaultUserPermissions(company)
+          : buildDefaultUserPermissions(company),
         active: true,
         updatedAt: FieldValue.serverTimestamp(),
       },

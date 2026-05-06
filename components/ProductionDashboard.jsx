@@ -99,8 +99,10 @@ export default function ProductionDashboard({
   backHref = null,
   tenantSlug,
   mode = 'analysis',
+  sectionVisibility = null,
 }) {
   const isPpsMode = mode === 'pps'
+  const visibleSections = sectionVisibility || {}
   const [filters, setFilters] = useState(defaultFilters)
   const [data, setData] = useState(null)
   const [options, setOptions] = useState(null)
@@ -391,59 +393,77 @@ export default function ProductionDashboard({
           </div>
         ) : null}
 
-        {isPpsMode ? <CompactPpsKpis data={data?.kpis} loading={loading} /> : <KPICards data={data?.kpis} loading={loading} />}
+        {(visibleSections.kpis ?? true)
+          ? isPpsMode
+            ? <CompactPpsKpis data={data?.kpis} loading={loading} />
+            : <KPICards data={data?.kpis} loading={loading} />
+          : null}
 
         {isPpsMode ? (
           <div className="min-h-0 flex-1 overflow-hidden">
-            <HistoricoPedidos
-              data={displayedOrders}
-              selectedOrder={selectedOrderLabel}
-              onColumnClick={handleColumnClick}
-              loading={loading}
-              compact
-              fillHeight
-              hideDeliveredColumn
-              showDelayDays
-            />
-          </div>
-        ) : (
-          <>
-            <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <PontualidadeChart data={data?.pontualidade} loading={loading} />
-              <PerdasChart data={data?.perdas} loading={loading} />
-            </div>
-
-            <HistoricoPedidos
-              data={displayedOrders}
-              selectedOrder={selectedOrderLabel}
-              onColumnClick={handleColumnClick}
-              loading={loading}
-              hideDeliveredColumn={false}
-            />
-
-            <DetalhesProdutos
-              data={data?.products}
-              selectedOrder={selectedOrder}
-              onColumnClick={handleColumnClick}
-              loading={loading}
-            />
-
-            <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <RastreabilidadePedido
-                data={data?.traceability}
+            {(visibleSections.history ?? true) ? (
+              <HistoricoPedidos
+                data={displayedOrders}
                 selectedOrder={selectedOrderLabel}
                 onColumnClick={handleColumnClick}
                 loading={loading}
+                compact
+                fillHeight
+                hideDeliveredColumn
+                showDelayDays
               />
-              <IndiceAtendimento
-                data={data?.customers}
-                selectedClient={selectedClient}
+            ) : null}
+          </div>
+        ) : (
+          <>
+            {(visibleSections.pontualidadeChart ?? true) || (visibleSections.perdasChart ?? true) ? (
+              <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {(visibleSections.pontualidadeChart ?? true) ? <PontualidadeChart data={data?.pontualidade} loading={loading} /> : null}
+                {(visibleSections.perdasChart ?? true) ? <PerdasChart data={data?.perdas} loading={loading} /> : null}
+              </div>
+            ) : null}
+
+            {(visibleSections.history ?? true) ? (
+              <HistoricoPedidos
+                data={displayedOrders}
+                selectedOrder={selectedOrderLabel}
+                onColumnClick={handleColumnClick}
+                loading={loading}
+                hideDeliveredColumn={false}
+              />
+            ) : null}
+
+            {(visibleSections.products ?? true) ? (
+              <DetalhesProdutos
+                data={data?.products}
+                selectedOrder={selectedOrder}
                 onColumnClick={handleColumnClick}
                 loading={loading}
               />
-            </div>
+            ) : null}
 
-            <RankingVendedores data={data?.sellerRanking} loading={loading} />
+            {(visibleSections.traceability ?? true) || (visibleSections.customerService ?? true) ? (
+              <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {(visibleSections.traceability ?? true) ? (
+                  <RastreabilidadePedido
+                    data={data?.traceability}
+                    selectedOrder={selectedOrderLabel}
+                    onColumnClick={handleColumnClick}
+                    loading={loading}
+                  />
+                ) : null}
+                {(visibleSections.customerService ?? true) ? (
+                  <IndiceAtendimento
+                    data={data?.customers}
+                    selectedClient={selectedClient}
+                    onColumnClick={handleColumnClick}
+                    loading={loading}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+
+            {(visibleSections.sellerRanking ?? true) ? <RankingVendedores data={data?.sellerRanking} loading={loading} /> : null}
           </>
         )}
 

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BarChart3, LayoutPanelTop, LogOut, Settings2 } from 'lucide-react'
+import { ArrowLeft, BarChart3, LayoutPanelTop, LogOut, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import {
   clearPortalSession,
   getCompanyById,
@@ -11,6 +11,7 @@ import {
   getCurrentPortalSession,
   loadCompanyState,
 } from '@/lib/portal-store'
+import { canAccessPortalPage, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
 
 const TOOL_CARDS = [
   {
@@ -74,6 +75,8 @@ export default function CompanyHomePage({ slug }) {
     return getCompanyBySlug(state, slug) || (session?.companyId ? getCompanyById(state, session.companyId) : null)
   }, [session?.companyId, slug, state])
 
+  const userPermissions = session?.permissions || null
+
   const handleLogout = async () => {
     await clearPortalSession()
     router.push('/login')
@@ -89,7 +92,20 @@ export default function CompanyHomePage({ slug }) {
     )
   }
 
-  const enabledTools = company.tools.includes('dashboard') ? TOOL_CARDS : []
+  const enabledInternalTools =
+    company.supabaseEnabled && company.tools.includes('dashboard')
+      ? TOOL_CARDS.filter(tool =>
+          canAccessPortalPage(
+            company,
+            userPermissions,
+            tool.key === 'analysis' ? PORTAL_PAGE_KEYS.ANALYSIS : PORTAL_PAGE_KEYS.PPS
+          )
+        )
+      : []
+  const canUseExternalDashboard =
+    !company.supabaseEnabled &&
+    company.externalDashboardUrl &&
+    canAccessPortalPage(company, userPermissions, PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)
 
   return (
     <main className="min-h-screen bg-[#141216] px-6 py-6 text-white">
@@ -123,8 +139,30 @@ export default function CompanyHomePage({ slug }) {
         </header>
 
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {enabledTools.length > 0 ? (
-            enabledTools.map(tool => {
+          {enabledInternalTools.length > 0 || canUseExternalDashboard ? (
+            <>
+              {canUseExternalDashboard ? (
+                <a
+                  href={company.externalDashboardUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group rounded-[28px] border border-white/8 bg-[#1c191d] p-6 transition hover:border-[#e3ad5a]/40 hover:bg-[#221e22]"
+                >
+                  <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e3ad5a]/15 text-[#e3ad5a]">
+                    <SquareArrowOutUpRight size={22} />
+                  </div>
+                  <h3 className="text-2xl font-semibold">Dashboard</h3>
+                  <p className="mt-3 text-sm leading-7 text-[#bdb7ae]">
+                    Acesso ao dashboard externo configurado para esta empresa.
+                  </p>
+                  <div className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[#f1b867]">
+                    Abrir dashboard
+                    <ArrowLeft size={15} className="rotate-180 transition group-hover:translate-x-1" />
+                  </div>
+                </a>
+              ) : null}
+
+              {enabledInternalTools.map(tool => {
               const Icon = tool.icon
               return (
                 <Link
@@ -143,7 +181,8 @@ export default function CompanyHomePage({ slug }) {
                   </div>
                 </Link>
               )
-            })
+            })}
+            </>
           ) : (
             <div className="rounded-[28px] border border-dashed border-white/10 bg-[#1c191d] p-6">
               <h3 className="text-2xl font-semibold">Sem ferramentas liberadas</h3>
