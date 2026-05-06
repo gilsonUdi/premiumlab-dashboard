@@ -657,6 +657,28 @@ function buildTraceabilitySql(orderIds) {
   `
 }
 
+function buildRequiTraceabilitySql(orderIds, dateStart, dateEnd) {
+  const ids = asSqlIdList(orderIds)
+  if (!ids) return null
+
+  return `
+    select
+      reqcodigo,
+      reqdata,
+      reqhora,
+      pdccodigo,
+      funcodigo,
+      dptcodigo,
+      reqentsai,
+      reqtipo
+    from requi
+    where pdccodigo in (${ids})
+      and reqdata >= '${dateStart}T00:00:00'
+      and reqdata < ('${dateEnd}'::date + interval '1 day')
+    order by reqdata desc, reqcodigo desc
+  `
+}
+
 async function execSqlBatches(supabase, values, sqlBuilder, chunkSize = 500) {
   const chunks = chunkArray(values, chunkSize)
   const rows = []
@@ -730,16 +752,7 @@ export async function GET(request) {
     const shouldLoadProductDetails = pedcodigoValues.length > 0
     const groupCodeFilterSet = new Set(gclcodigoValues.map(Number).filter(Number.isFinite))
 
-    const [requiRes, cellsRes, empRes, userRes, clientsRes, localPedRes, finalityRes] = await Promise.all([
-      fetchAllPages(() => {
-        let query = supabase
-          .from('requi')
-          .select('reqcodigo, reqdata, reqhora, pdccodigo, funcodigo, dptcodigo, reqentsai, reqtipo')
-          .gte('reqdata', `${dateStart}T00:00:00`)
-          .lte('reqdata', `${dateEnd}T23:59:59`)
-          .order('reqdata', { ascending: false })
-        return query
-      }),
+    const [cellsRes, empRes, userRes, clientsRes, localPedRes, finalityRes] = await Promise.all([
       supabase.from('almox').select('empcodigo, alxcodigo, alxdescricao, dptcodigo, alxordem, alxtipocel').order('alxordem'),
       supabase.from('funcio').select('funcodigo, funnome').limit(300),
       supabase.from('usuario').select('usucodigo, usunome').limit(300),
@@ -755,11 +768,10 @@ export async function GET(request) {
       fetchOptionalPages(() => supabase.from('pedfinalidade').select('pdfcodigo, pdfdescricao').order('pdfcodigo'), { maxRows: 200 }),
     ])
 
-    for (const [name, res] of Object.entries({ requi: requiRes, almox: cellsRes, funcio: empRes, usuario: userRes, clien: clientsRes, localped: localPedRes, pedfinalidade: finalityRes })) {
+    for (const [name, res] of Object.entries({ almox: cellsRes, funcio: empRes, usuario: userRes, clien: clientsRes, localped: localPedRes, pedfinalidade: finalityRes })) {
       if (res.error) throw new Error(`${name}: ${res.error.message}`)
     }
 
-    const requiData = requiRes.data || []
     const cellsData = cellsRes.data || []
     const empData = empRes.data || []
     const userData = userRes.data || []
@@ -851,6 +863,21 @@ export async function GET(request) {
     } catch (error) {
       console.error('[dashboard][roteiro-cache]', error)
       routeCacheRows = []
+    }
+
+    let requiData = []
+    if (!shouldLoadTraceability && orderIds.length > 0) {
+      try {
+        requiData = await execOptionalSqlBatches(
+          supabase,
+          orderIds,
+          ids => buildRequiTraceabilitySql(ids, dateStart, dateEnd),
+          300
+        )
+      } catch (error) {
+        console.error('[dashboard][requi-traceability]', error)
+        requiData = []
+      }
     }
 
     const [latestCellsRows, productSalesRows, serviceSalesRows, traceabilityRows] = await Promise.all([
