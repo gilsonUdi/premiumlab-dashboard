@@ -110,6 +110,8 @@ export default function ProductionDashboard({
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [authResolved, setAuthResolved] = useState(false)
+  const [authUser, setAuthUser] = useState(null)
   const debounceRef = useRef(null)
 
   const selectedOrder = filters.pedcodigo.length === 1 ? filters.pedcodigo[0] : null
@@ -121,23 +123,27 @@ export default function ProductionDashboard({
     return orders.filter(row => !['completed', 'delayed_completed'].includes(row.status))
   }, [data?.orders, isPpsMode])
 
-  const getAuthorizedHeaders = useCallback(async () => {
+  useEffect(() => {
     const { auth } = getFirebaseServices()
-    const authUser =
-      auth.currentUser ||
-      (await new Promise(resolve => {
-        const unsubscribe = onAuthStateChanged(auth, user => {
-          unsubscribe()
-          resolve(user)
-        })
-      }))
+
+    const unsubscribe = onAuthStateChanged(auth, user => {
+      setAuthUser(user)
+      setAuthResolved(true)
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  const getAuthorizedHeaders = useCallback(async () => {
     if (!authUser) return {}
 
     const token = await authUser.getIdToken()
     return token ? { Authorization: `Bearer ${token}` } : {}
-  }, [])
+  }, [authUser])
 
   useEffect(() => {
+    if (!authResolved) return undefined
+
     async function fetchOptions() {
       try {
         const params = new URLSearchParams()
@@ -155,9 +161,12 @@ export default function ProductionDashboard({
     }
 
     fetchOptions()
-  }, [getAuthorizedHeaders, tenantSlug])
+    return undefined
+  }, [authResolved, getAuthorizedHeaders, tenantSlug])
 
   const fetchData = useCallback(async () => {
+    if (!authResolved) return
+
     setLoading(true)
     const params = new URLSearchParams()
     Object.entries(filters).forEach(([key, value]) => {
@@ -183,7 +192,7 @@ export default function ProductionDashboard({
     } finally {
       setLoading(false)
     }
-  }, [filters, getAuthorizedHeaders, tenantSlug])
+  }, [authResolved, filters, getAuthorizedHeaders, tenantSlug])
 
   const handleFiltersChange = useCallback(updater => {
     setFilters(previous => (typeof updater === 'function' ? updater(previous) : updater))
