@@ -351,26 +351,37 @@ async function fetchDashboardCacheRows(supabase, { dateStart, dateEnd, clicodigo
   const clientIds = [...new Set((clicodigos || []).map(asSqlNumber).filter(Number.isFinite))]
   const groupIds = [...new Set((gclcodigos || []).map(asSqlNumber).filter(Number.isFinite))]
 
-  const result = await fetchAllPages(() => {
-    let query = supabase
-      .from('pedido_dashboard_cache')
-      .select('id_pedido,pedcodigo,clicodigo,clinome,gclcodigo,vendedor_codigo,vendedor_nome,emissao,previsto,saida,quantidade,status,current_cell,caixa,indice,delay_rank,status_priority,row_tone,roteiro_resumo,roteiro_json')
-      .gte('emissao', `${dateStart}T00:00:00`)
-      .lt('emissao', `${dateEnd}T23:59:59`)
-      .order('emissao', { ascending: false })
+  try {
+    const result = await fetchAllPages(() => {
+      let query = supabase
+        .from('pedido_dashboard_cache')
+        .select('id_pedido,pedcodigo,clicodigo,clinome,gclcodigo,vendedor_codigo,vendedor_nome,emissao,previsto,saida,quantidade,status,current_cell,caixa,indice,delay_rank,status_priority,row_tone,roteiro_resumo,roteiro_json')
+        .gte('emissao', `${dateStart}T00:00:00`)
+        .lt('emissao', `${dateEnd}T23:59:59`)
+        .order('emissao', { ascending: false })
 
-    if (clientIds.length > 0) {
-      query = query.in('clicodigo', clientIds)
+      if (clientIds.length > 0) {
+        query = query.in('clicodigo', clientIds)
+      }
+
+      if (groupIds.length > 0) {
+        query = query.in('gclcodigo', groupIds)
+      }
+
+      return query
+    }, { maxRows: MAX_SALES_ROWS })
+
+    if (result.error && String(result.error.message || '').includes("Could not find the table 'public.pedido_dashboard_cache'")) {
+      return { data: [], error: null, missingCacheTable: true }
     }
 
-    if (groupIds.length > 0) {
-      query = query.in('gclcodigo', groupIds)
+    return result
+  } catch (error) {
+    if (String(error?.message || '').includes("Could not find the table 'public.pedido_dashboard_cache'")) {
+      return { data: [], error: null, missingCacheTable: true }
     }
-
-    return query
-  }, { maxRows: MAX_SALES_ROWS })
-
-  return result
+    throw error
+  }
 }
 
 function asSqlDate(value, fallback) {
@@ -846,6 +857,10 @@ export async function GET(request) {
 
     for (const [name, res] of Object.entries({ pedfinalidade: finalityRes, pedido_dashboard_cache: dashboardCacheRes })) {
       if (res.error) throw new Error(`${name}: ${res.error.message}`)
+    }
+
+    if (dashboardCacheRes.missingCacheTable) {
+      throw new Error('pedido_dashboard_cache ainda nao foi criada/populada. Rode o sync novamente para inicializar o cache do dashboard.')
     }
 
     const finalityData = finalityRes.data || []

@@ -1350,6 +1350,11 @@ async function runOnce() {
   const supabase = getSupabase();
 
   try {
+    if (!dryRun) {
+      await ensureRoteiroCacheTable(supabase);
+      await ensureDashboardCacheTable(supabase);
+    }
+
     const tables =
       regularRequestedTables.length > 0 ? await getTableNames(db, regularRequestedTables) : [];
     if (tables.length === 0 && manualTablesToSync.length === 0) {
