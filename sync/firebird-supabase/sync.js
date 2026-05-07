@@ -254,14 +254,18 @@ const MANUAL_TABLE_DEFINITIONS = {
           c.CLICNPJCPF,
           c.CLILIMCRED,
           c.CLIPCDESCPRODU,
+          rt.CODS_ROTULO,
           rt.ROTULOS,
+          rt.ROTULOS_DETALHE,
           pc.DATA_ULTIMA_COMPRA,
           DATEDIFF(DAY FROM pc.DATA_ULTIMA_COMPRA TO CURRENT_DATE) AS DIAS_SEM_COMPRAR
       FROM CLIEN c
       LEFT JOIN (
           SELECT
               n.CLICODIGO,
+              LIST(CAST(n.RTCCODIGO AS VARCHAR(20)), ', ') AS CODS_ROTULO,
               LIST(r.RTCNOME, ', ') AS ROTULOS
+              , LIST(CAST(n.RTCCODIGO AS VARCHAR(20)) || ' - ' || r.RTCNOME, ' | ') AS ROTULOS_DETALHE
           FROM NROTULOSCLIEN n
           INNER JOIN ROTULOSCLIEN r
               ON r.RTCCODIGO = n.RTCCODIGO
@@ -741,18 +745,23 @@ async function fetchSupabasePages(queryFactory, pageSize = 1000, maxRows = 10000
 }
 
 async function ensureRoteiroCacheTable(supabase) {
-  await execSupabaseSql(
-    supabase,
-    `
-      create table if not exists public.pedido_roteiro_cache (
-        id_pedido bigint primary key,
-        pedcodigo text not null,
-        roteiro_resumo text,
-        roteiro_json jsonb not null default '[]'::jsonb,
-        updated_at timestamptz not null default now()
-      )
-    `
-  );
+  const ddl = `
+    create table if not exists public.pedido_roteiro_cache (
+      id_pedido bigint primary key,
+      pedcodigo text not null,
+      roteiro_resumo text,
+      roteiro_json jsonb not null default '[]'::jsonb,
+      updated_at timestamptz not null default now()
+    )
+  `;
+
+  if (getSupabaseDatabaseUrl()) {
+    const pool = await getPgPool();
+    await pool.query(ddl);
+    return;
+  }
+
+  await execSupabaseSql(supabase, ddl);
 }
 
 async function ensureDashboardCacheTable(supabase) {
@@ -791,11 +800,51 @@ async function ensureDashboardCacheTable(supabase) {
   await execSupabaseSql(supabase, ddl);
 }
 
+async function ensureCliencrmTable(supabase) {
+  const ddl = `
+    create table if not exists public.cliencrm (
+      clicodigo bigint primary key,
+      clirazsocial text,
+      clinomefant text,
+      clicnpjcpf text,
+      clilimcred numeric,
+      clipcdescprodu numeric,
+      cods_rotulo text,
+      rotulos text,
+      rotulos_detalhe text,
+      data_ultima_compra timestamptz,
+      dias_sem_comprar integer
+    )
+  `;
+
+  const alterStatements = [
+    "alter table public.cliencrm add column if not exists cods_rotulo text",
+    "alter table public.cliencrm add column if not exists rotulos text",
+    "alter table public.cliencrm add column if not exists rotulos_detalhe text",
+    "alter table public.cliencrm add column if not exists data_ultima_compra timestamptz",
+    "alter table public.cliencrm add column if not exists dias_sem_comprar integer",
+  ];
+
+  if (getSupabaseDatabaseUrl()) {
+    const pool = await getPgPool();
+    await pool.query(ddl);
+    for (const statement of alterStatements) {
+      await pool.query(statement);
+    }
+    return;
+  }
+
+  await execSupabaseSql(supabase, ddl);
+  for (const statement of alterStatements) {
+    await execSupabaseSql(supabase, statement);
+  }
+}
+
 async function rebuildRoteiroCache(supabase, fromDate) {
   await ensureRoteiroCacheTable(supabase);
-
-  const orders = await execSupabaseSql(
-    supabase,
+  const pool = await getPgPool();
+  const orders = await pgQuery(
+    pool,
     `
       select
         ped.id_pedido,
@@ -804,11 +853,12 @@ async function rebuildRoteiroCache(supabase, fromDate) {
         ped.pedhrentre,
         ped.peddtemis,
         ped.pedsitped
-      from pedid ped
-      where ped.peddtemis >= '${fromDate}T00:00:00'
-        and ped.pedsitped <> 'C'
+      from public.pedid ped
+      where ped.peddtemis >= $1
+        and coalesce(ped.pedsitped, '') <> 'C'
       order by ped.id_pedido
-    `
+    `,
+    [`${fromDate}T00:00:00`]
   );
 
   if (!orders.length) return;
@@ -829,25 +879,26 @@ async function rebuildRoteiroCache(supabase, fromDate) {
   const roteiroRows = [];
   const passRows = [];
   for (let index = 0; index < orderIds.length; index += 500) {
-    const chunk = orderIds.slice(index, index + 500).join(", ");
-    const routeChunk = await execSupabaseSql(
-      supabase,
+    const chunkIds = orderIds.slice(index, index + 500);
+    const routeChunk = await pgQuery(
+      pool,
       `
         select
           jr.id_pedido,
           jr.jbrordem,
           jr.alxcodigo,
           a.alxdescricao::text as celula_descricao
-        from jbxroteiro jr
-        left join almox a on a.alxcodigo = jr.alxcodigo and a.empcodigo = jr.empcodigo
-        where jr.id_pedido in (${chunk})
+        from public.jbxroteiro jr
+        left join public.almox a on a.alxcodigo = jr.alxcodigo and a.empcodigo = jr.empcodigo
+        where jr.id_pedido = any($1::bigint[])
         order by jr.id_pedido, jr.jbrordem asc, jr.alxcodigo asc
-      `
+      `,
+      [chunkIds]
     );
     roteiroRows.push(...routeChunk);
 
-    const passChunk = await execSupabaseSql(
-      supabase,
+    const passChunk = await pgQuery(
+      pool,
       `
         select distinct on (ac.id_pedido, ac.alxcodigo)
           ac.id_pedido,
@@ -855,12 +906,13 @@ async function rebuildRoteiroCache(supabase, fromDate) {
           a.alxdescricao::text as celula_descricao,
           ac.apdata,
           ac.aphora
-        from acoped ac
-        left join almox a on a.alxcodigo = ac.alxcodigo and a.empcodigo = ac.empcodigo
-        where ac.id_pedido in (${chunk})
+        from public.acoped ac
+        left join public.almox a on a.alxcodigo = ac.alxcodigo and a.empcodigo = ac.empcodigo
+        where ac.id_pedido = any($1::bigint[])
           and ac.alxcodigo is not null
         order by ac.id_pedido, ac.alxcodigo, ac.apdata asc nulls last, ac.aphora asc nulls last
-      `
+      `,
+      [chunkIds]
     );
     passRows.push(...passChunk);
   }
@@ -941,17 +993,33 @@ async function rebuildRoteiroCache(supabase, fromDate) {
     });
   }
 
-  for (let index = 0; index < cacheRows.length; index += 500) {
-    const chunk = cacheRows.slice(index, index + 500);
-    const { error } = await supabase.from("pedido_roteiro_cache").upsert(chunk, {
-      onConflict: "id_pedido",
-      ignoreDuplicates: false,
-      defaultToNull: true,
-    });
-    if (error) {
-      throw new Error(`Supabase pedido_roteiro_cache: ${error.message}`);
+  await withPgTransaction(async (client) => {
+    for (let index = 0; index < orderIds.length; index += 5000) {
+      const chunkIds = orderIds.slice(index, index + 5000);
+      await client.query(
+        `
+          delete from public.pedido_roteiro_cache
+          where id_pedido = any($1::bigint[])
+        `,
+        [chunkIds]
+      );
     }
-  }
+
+    await insertPgRowsInBatches(
+      client,
+      "public.pedido_roteiro_cache",
+      ["id_pedido", "pedcodigo", "roteiro_resumo", "roteiro_json", "updated_at"],
+      cacheRows,
+      (row) => [
+        row.id_pedido,
+        row.pedcodigo,
+        row.roteiro_resumo,
+        JSON.stringify(row.roteiro_json || []),
+        row.updated_at,
+      ],
+      250
+    );
+  });
 
   log(`Cache    : pedido_roteiro_cache atualizado para ${cacheRows.length.toLocaleString("pt-BR")} pedido(s).`);
 }
@@ -1319,6 +1387,9 @@ async function writeBatch(supabase, tableName, rows, primaryKeys, mode = "insert
 async function syncManualTable(db, supabase, tableName, definition, options) {
   const normalizedTable = normalizeName(definition.targetTable || tableName);
   const primaryKeys = (definition.primaryKeys || []).map((key) => normalizeName(key));
+  if (String(tableName || "").toUpperCase() === "CLIENCRM") {
+    await ensureCliencrmTable(supabase);
+  }
   const rows = await fbQuery(db, definition.query);
 
   process.stdout.write(`  ${tableName} -> ${normalizedTable}: `);
