@@ -359,8 +359,8 @@ export default function AdminPage() {
 
   if (!state) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#171416] text-white">
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] px-6 py-5 text-sm text-[#d8d2c8]">
+      <main className="flex min-h-screen items-center justify-center bg-[#1b1713] text-white">
+        <div className="rounded-3xl bg-white/[0.05] px-6 py-5 text-sm text-[#d8d2c8] shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
           Carregando administracao...
         </div>
       </main>
@@ -368,10 +368,10 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#131114] text-white">
+    <main className="min-h-screen bg-[#1b1713] text-white">
       <div className="grid min-h-screen xl:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="flex flex-col border-r border-white/8 bg-[#171418]">
-          <div className="border-b border-white/8 px-7 py-8">
+        <aside className="flex flex-col bg-[#171418]">
+          <div className="px-7 py-8">
             <p className="text-[11px] uppercase tracking-[0.26em] text-[#bca27a]">GSGestao</p>
             <h1 className="mt-2 text-2xl font-semibold">Admin</h1>
             <p className="mt-2 text-sm text-[#a79f93]">{ADMIN_CREDENTIALS.email}</p>
@@ -388,7 +388,7 @@ export default function AdminPage() {
             <button
               type="button"
               onClick={handleLogout}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] text-sm font-medium text-[#d6cfc3] transition hover:bg-white/[0.06]"
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white/[0.06] text-sm font-medium text-[#d6cfc3] transition hover:bg-white/[0.1]"
             >
               <LogOut size={16} />
               Sair
@@ -396,7 +396,7 @@ export default function AdminPage() {
           </div>
         </aside>
 
-        <section className="px-4 py-5 sm:px-6 lg:px-8">
+        <section className="bg-[#1e1914] px-4 py-5 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-[1320px]">
             <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
@@ -411,17 +411,17 @@ export default function AdminPage() {
             </header>
 
             {message ? (
-              <div className="mb-4 rounded-2xl border border-[#9ed3a9]/20 bg-[#9ed3a9]/10 px-4 py-3 text-sm text-[#c8f0d0]">
+              <div className="mb-4 rounded-2xl bg-[#9ed3a9]/12 px-4 py-3 text-sm text-[#c8f0d0]">
                 {message}
               </div>
             ) : null}
 
-            <section className="rounded-[28px] border border-white/8 bg-[#171418]">
-              <div className="border-b border-white/8 px-5 py-5 sm:px-6">
+            <section className="rounded-[28px] bg-[#171418] shadow-[0_18px_60px_rgba(0,0,0,0.2)]">
+              <div className="px-5 py-5 sm:px-6">
                 <div className="relative w-full max-w-lg">
                   <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#81796f]" />
                   <input
-                    className="h-12 w-full rounded-2xl border border-white/8 bg-[#121015] pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-[#7e776f] focus:border-[#e3ad5a]/35"
+                    className="h-12 w-full rounded-2xl bg-white/[0.06] pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-[#7e776f] focus:bg-white/[0.09]"
                     value={searchTerm}
                     onChange={event => setSearchTerm(event.target.value)}
                     placeholder="Buscar empresa..."
@@ -429,7 +429,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="hidden border-b border-white/8 px-6 py-4 text-[11px] uppercase tracking-[0.2em] text-[#8d867c] lg:grid lg:grid-cols-[2fr_1.2fr_1fr_1fr_140px]">
+              <div className="hidden px-6 py-4 text-[11px] uppercase tracking-[0.2em] text-[#8d867c] lg:grid lg:grid-cols-[2fr_1.2fr_1fr_1fr_140px]">
                 <span>Empresa</span>
                 <span>Slug</span>
                 <span>Status</span>
@@ -437,15 +437,15 @@ export default function AdminPage() {
                 <span className="text-right">Acoes</span>
               </div>
 
-              <div className="divide-y divide-white/6">
+              <div className="space-y-3 px-3 pb-3">
                 {filteredCompanies.length === 0 ? (
-                  <div className="px-6 py-16 text-center text-sm text-[#b7b0a6]">
+                  <div className="mx-3 mb-3 rounded-[24px] bg-white/[0.045] px-6 py-16 text-center text-sm text-[#b7b0a6]">
                     Nenhuma empresa encontrada para esse termo.
                   </div>
                 ) : null}
 
                 {filteredCompanies.map(company => (
-                  <div key={company.id} className="px-5 py-5 sm:px-6">
+                  <div key={company.id} className="rounded-[24px] bg-white/[0.04] px-5 py-5 sm:px-6">
                     <div className="grid gap-4 lg:grid-cols-[2fr_1.2fr_1fr_1fr_140px] lg:items-center">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -477,7 +477,7 @@ export default function AdminPage() {
                             type="button"
                             onClick={() => handleDeleteCompany(company)}
                             disabled={deletingCompanyId === company.id}
-                            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 text-sm font-medium text-red-200 transition hover:border-red-400/35 hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-red-500/12 px-4 text-sm font-medium text-red-200 transition hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <Trash2 size={15} />
                           </button>
@@ -494,8 +494,8 @@ export default function AdminPage() {
 
       {isCompanyModalOpen ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4 py-8">
-          <div className="w-full max-w-[880px] rounded-[28px] border border-white/10 bg-[#171418] shadow-[0_28px_120px_rgba(0,0,0,0.45)]">
-            <div className="flex items-center justify-between border-b border-white/8 px-6 py-5">
+          <div className="w-full max-w-[880px] rounded-[28px] bg-[#171418] shadow-[0_28px_120px_rgba(0,0,0,0.45)]">
+            <div className="flex items-center justify-between px-6 py-5">
               <div>
                 <h3 className="text-2xl font-semibold">{form.id ? 'Editar empresa' : 'Nova empresa'}</h3>
                 <p className="mt-1 text-sm text-[#b7b0a6]">
@@ -509,7 +509,7 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <form className="space-y-5 px-6 py-6" onSubmit={handleSaveCompany}>
+            <form className="space-y-5 bg-[#191510] px-6 py-6" onSubmit={handleSaveCompany}>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
                   <label className="portal-label">Nome da empresa</label>
@@ -561,7 +561,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-white/8 bg-[#121015] p-4">
+              <div className="rounded-[24px] bg-white/[0.05] p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h4 className="text-sm font-semibold text-white">Tipo de portal</h4>
@@ -639,12 +639,12 @@ export default function AdminPage() {
                   <span>Marcar como Premium Lab</span>
                 </label>
               ) : (
-                <div className="rounded-2xl border border-[#e3ad5a]/18 bg-[#e3ad5a]/8 px-4 py-3 text-sm text-[#e6d5b7]">
+                <div className="rounded-2xl bg-[#e3ad5a]/10 px-4 py-3 text-sm text-[#e6d5b7]">
                   Premium Lab ja esta definida como tenant principal.
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-5">
                 <div className="flex flex-wrap gap-2">
                   {form.id ? (
                     <>
@@ -676,8 +676,8 @@ export default function AdminPage() {
 
       {isUserModalOpen && managingCompany ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#09080b]/80 px-4 py-8 backdrop-blur-sm">
-          <div className="flex max-h-[92vh] w-full max-w-[1360px] flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[#171418] shadow-[0_32px_120px_rgba(0,0,0,0.45)]">
-            <div className="flex items-center justify-between border-b border-white/8 px-6 py-5">
+          <div className="flex max-h-[92vh] w-full max-w-[1360px] flex-col overflow-hidden rounded-[32px] bg-[#171418] shadow-[0_32px_120px_rgba(0,0,0,0.45)]">
+            <div className="flex items-center justify-between px-6 py-5">
               <div>
                 <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Usuarios da empresa</p>
                 <h2 className="mt-2 text-2xl font-semibold">{managingCompany.name}</h2>
@@ -692,7 +692,7 @@ export default function AdminPage() {
             </div>
 
             <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="overflow-y-auto border-r border-white/8 bg-[#121015] p-6">
+              <div className="overflow-y-auto bg-[#121015] p-6">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <h3 className="text-lg font-semibold">Lista de usuarios</h3>
                   <button type="button" className="portal-primary-button" onClick={startCreateUser}>
@@ -703,7 +703,7 @@ export default function AdminPage() {
 
                 <div className="space-y-3">
                   {getCompanyUserList(companyUsers, managingCompany).map(user => (
-                    <div key={user.uid} className="rounded-[22px] border border-white/8 bg-[#171418] p-4 shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
+                    <div key={user.uid} className="rounded-[22px] bg-white/[0.05] p-4 shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
@@ -776,7 +776,7 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[24px] border border-white/8 bg-[#121015] p-4">
+                  <div className="rounded-[24px] bg-white/[0.05] p-4">
                     <h4 className="text-sm font-semibold text-white">Paginas liberadas</h4>
                     <div className="mt-3 grid gap-3 md:grid-cols-3">
                       <label className="portal-checkbox">
@@ -811,7 +811,7 @@ export default function AdminPage() {
 
                   <div className="grid gap-4 xl:grid-cols-2">
                     {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode, sections]) => (
-                      <div key={mode} className="rounded-[24px] border border-white/8 bg-[#121015] p-4">
+                      <div key={mode} className="rounded-[24px] bg-white/[0.05] p-4">
                         <h4 className="text-sm font-semibold text-white">
                           {mode === 'pps' ? 'Visuais do PPS' : 'Visuais da Analise de Dados'}
                         </h4>
