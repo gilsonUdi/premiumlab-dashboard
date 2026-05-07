@@ -4,11 +4,13 @@
 const fs = require("fs");
 const path = require("path");
 const Firebird = require("node-firebird");
+const { Pool: PgPool } = require("pg");
 const { createClient } = require("@supabase/supabase-js");
 
 loadEnvFile(path.join(__dirname, ".env.local"));
 
 const args = process.argv.slice(2);
+let pgPool = null;
 
 function loadEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -627,6 +629,79 @@ function getSupabase() {
   });
 }
 
+function getSupabaseDatabaseUrl() {
+  return cleanEnvValue(process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL);
+}
+
+async function getPgPool() {
+  const connectionString = getSupabaseDatabaseUrl();
+  if (!connectionString) {
+    throw new Error(
+      "SUPABASE_DATABASE_URL nao configurada. Configure a conexao Postgres direta para reconstruir o pedido_dashboard_cache."
+    );
+  }
+
+  if (!pgPool) {
+    pgPool = new PgPool({
+      connectionString,
+      ssl: { rejectUnauthorized: false },
+      max: 1,
+    });
+  }
+
+  return pgPool;
+}
+
+async function pgQuery(clientOrPool, text, params = []) {
+  const result = await clientOrPool.query(text, params);
+  return result.rows || [];
+}
+
+async function withPgTransaction(work) {
+  const pool = await getPgPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query("begin");
+    const result = await work(client);
+    await client.query("commit");
+    return result;
+  } catch (error) {
+    try {
+      await client.query("rollback");
+    } catch {
+      // ignore rollback failures
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function insertPgRowsInBatches(client, tableName, columns, rows, mapRowToValues, batchSize = 250) {
+  if (!rows.length) return;
+
+  for (let start = 0; start < rows.length; start += batchSize) {
+    const batch = rows.slice(start, start + batchSize);
+    const values = [];
+
+    const groups = batch.map((row, rowIndex) => {
+      const mapped = mapRowToValues(row);
+      values.push(...mapped);
+      const placeholders = mapped.map((_, colIndex) => `$${rowIndex * columns.length + colIndex + 1}`);
+      return `(${placeholders.join(",")})`;
+    });
+
+    await client.query(
+      `
+        insert into ${tableName} (${columns.join(", ")})
+        values ${groups.join(", ")}
+      `,
+      values
+    );
+  }
+}
+
 async function execSupabaseSql(supabase, sql) {
   const { data, error } = await supabase.rpc("exec_sql", {
     sql: sql.replace(/\s+/g, " ").trim(),
@@ -681,34 +756,39 @@ async function ensureRoteiroCacheTable(supabase) {
 }
 
 async function ensureDashboardCacheTable(supabase) {
-  await execSupabaseSql(
-    supabase,
-    `
-      create table if not exists public.pedido_dashboard_cache (
-        id_pedido bigint primary key,
-        pedcodigo text not null,
-        clicodigo bigint,
-        clinome text,
-        gclcodigo bigint,
-        vendedor_codigo bigint,
-        vendedor_nome text,
-        emissao timestamptz,
-        previsto timestamptz,
-        saida timestamptz,
-        quantidade numeric not null default 0,
-        status text,
-        current_cell text,
-        caixa text,
-        indice integer not null default 0,
-        delay_rank bigint not null default 0,
-        status_priority integer not null default 0,
-        row_tone text,
-        roteiro_resumo text,
-        roteiro_json jsonb not null default '[]'::jsonb,
-        updated_at timestamptz not null default now()
-      )
-    `
-  );
+  const ddl = `
+    create table if not exists public.pedido_dashboard_cache (
+      id_pedido bigint primary key,
+      pedcodigo text not null,
+      clicodigo bigint,
+      clinome text,
+      gclcodigo bigint,
+      vendedor_codigo bigint,
+      vendedor_nome text,
+      emissao timestamptz,
+      previsto timestamptz,
+      saida timestamptz,
+      quantidade numeric not null default 0,
+      status text,
+      current_cell text,
+      caixa text,
+      indice integer not null default 0,
+      delay_rank bigint not null default 0,
+      status_priority integer not null default 0,
+      row_tone text,
+      roteiro_resumo text,
+      roteiro_json jsonb not null default '[]'::jsonb,
+      updated_at timestamptz not null default now()
+    )
+  `;
+
+  if (getSupabaseDatabaseUrl()) {
+    const pool = await getPgPool();
+    await pool.query(ddl);
+    return;
+  }
+
+  await execSupabaseSql(supabase, ddl);
 }
 
 async function rebuildRoteiroCache(supabase, fromDate) {
@@ -881,39 +961,46 @@ async function rebuildDashboardCache(supabase, fromDate) {
   log(`Cache    : reconstruindo pedido_dashboard_cache desde ${fromDate}`);
 
   const now = nowInProductionTimeZone();
+  const pool = await getPgPool();
   const [orders, clients, sellers] = await Promise.all([
-    fetchSupabasePages(
-      () =>
-        supabase
-          .from("pedid")
-          .select("id_pedido,pedcodigo,clicodigo,funcodigo,peddtemis,pedpzentre,pedhrentre,peddtsaida,pedhrsaida,pedsitped")
-          .gte("peddtemis", `${fromDate}T00:00:00`)
-          .neq("pedsitped", "C")
-          .order("id_pedido", { ascending: true }),
-      1000,
-      100000
+    pgQuery(
+      pool,
+      `
+        select
+          id_pedido,
+          pedcodigo,
+          clicodigo,
+          funcodigo,
+          peddtemis,
+          pedpzentre,
+          pedhrentre,
+          peddtsaida,
+          pedhrsaida,
+          pedsitped
+        from public.pedid
+        where peddtemis >= $1
+          and coalesce(pedsitped, '') <> 'C'
+        order by id_pedido
+      `,
+      [`${fromDate}T00:00:00`]
     ),
-    fetchSupabasePages(
-      () =>
-        supabase
-          .from("clien")
-          .select("clicodigo,clinomefant,clirazsocial,gclcodigo")
-          .order("clicodigo", { ascending: true }),
-      1000,
-      10000
+    pgQuery(
+      pool,
+      `
+        select clicodigo, clinomefant, clirazsocial, gclcodigo
+        from public.clien
+        order by clicodigo
+      `
     ),
-    fetchSupabasePages(
-      () =>
-        supabase
-          .from("funcio")
-          .select("funcodigo,funnome")
-          .order("funcodigo", { ascending: true }),
-      1000,
-      5000
+    pgQuery(
+      pool,
+      `
+        select funcodigo, funnome
+        from public.funcio
+        order by funcodigo
+      `
     ),
   ]);
-
-  if (!orders.length) return;
 
   const clientMap = new Map(
     clients.map((row) => [
@@ -955,11 +1042,11 @@ async function rebuildDashboardCache(supabase, fromDate) {
   const roteiroCacheMap = new Map();
 
   for (let index = 0; index < orderIds.length; index += 250) {
-    const chunk = orderIds.slice(index, index + 250).join(", ");
+    const chunkIds = orderIds.slice(index, index + 250);
 
     const [latestCellRows, fallbackRows, productQuantityRows, serviceQuantityRows, roteiroRows] = await Promise.all([
-      execSupabaseSql(
-        supabase,
+      pgQuery(
+        pool,
         `
           select distinct on (ac.id_pedido)
             ac.id_pedido,
@@ -967,12 +1054,13 @@ async function rebuildDashboardCache(supabase, fromDate) {
             ac.jbcodigo::text as caixa
           from acoped ac
           left join localped lp on lp.lpcodigo = ac.lpcodigo
-          where ac.id_pedido in (${chunk})
+          where ac.id_pedido = any($1::bigint[])
           order by ac.id_pedido, ac.apdata desc nulls last, ac.aphora desc nulls last
-        `
+        `,
+        [chunkIds]
       ),
-      execOptionalSql(
-        supabase,
+      pgQuery(
+        pool,
         `
           select distinct on (rq.pdccodigo)
             rq.pdccodigo as id_pedido,
@@ -981,42 +1069,46 @@ async function rebuildDashboardCache(supabase, fromDate) {
             rq.dptcodigo
           from requi rq
           left join almox al on al.dptcodigo = rq.dptcodigo
-          where rq.pdccodigo in (${chunk})
+          where rq.pdccodigo = any($1::bigint[])
           order by rq.pdccodigo, rq.reqdata desc nulls last, rq.reqhora desc nulls last, rq.reqcodigo desc
-        `
+        `,
+        [chunkIds]
       ),
-      execSupabaseSql(
-        supabase,
+      pgQuery(
+        pool,
         `
           select
             id_pedido,
             coalesce(sum(pdpqtdade)::numeric, 0) as quantidade_total
           from pdprd
-          where id_pedido in (${chunk})
+          where id_pedido = any($1::bigint[])
           group by id_pedido
-        `
+        `,
+        [chunkIds]
       ),
-      execSupabaseSql(
-        supabase,
+      pgQuery(
+        pool,
         `
           select
             id_pedido,
             coalesce(sum(pdsqtdade)::numeric, 0) as quantidade_total
           from pdser
-          where id_pedido in (${chunk})
+          where id_pedido = any($1::bigint[])
           group by id_pedido
-        `
+        `,
+        [chunkIds]
       ),
-      execOptionalSql(
-        supabase,
+      pgQuery(
+        pool,
         `
           select
             id_pedido,
             roteiro_resumo,
             roteiro_json
           from pedido_roteiro_cache
-          where id_pedido in (${chunk})
-        `
+          where id_pedido = any($1::bigint[])
+        `,
+        [chunkIds]
       ),
     ]);
 
@@ -1087,31 +1179,68 @@ async function rebuildDashboardCache(supabase, fromDate) {
     });
   }
 
-  const orderIdChunks = [];
-  for (let index = 0; index < orderIds.length; index += 1000) {
-    orderIdChunks.push(orderIds.slice(index, index + 1000));
-  }
-
-  for (const chunkIds of orderIdChunks) {
-    const idsSql = chunkIds.join(", ");
-    await deleteSupabaseInChunks(
-      supabase,
-      "pedido_dashboard_cache",
-      `id_pedido in (${idsSql})`
+  await withPgTransaction(async (client) => {
+    await client.query(
+      `
+        delete from public.pedido_dashboard_cache
+        where emissao >= $1
+      `,
+      [`${fromDate}T00:00:00`]
     );
-  }
 
-  for (let index = 0; index < cacheRows.length; index += 500) {
-    const chunk = cacheRows.slice(index, index + 500);
-    const { error } = await supabase.from("pedido_dashboard_cache").upsert(chunk, {
-      onConflict: "id_pedido",
-      ignoreDuplicates: false,
-      defaultToNull: true,
-    });
-    if (error) {
-      throw new Error(`Supabase pedido_dashboard_cache: ${error.message}`);
-    }
-  }
+    await insertPgRowsInBatches(
+      client,
+      "public.pedido_dashboard_cache",
+      [
+        "id_pedido",
+        "pedcodigo",
+        "clicodigo",
+        "clinome",
+        "gclcodigo",
+        "vendedor_codigo",
+        "vendedor_nome",
+        "emissao",
+        "previsto",
+        "saida",
+        "quantidade",
+        "status",
+        "current_cell",
+        "caixa",
+        "indice",
+        "delay_rank",
+        "status_priority",
+        "row_tone",
+        "roteiro_resumo",
+        "roteiro_json",
+        "updated_at"
+      ],
+      cacheRows,
+      (row) => [
+        row.id_pedido,
+        row.pedcodigo,
+        row.clicodigo,
+        row.clinome,
+        row.gclcodigo,
+        row.vendedor_codigo,
+        row.vendedor_nome,
+        row.emissao,
+        row.previsto,
+        row.saida,
+        row.quantidade,
+        row.status,
+        row.current_cell,
+        row.caixa,
+        row.indice,
+        row.delay_rank,
+        row.status_priority,
+        row.row_tone,
+        row.roteiro_resumo,
+        JSON.stringify(row.roteiro_json || []),
+        row.updated_at,
+      ],
+      250
+    );
+  });
 
   log(`Cache    : pedido_dashboard_cache atualizado para ${cacheRows.length.toLocaleString("pt-BR")} pedido(s).`);
 }
