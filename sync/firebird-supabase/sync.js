@@ -254,25 +254,12 @@ const MANUAL_TABLE_DEFINITIONS = {
           c.CLICNPJCPF,
           c.CLILIMCRED,
           c.CLIPCDESCPRODU,
-          rt.CODS_ROTULO,
-          rt.ROTULOS,
-          rt.ROTULOS_DETALHE,
+          cast(null as varchar(5000)) AS CODS_ROTULO,
+          cast(null as varchar(5000)) AS ROTULOS,
+          cast(null as varchar(5000)) AS ROTULOS_DETALHE,
           pc.DATA_ULTIMA_COMPRA,
           DATEDIFF(DAY FROM pc.DATA_ULTIMA_COMPRA TO CURRENT_DATE) AS DIAS_SEM_COMPRAR
       FROM CLIEN c
-      LEFT JOIN (
-          SELECT
-              n.CLICODIGO,
-              LIST(CAST(n.RTCCODIGO AS VARCHAR(20)), ', ') AS CODS_ROTULO,
-              LIST(r.RTCNOME, ', ') AS ROTULOS
-              , LIST(CAST(n.RTCCODIGO AS VARCHAR(20)) || ' - ' || r.RTCNOME, ' | ') AS ROTULOS_DETALHE
-          FROM NROTULOSCLIEN n
-          INNER JOIN ROTULOSCLIEN r
-              ON r.RTCCODIGO = n.RTCCODIGO
-          GROUP BY
-              n.CLICODIGO
-      ) rt
-          ON rt.CLICODIGO = c.CLICODIGO
       LEFT JOIN (
           SELECT
               p.CLICODIGO,
@@ -707,6 +694,40 @@ async function resetPgPool() {
   } finally {
     pgPool = null;
   }
+}
+
+async function hydrateCliencrmLabelsFromSupabase(supabase) {
+  await execSupabaseSql(
+    supabase,
+    `
+      update public.cliencrm
+      set
+        cods_rotulo = null,
+        rotulos = null,
+        rotulos_detalhe = null
+    `
+  );
+
+  await execSupabaseSql(
+    supabase,
+    `
+      update public.cliencrm c
+      set
+        cods_rotulo = agg.cods_rotulo,
+        rotulos = agg.rotulos,
+        rotulos_detalhe = agg.rotulos_detalhe
+      from (
+        select
+          rc.codigo_cliente as clicodigo,
+          string_agg(rc.cod_rotulo::text, ', ' order by rc.cod_rotulo) as cods_rotulo,
+          string_agg(coalesce(rc.rotulo, ''), ', ' order by rc.cod_rotulo) as rotulos,
+          string_agg(rc.cod_rotulo::text || ' - ' || coalesce(rc.rotulo, ''), ' | ' order by rc.cod_rotulo) as rotulos_detalhe
+        from public.rotulosclien rc
+        group by rc.codigo_cliente
+      ) agg
+      where c.clicodigo = agg.clicodigo
+    `
+  );
 }
 
 async function withPgRetries(work) {
@@ -1772,6 +1793,17 @@ async function runOnce() {
         failed += 1;
         failedTables.add(String(table || "").toUpperCase());
         log(`  ERRO ${table}: ${error.message}`);
+      }
+    }
+
+    if (!dryRun && succeededTables.has("CLIENCRM") && succeededTables.has("ROTULOSCLIEN")) {
+      try {
+        await hydrateCliencrmLabelsFromSupabase(supabase);
+        log("  CLIENCRM: rotulos atualizados a partir de rotulosclien.");
+      } catch (error) {
+        failed += 1;
+        failedTables.add("CLIENCRM");
+        log(`  ERRO CLIENCRM ROTULOS: ${error.message}`);
       }
     }
 
