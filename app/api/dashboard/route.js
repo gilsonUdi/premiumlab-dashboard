@@ -1100,6 +1100,11 @@ export async function GET(request) {
     const lossQuantity = Number(lossMetrics.qtd_perdas) || 0
     const financiallyLaunchedQuantity = Number(lossMetrics.qtd_lanca_financeiro) || 0
     const totalQuantity = Number(lossMetrics.qtd_perda_produz) || (lossQuantity + financiallyLaunchedQuantity)
+
+    if (cachedOrders.length === 0 && totalQuantity > 0) {
+      throw new Error('pedido_dashboard_cache ainda nao foi populada para este periodo. A sync das tabelas-base terminou parcial e o cache do dashboard foi ignorado.')
+    }
+
     const perdas = {
       total: totalQuantity,
       withLoss: lossQuantity,
