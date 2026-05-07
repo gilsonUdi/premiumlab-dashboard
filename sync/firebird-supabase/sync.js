@@ -757,12 +757,6 @@ async function ensureRoteiroCacheTable(supabase) {
     )
   `;
 
-  if (getSupabaseDatabaseUrl()) {
-    const pool = await getPgPool();
-    await pool.query(ddl);
-    return;
-  }
-
   await execSupabaseSql(supabase, ddl);
 }
 
@@ -793,12 +787,6 @@ async function ensureDashboardCacheTable(supabase) {
     )
   `;
 
-  if (getSupabaseDatabaseUrl()) {
-    const pool = await getPgPool();
-    await pool.query(ddl);
-    return;
-  }
-
   await execSupabaseSql(supabase, ddl);
 }
 
@@ -826,15 +814,6 @@ async function ensureCliencrmTable(supabase) {
     "alter table public.cliencrm add column if not exists data_ultima_compra timestamptz",
     "alter table public.cliencrm add column if not exists dias_sem_comprar integer",
   ];
-
-  if (getSupabaseDatabaseUrl()) {
-    const pool = await getPgPool();
-    await pool.query(ddl);
-    for (const statement of alterStatements) {
-      await pool.query(statement);
-    }
-    return;
-  }
 
   await execSupabaseSql(supabase, ddl);
   for (const statement of alterStatements) {
