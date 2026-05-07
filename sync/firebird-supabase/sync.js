@@ -650,6 +650,8 @@ async function getPgPool() {
       connectionString,
       ssl: { rejectUnauthorized: false },
       max: 1,
+      family: 4,
+      connectionTimeoutMillis: 15000,
     });
   }
 
