@@ -291,6 +291,8 @@ const MANUAL_TABLE_DEPENDENCIES = {
   CLIENCRM: ["ROTULOSCLIEN"],
 };
 
+const AUTO_MANUAL_TABLES = ["ROTULOSCLIEN"];
+
 const TABLE_COLUMN_OMISSIONS = {
   REQUI: new Set(["reqdtreceb"]),
 };
@@ -1747,6 +1749,7 @@ async function runOnce() {
   const tableArg = getTableArg();
   const tablesArg = getTablesArg();
   const refreshRecentDays = getNumberArg("--refresh-recent-days");
+  const automaticRun = !tableArg && tablesArg.length === 0;
   const incrementalEnabled = incrementalSyncEnabled();
   const dateFilters = incrementalEnabled ? parseDateFilters() : {};
   const linkedDateFilters = incrementalEnabled ? parseLinkedDateFilters() : {};
@@ -1756,10 +1759,13 @@ async function runOnce() {
   const dateTablesOnly =
     incrementalEnabled && (args.includes("--date-tables-only") || envIsTrue("SYNC_DATE_TABLES_ONLY"));
   const filterList = tablesArg.length > 0 ? tablesArg : tableArg ? [tableArg] : parseList(process.env.SYNC_TABLES);
-  const requestedTables =
+  let requestedTables =
     dateTablesOnly && !tableArg && tablesArg.length === 0
       ? [...new Set([...Object.keys(dateFilters), ...Object.keys(linkedDateFilters)])]
       : filterList;
+  if (automaticRun) {
+    requestedTables = [...new Set([...(requestedTables || []), ...AUTO_MANUAL_TABLES])];
+  }
   const manualTablesToSync = [...new Set(
     requestedTables
       .filter((table) => getManualTableDefinition(table))
