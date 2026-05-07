@@ -711,6 +711,13 @@ async function pgQuery(clientOrPool, text, params = []) {
   return result.rows || [];
 }
 
+async function pgPoolQuery(text, params = []) {
+  return withPgRetries(async () => {
+    const pool = await getPgPool();
+    return pgQuery(pool, text, params);
+  });
+}
+
 async function withPgTransaction(work) {
   return withPgRetries(async () => {
     const pool = await getPgPool();
@@ -873,25 +880,21 @@ async function ensureCliencrmTable(supabase) {
 
 async function rebuildRoteiroCache(supabase, fromDate) {
   await ensureRoteiroCacheTable(supabase);
-  const pool = await withPgRetries(() => getPgPool());
-  const orders = await withPgRetries(() =>
-    pgQuery(
-      pool,
-      `
-        select
-          ped.id_pedido,
-          ped.pedcodigo,
-          ped.pedpzentre,
-          ped.pedhrentre,
-          ped.peddtemis,
-          ped.pedsitped
-        from public.pedid ped
-        where ped.peddtemis >= $1
-          and coalesce(ped.pedsitped, '') <> 'C'
-        order by ped.id_pedido
-      `,
-      [`${fromDate}T00:00:00`]
-    )
+  const orders = await pgPoolQuery(
+    `
+      select
+        ped.id_pedido,
+        ped.pedcodigo,
+        ped.pedpzentre,
+        ped.pedhrentre,
+        ped.peddtemis,
+        ped.pedsitped
+      from public.pedid ped
+      where ped.peddtemis >= $1
+        and coalesce(ped.pedsitped, '') <> 'C'
+      order by ped.id_pedido
+    `,
+    [`${fromDate}T00:00:00`]
   );
 
   if (!orders.length) return;
@@ -913,8 +916,7 @@ async function rebuildRoteiroCache(supabase, fromDate) {
   const passRows = [];
   for (let index = 0; index < orderIds.length; index += 500) {
     const chunkIds = orderIds.slice(index, index + 500);
-    const routeChunk = await pgQuery(
-      pool,
+    const routeChunk = await pgPoolQuery(
       `
         select
           jr.id_pedido,
@@ -930,8 +932,7 @@ async function rebuildRoteiroCache(supabase, fromDate) {
     );
     roteiroRows.push(...routeChunk);
 
-    const passChunk = await pgQuery(
-      pool,
+    const passChunk = await pgPoolQuery(
       `
         select distinct on (ac.id_pedido, ac.alxcodigo)
           ac.id_pedido,
@@ -1062,48 +1063,42 @@ async function rebuildDashboardCache(supabase, fromDate) {
   log(`Cache    : reconstruindo pedido_dashboard_cache desde ${fromDate}`);
 
   const now = nowInProductionTimeZone();
-  const pool = await withPgRetries(() => getPgPool());
-  const [orders, clients, sellers] = await withPgRetries(() =>
-    Promise.all([
-      pgQuery(
-        pool,
-        `
-          select
-            id_pedido,
-            pedcodigo,
-            clicodigo,
-            funcodigo,
-            peddtemis,
-            pedpzentre,
-            pedhrentre,
-            peddtsaida,
-            pedhrsaida,
-            pedsitped
-          from public.pedid
-          where peddtemis >= $1
-            and coalesce(pedsitped, '') <> 'C'
-          order by id_pedido
-        `,
-        [`${fromDate}T00:00:00`]
-      ),
-      pgQuery(
-        pool,
-        `
-          select clicodigo, clinomefant, clirazsocial, gclcodigo
-          from public.clien
-          order by clicodigo
-        `
-      ),
-      pgQuery(
-        pool,
-        `
-          select funcodigo, funnome
-          from public.funcio
-          order by funcodigo
-        `
-      ),
-    ])
-  );
+  const [orders, clients, sellers] = await Promise.all([
+    pgPoolQuery(
+      `
+        select
+          id_pedido,
+          pedcodigo,
+          clicodigo,
+          funcodigo,
+          peddtemis,
+          pedpzentre,
+          pedhrentre,
+          peddtsaida,
+          pedhrsaida,
+          pedsitped
+        from public.pedid
+        where peddtemis >= $1
+          and coalesce(pedsitped, '') <> 'C'
+        order by id_pedido
+      `,
+      [`${fromDate}T00:00:00`]
+    ),
+    pgPoolQuery(
+      `
+        select clicodigo, clinomefant, clirazsocial, gclcodigo
+        from public.clien
+        order by clicodigo
+      `
+    ),
+    pgPoolQuery(
+      `
+        select funcodigo, funnome
+        from public.funcio
+        order by funcodigo
+      `
+    ),
+  ]);
 
   const clientMap = new Map(
     clients.map((row) => [
@@ -1148,8 +1143,7 @@ async function rebuildDashboardCache(supabase, fromDate) {
     const chunkIds = orderIds.slice(index, index + 250);
 
     const [latestCellRows, fallbackRows, productQuantityRows, serviceQuantityRows, roteiroRows] = await Promise.all([
-      pgQuery(
-        pool,
+      pgPoolQuery(
         `
           select distinct on (ac.id_pedido)
             ac.id_pedido,
@@ -1162,8 +1156,7 @@ async function rebuildDashboardCache(supabase, fromDate) {
         `,
         [chunkIds]
       ),
-      pgQuery(
-        pool,
+      pgPoolQuery(
         `
           select distinct on (rq.pdccodigo)
             rq.pdccodigo as id_pedido,
@@ -1177,8 +1170,7 @@ async function rebuildDashboardCache(supabase, fromDate) {
         `,
         [chunkIds]
       ),
-      pgQuery(
-        pool,
+      pgPoolQuery(
         `
           select
             id_pedido,
@@ -1189,8 +1181,7 @@ async function rebuildDashboardCache(supabase, fromDate) {
         `,
         [chunkIds]
       ),
-      pgQuery(
-        pool,
+      pgPoolQuery(
         `
           select
             id_pedido,
@@ -1201,8 +1192,7 @@ async function rebuildDashboardCache(supabase, fromDate) {
         `,
         [chunkIds]
       ),
-      pgQuery(
-        pool,
+      pgPoolQuery(
         `
           select
             id_pedido,
