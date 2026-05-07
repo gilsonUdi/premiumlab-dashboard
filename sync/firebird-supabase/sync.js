@@ -639,6 +639,14 @@ async function execSupabaseSql(supabase, sql) {
   return data || [];
 }
 
+async function execOptionalSql(supabase, sql) {
+  try {
+    return await execSupabaseSql(supabase, sql);
+  } catch (error) {
+    return [];
+  }
+}
+
 async function ensureRoteiroCacheTable(supabase) {
   await execSupabaseSql(
     supabase,
