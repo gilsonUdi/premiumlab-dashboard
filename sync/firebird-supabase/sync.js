@@ -1331,9 +1331,11 @@ async function deleteSupabaseInChunks(supabase, tableName, whereClause, batchSiz
 
 async function writeBatch(supabase, tableName, rows, primaryKeys, mode = "insert-only") {
   if (rows.length === 0) return;
+  const batchRows =
+    primaryKeys.length > 0 ? dedupeRowsByPrimaryKeys(rows, primaryKeys) : rows;
 
   if (mode === "upsert" && primaryKeys.length > 0) {
-    const { error } = await supabase.from(tableName).upsert(rows, {
+    const { error } = await supabase.from(tableName).upsert(batchRows, {
       onConflict: primaryKeys.join(","),
       ignoreDuplicates: false,
       defaultToNull: true,
@@ -1346,13 +1348,13 @@ async function writeBatch(supabase, tableName, rows, primaryKeys, mode = "insert
     return;
   }
 
-  let query = supabase.from(tableName).upsert(rows, {
+  let query = supabase.from(tableName).upsert(batchRows, {
     ignoreDuplicates: true,
     defaultToNull: true,
   });
 
   if (primaryKeys.length > 0) {
-    query = supabase.from(tableName).upsert(rows, {
+    query = supabase.from(tableName).upsert(batchRows, {
       onConflict: primaryKeys.join(","),
       ignoreDuplicates: true,
       defaultToNull: true,
@@ -1363,6 +1365,17 @@ async function writeBatch(supabase, tableName, rows, primaryKeys, mode = "insert
   if (error) {
     throw new Error(`Supabase ${tableName}: ${error.message}`);
   }
+}
+
+function dedupeRowsByPrimaryKeys(rows, primaryKeys) {
+  const uniqueRows = new Map();
+
+  for (const row of rows) {
+    const key = primaryKeys.map((column) => JSON.stringify(row?.[column] ?? null)).join("|");
+    uniqueRows.set(key, row);
+  }
+
+  return Array.from(uniqueRows.values());
 }
 
 async function syncManualTable(db, supabase, tableName, definition, options) {
