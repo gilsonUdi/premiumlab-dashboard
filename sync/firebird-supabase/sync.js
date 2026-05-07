@@ -647,6 +647,24 @@ async function execOptionalSql(supabase, sql) {
   }
 }
 
+async function fetchSupabasePages(queryFactory, pageSize = 1000, maxRows = 100000) {
+  const rows = [];
+
+  for (let from = 0; from < maxRows; from += pageSize) {
+    const to = Math.min(from + pageSize - 1, maxRows - 1);
+    const { data, error } = await queryFactory().range(from, to);
+    if (error) {
+      throw new Error(`Supabase page fetch: ${error.message}`);
+    }
+
+    const page = data || [];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+
+  return rows;
+}
+
 async function ensureRoteiroCacheTable(supabase) {
   await execSupabaseSql(
     supabase,
@@ -861,50 +879,71 @@ async function rebuildRoteiroCache(supabase, fromDate) {
 async function rebuildDashboardCache(supabase, fromDate) {
   await ensureDashboardCacheTable(supabase);
   await deleteSupabaseInChunks(supabase, "pedido_dashboard_cache", `emissao >= '${fromDate}T00:00:00'`);
+  log(`Cache    : reconstruindo pedido_dashboard_cache desde ${fromDate}`);
 
   const now = nowInProductionTimeZone();
-  const orders = await execSupabaseSql(
-    supabase,
-    `
-      select
-        ped.id_pedido,
-        ped.pedcodigo,
-        ped.clicodigo,
-        coalesce(cli.clinomefant, cli.clirazsocial) as clinome,
-        cli.gclcodigo,
-        ped.funcodigo as vendedor_codigo,
-        f.funnome as vendedor_nome,
-        ped.peddtemis,
-        ped.pedpzentre,
-        ped.pedhrentre,
-        ped.peddtsaida,
-        ped.pedhrsaida,
-        ped.pedsitped
-      from pedid ped
-      left join clien cli on cli.clicodigo = ped.clicodigo
-      left join funcio f on f.funcodigo = ped.funcodigo
-      where ped.peddtemis >= '${fromDate}T00:00:00'
-        and ped.pedsitped <> 'C'
-      order by ped.id_pedido
-    `
-  );
+  const [orders, clients, sellers] = await Promise.all([
+    fetchSupabasePages(
+      () =>
+        supabase
+          .from("pedid")
+          .select("id_pedido,pedcodigo,clicodigo,funcodigo,peddtemis,pedpzentre,pedhrentre,peddtsaida,pedhrsaida,pedsitped")
+          .gte("peddtemis", `${fromDate}T00:00:00`)
+          .neq("pedsitped", "C")
+          .order("id_pedido", { ascending: true }),
+      1000,
+      100000
+    ),
+    fetchSupabasePages(
+      () =>
+        supabase
+          .from("clien")
+          .select("clicodigo,clinomefant,clirazsocial,gclcodigo")
+          .order("clicodigo", { ascending: true }),
+      1000,
+      10000
+    ),
+    fetchSupabasePages(
+      () =>
+        supabase
+          .from("funcio")
+          .select("funcodigo,funnome")
+          .order("funcodigo", { ascending: true }),
+      1000,
+      5000
+    ),
+  ]);
 
   if (!orders.length) return;
+
+  const clientMap = new Map(
+    clients.map((row) => [
+      String(row.clicodigo),
+      {
+        clinome: normalizeText(row.clinomefant || row.clirazsocial),
+        gclcodigo: row.gclcodigo != null ? Number(row.gclcodigo) : null,
+      },
+    ])
+  );
+  const sellerMap = new Map(
+    sellers.map((row) => [String(row.funcodigo), normalizeText(row.funnome)])
+  );
 
   const orderIds = [];
   const orderMap = new Map();
   for (const row of orders) {
     const orderId = Number(row.id_pedido);
     if (!Number.isFinite(orderId)) continue;
+    const clientInfo = clientMap.get(String(row.clicodigo)) || { clinome: "", gclcodigo: null };
     orderIds.push(orderId);
     orderMap.set(String(orderId), {
       id_pedido: orderId,
       pedcodigo: String(row.pedcodigo || "").trim(),
       clicodigo: row.clicodigo != null ? Number(row.clicodigo) : null,
-      clinome: normalizeText(row.clinome),
-      gclcodigo: row.gclcodigo != null ? Number(row.gclcodigo) : null,
-      vendedor_codigo: row.vendedor_codigo != null ? Number(row.vendedor_codigo) : null,
-      vendedor_nome: normalizeText(row.vendedor_nome),
+      clinome: clientInfo.clinome,
+      gclcodigo: clientInfo.gclcodigo,
+      vendedor_codigo: row.funcodigo != null ? Number(row.funcodigo) : null,
+      vendedor_nome: sellerMap.get(String(row.funcodigo)) || "",
       emitted: parseLocalDateTime(row.peddtemis),
       expected: parseLocalDateTime(combineDateTime(row.pedpzentre, row.pedhrentre)),
       delivered: parseLocalDateTime(combineDateTime(row.peddtsaida, row.pedhrsaida)),
@@ -916,8 +955,8 @@ async function rebuildDashboardCache(supabase, fromDate) {
   const quantityMap = new Map();
   const roteiroCacheMap = new Map();
 
-  for (let index = 0; index < orderIds.length; index += 500) {
-    const chunk = orderIds.slice(index, index + 500).join(", ");
+  for (let index = 0; index < orderIds.length; index += 250) {
+    const chunk = orderIds.slice(index, index + 250).join(", ");
 
     const [latestCellRows, fallbackRows, productQuantityRows, serviceQuantityRows, roteiroRows] = await Promise.all([
       execSupabaseSql(
