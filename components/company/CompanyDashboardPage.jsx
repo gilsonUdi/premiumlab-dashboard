@@ -32,32 +32,24 @@ function PlaceholderTool({ company }) {
 
 function ExternalDashboardFrame({ company }) {
   return (
-    <main className="min-h-screen bg-[#141216] px-4 py-4 text-white sm:px-6 sm:py-6">
-      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1480px] flex-col gap-4">
-        <header className="flex flex-wrap items-center justify-between gap-4 rounded-[28px] border border-white/8 bg-[#1c191d] px-5 py-4">
-          <div>
-            <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Dashboard externo</p>
-            <h1 className="mt-1 text-2xl font-semibold">{company.name}</h1>
-            <p className="mt-2 text-sm text-[#bdb7ae]">
-              O dashboard esta sendo exibido dentro do portal da empresa. Se o fornecedor bloquear exibicao em iframe, sera necessario liberar o dominio do portal.
-            </p>
-          </div>
+    <main className="relative min-h-screen bg-[#141216] text-white">
+      <Link
+        href={`/empresa/${company.slug}`}
+        aria-label="Voltar ao portal"
+        className="absolute left-4 top-4 z-20 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#1f1b20]/88 text-2xl text-white shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-[#2a242b] sm:left-6 sm:top-6"
+      >
+        ←
+      </Link>
 
-          <Link href={`/empresa/${company.slug}`} className="portal-ghost-button">
-            Voltar ao portal
-          </Link>
-        </header>
-
-        <section className="min-h-[78vh] overflow-hidden rounded-[30px] border border-white/8 bg-[#0f0d11] shadow-[0_30px_90px_rgba(0,0,0,0.32)]">
-          <iframe
-            title={`Dashboard externo de ${company.name}`}
-            src={company.externalDashboardUrl}
-            className="h-[78vh] w-full bg-white"
-            referrerPolicy="no-referrer"
-            allow="fullscreen"
-          />
-        </section>
-      </div>
+      <section className="h-screen w-full overflow-hidden bg-[#0f0d11]">
+        <iframe
+          title={`Dashboard externo de ${company.name}`}
+          src={company.externalDashboardUrl}
+          className="h-full w-full bg-white"
+          referrerPolicy="no-referrer"
+          allow="fullscreen"
+        />
+      </section>
     </main>
   )
 }
