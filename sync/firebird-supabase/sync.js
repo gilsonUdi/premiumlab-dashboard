@@ -878,7 +878,6 @@ async function rebuildRoteiroCache(supabase, fromDate) {
 
 async function rebuildDashboardCache(supabase, fromDate) {
   await ensureDashboardCacheTable(supabase);
-  await deleteSupabaseInChunks(supabase, "pedido_dashboard_cache", `emissao >= '${fromDate}T00:00:00'`);
   log(`Cache    : reconstruindo pedido_dashboard_cache desde ${fromDate}`);
 
   const now = nowInProductionTimeZone();
@@ -1086,6 +1085,20 @@ async function rebuildDashboardCache(supabase, fromDate) {
       roteiro_json: roteiroCache.roteiro_json,
       updated_at: new Date().toISOString(),
     });
+  }
+
+  const orderIdChunks = [];
+  for (let index = 0; index < orderIds.length; index += 1000) {
+    orderIdChunks.push(orderIds.slice(index, index + 1000));
+  }
+
+  for (const chunkIds of orderIdChunks) {
+    const idsSql = chunkIds.join(", ");
+    await deleteSupabaseInChunks(
+      supabase,
+      "pedido_dashboard_cache",
+      `id_pedido in (${idsSql})`
+    );
   }
 
   for (let index = 0; index < cacheRows.length; index += 500) {
