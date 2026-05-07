@@ -637,6 +637,19 @@ function getSupabaseDatabaseUrl() {
   return cleanEnvValue(process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isPgTimeoutError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    message.includes("timeout") ||
+    message.includes("etimedout") ||
+    message.includes("connection terminated due to connection timeout")
+  );
+}
+
 async function getPgPool() {
   const connectionString = getSupabaseDatabaseUrl();
   if (!connectionString) {
@@ -658,30 +671,67 @@ async function getPgPool() {
   return pgPool;
 }
 
+async function resetPgPool() {
+  if (!pgPool) return;
+
+  try {
+    await pgPool.end();
+  } catch {
+    // ignore pool shutdown failures
+  } finally {
+    pgPool = null;
+  }
+}
+
+async function withPgRetries(work) {
+  const attempts = Math.max(1, Number(process.env.SYNC_PG_RETRY_ATTEMPTS || 3));
+  const delayMs = Math.max(250, Number(process.env.SYNC_PG_RETRY_DELAY_MS || 2000));
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await work();
+    } catch (error) {
+      lastError = error;
+      if (!isPgTimeoutError(error) || attempt === attempts) {
+        throw error;
+      }
+
+      log(`Cache    : tentativa ${attempt}/${attempts} do Postgres expirou, tentando novamente...`);
+      await resetPgPool();
+      await sleep(delayMs);
+    }
+  }
+
+  throw lastError;
+}
+
 async function pgQuery(clientOrPool, text, params = []) {
   const result = await clientOrPool.query(text, params);
   return result.rows || [];
 }
 
 async function withPgTransaction(work) {
-  const pool = await getPgPool();
-  const client = await pool.connect();
+  return withPgRetries(async () => {
+    const pool = await getPgPool();
+    const client = await pool.connect();
 
-  try {
-    await client.query("begin");
-    const result = await work(client);
-    await client.query("commit");
-    return result;
-  } catch (error) {
     try {
-      await client.query("rollback");
-    } catch {
-      // ignore rollback failures
+      await client.query("begin");
+      const result = await work(client);
+      await client.query("commit");
+      return result;
+    } catch (error) {
+      try {
+        await client.query("rollback");
+      } catch {
+        // ignore rollback failures
+      }
+      throw error;
+    } finally {
+      client.release();
     }
-    throw error;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 async function insertPgRowsInBatches(client, tableName, columns, rows, mapRowToValues, batchSize = 250) {
@@ -823,23 +873,25 @@ async function ensureCliencrmTable(supabase) {
 
 async function rebuildRoteiroCache(supabase, fromDate) {
   await ensureRoteiroCacheTable(supabase);
-  const pool = await getPgPool();
-  const orders = await pgQuery(
-    pool,
-    `
-      select
-        ped.id_pedido,
-        ped.pedcodigo,
-        ped.pedpzentre,
-        ped.pedhrentre,
-        ped.peddtemis,
-        ped.pedsitped
-      from public.pedid ped
-      where ped.peddtemis >= $1
-        and coalesce(ped.pedsitped, '') <> 'C'
-      order by ped.id_pedido
-    `,
-    [`${fromDate}T00:00:00`]
+  const pool = await withPgRetries(() => getPgPool());
+  const orders = await withPgRetries(() =>
+    pgQuery(
+      pool,
+      `
+        select
+          ped.id_pedido,
+          ped.pedcodigo,
+          ped.pedpzentre,
+          ped.pedhrentre,
+          ped.peddtemis,
+          ped.pedsitped
+        from public.pedid ped
+        where ped.peddtemis >= $1
+          and coalesce(ped.pedsitped, '') <> 'C'
+        order by ped.id_pedido
+      `,
+      [`${fromDate}T00:00:00`]
+    )
   );
 
   if (!orders.length) return;
@@ -1010,46 +1062,48 @@ async function rebuildDashboardCache(supabase, fromDate) {
   log(`Cache    : reconstruindo pedido_dashboard_cache desde ${fromDate}`);
 
   const now = nowInProductionTimeZone();
-  const pool = await getPgPool();
-  const [orders, clients, sellers] = await Promise.all([
-    pgQuery(
-      pool,
-      `
-        select
-          id_pedido,
-          pedcodigo,
-          clicodigo,
-          funcodigo,
-          peddtemis,
-          pedpzentre,
-          pedhrentre,
-          peddtsaida,
-          pedhrsaida,
-          pedsitped
-        from public.pedid
-        where peddtemis >= $1
-          and coalesce(pedsitped, '') <> 'C'
-        order by id_pedido
-      `,
-      [`${fromDate}T00:00:00`]
-    ),
-    pgQuery(
-      pool,
-      `
-        select clicodigo, clinomefant, clirazsocial, gclcodigo
-        from public.clien
-        order by clicodigo
-      `
-    ),
-    pgQuery(
-      pool,
-      `
-        select funcodigo, funnome
-        from public.funcio
-        order by funcodigo
-      `
-    ),
-  ]);
+  const pool = await withPgRetries(() => getPgPool());
+  const [orders, clients, sellers] = await withPgRetries(() =>
+    Promise.all([
+      pgQuery(
+        pool,
+        `
+          select
+            id_pedido,
+            pedcodigo,
+            clicodigo,
+            funcodigo,
+            peddtemis,
+            pedpzentre,
+            pedhrentre,
+            peddtsaida,
+            pedhrsaida,
+            pedsitped
+          from public.pedid
+          where peddtemis >= $1
+            and coalesce(pedsitped, '') <> 'C'
+          order by id_pedido
+        `,
+        [`${fromDate}T00:00:00`]
+      ),
+      pgQuery(
+        pool,
+        `
+          select clicodigo, clinomefant, clirazsocial, gclcodigo
+          from public.clien
+          order by clicodigo
+        `
+      ),
+      pgQuery(
+        pool,
+        `
+          select funcodigo, funnome
+          from public.funcio
+          order by funcodigo
+        `
+      ),
+    ])
+  );
 
   const clientMap = new Map(
     clients.map((row) => [
