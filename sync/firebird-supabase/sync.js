@@ -1503,13 +1503,23 @@ async function runOnce() {
         : cleanEnvValue(process.env.SYNC_DATE_FROM || "2025-01-01");
 
       if (shouldRebuildRouteCache && dependenciesSucceeded(routeCacheDependencies)) {
-        await rebuildRoteiroCache(supabase, cacheFromDate);
+        log(`Cache    : iniciando rebuild de pedido_roteiro_cache desde ${cacheFromDate}`);
+        try {
+          await rebuildRoteiroCache(supabase, cacheFromDate);
+        } catch (error) {
+          log(`Cache    : erro no pedido_roteiro_cache: ${error.message}`);
+        }
       } else if (shouldRebuildRouteCache) {
         log("Cache    : pedido_roteiro_cache ignorado nesta execucao por falhas nas tabelas-base.");
       }
 
       if (shouldRebuildDashboardCache && dependenciesSucceeded(dashboardCacheDependencies)) {
-        await rebuildDashboardCache(supabase, cacheFromDate);
+        log(`Cache    : iniciando rebuild de pedido_dashboard_cache desde ${cacheFromDate}`);
+        try {
+          await rebuildDashboardCache(supabase, cacheFromDate);
+        } catch (error) {
+          log(`Cache    : erro no pedido_dashboard_cache: ${error.message}`);
+        }
       } else if (shouldRebuildDashboardCache) {
         log("Cache    : pedido_dashboard_cache ignorado nesta execucao por falhas nas tabelas-base.");
       }
