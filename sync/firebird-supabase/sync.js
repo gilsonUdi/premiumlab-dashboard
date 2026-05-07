@@ -1499,6 +1499,42 @@ function dedupeRowsByPrimaryKeys(rows, primaryKeys) {
   return Array.from(uniqueRows.values());
 }
 
+function buildCliencrmRotulosMap(rows) {
+  const grouped = new Map();
+
+  for (const row of rows) {
+    const codigoCliente = row?.codigo_cliente;
+    const codRotulo = row?.cod_rotulo;
+    if (codigoCliente == null || codRotulo == null) continue;
+
+    const key = String(codigoCliente);
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push({
+      cod_rotulo: Number(codRotulo),
+      rotulo: normalizeText(row?.rotulo),
+    });
+  }
+
+  const aggregated = new Map();
+  for (const [key, items] of grouped.entries()) {
+    const ordered = items
+      .filter((item) => Number.isFinite(item.cod_rotulo))
+      .sort((a, b) => a.cod_rotulo - b.cod_rotulo);
+
+    aggregated.set(key, {
+      cods_rotulo: ordered.map((item) => String(item.cod_rotulo)).join(", ") || null,
+      rotulos: ordered.map((item) => item.rotulo).filter(Boolean).join(", ") || null,
+      rotulos_detalhe:
+        ordered
+          .map((item) => `${item.cod_rotulo} - ${item.rotulo || ""}`.trim())
+          .filter(Boolean)
+          .join(" | ") || null,
+    });
+  }
+
+  return aggregated;
+}
+
 async function syncManualTable(db, supabase, tableName, definition, options) {
   const normalizedTable = normalizeName(definition.targetTable || tableName);
   const primaryKeys = (definition.primaryKeys || []).map((key) => normalizeName(key));
@@ -1513,9 +1549,31 @@ async function syncManualTable(db, supabase, tableName, definition, options) {
 
   process.stdout.write(`  ${tableName} -> ${normalizedTable}: `);
 
-  const normalizedRows = rows
+  let normalizedRows = rows
     .map((row) => normalizeRow(row))
     .filter((row) => Object.keys(row).length > 0);
+
+  if (upperTableName === "CLIENCRM") {
+    const rotulosDefinition = getManualTableDefinition("ROTULOSCLIEN");
+    const rotulosRows = await fbQuery(db, rotulosDefinition.query);
+    const rotulosMap = buildCliencrmRotulosMap(
+      rotulosRows
+        .map((row) => normalizeRow(row))
+        .filter((row) => Object.keys(row).length > 0)
+    );
+
+    normalizedRows = normalizedRows.map((row) => {
+      const related = rotulosMap.get(String(row.clicodigo));
+      return related
+        ? {
+            ...row,
+            cods_rotulo: related.cods_rotulo,
+            rotulos: related.rotulos,
+            rotulos_detalhe: related.rotulos_detalhe,
+          }
+        : row;
+    });
+  }
 
   if (!options.dryRun && definition.replaceAll) {
     await execSupabaseSql(supabase, `delete from ${normalizedTable} where true`);
