@@ -284,6 +284,24 @@ const MANUAL_TABLE_DEFINITIONS = {
           ON pc.CLICODIGO = c.CLICODIGO
     `,
   },
+  ROTULOSCLIEN: {
+    targetTable: "rotulosclien",
+    primaryKeys: ["codigo_cliente", "cod_rotulo"],
+    replaceAll: true,
+    query: `
+      SELECT
+          n.CLICODIGO AS CODIGO_CLIENTE,
+          n.RTCCODIGO AS COD_ROTULO,
+          r.RTCNOME   AS ROTULO
+      FROM NROTULOSCLIEN n
+      INNER JOIN ROTULOSCLIEN r
+             ON r.RTCCODIGO = n.RTCCODIGO
+    `,
+  },
+};
+
+const MANUAL_TABLE_DEPENDENCIES = {
+  CLIENCRM: ["ROTULOSCLIEN"],
 };
 
 const TABLE_COLUMN_OMISSIONS = {
@@ -878,6 +896,26 @@ async function ensureCliencrmTable(supabase) {
   }
 }
 
+async function ensureRotulosClienTable(supabase) {
+  const ddl = `
+    create table if not exists public.rotulosclien (
+      codigo_cliente bigint not null,
+      cod_rotulo bigint not null,
+      rotulo text,
+      primary key (codigo_cliente, cod_rotulo)
+    )
+  `;
+
+  const alterStatements = [
+    "alter table public.rotulosclien add column if not exists rotulo text",
+  ];
+
+  await execSupabaseSql(supabase, ddl);
+  for (const statement of alterStatements) {
+    await execSupabaseSql(supabase, statement);
+  }
+}
+
 async function rebuildRoteiroCache(supabase, fromDate) {
   await ensureRoteiroCacheTable(supabase);
   const orders = await pgPoolQuery(
@@ -1425,8 +1463,12 @@ function dedupeRowsByPrimaryKeys(rows, primaryKeys) {
 async function syncManualTable(db, supabase, tableName, definition, options) {
   const normalizedTable = normalizeName(definition.targetTable || tableName);
   const primaryKeys = (definition.primaryKeys || []).map((key) => normalizeName(key));
-  if (String(tableName || "").toUpperCase() === "CLIENCRM") {
+  const upperTableName = String(tableName || "").toUpperCase();
+  if (upperTableName === "CLIENCRM") {
     await ensureCliencrmTable(supabase);
+  }
+  if (upperTableName === "ROTULOSCLIEN") {
+    await ensureRotulosClienTable(supabase);
   }
   const rows = await fbQuery(db, definition.query);
 
@@ -1621,7 +1663,12 @@ async function runOnce() {
     dateTablesOnly && !tableArg && tablesArg.length === 0
       ? [...new Set([...Object.keys(dateFilters), ...Object.keys(linkedDateFilters)])]
       : filterList;
-  const manualTablesToSync = [...new Set(requestedTables.filter((table) => getManualTableDefinition(table)).map((table) => table.toUpperCase()))];
+  const manualTablesToSync = [...new Set(
+    requestedTables
+      .filter((table) => getManualTableDefinition(table))
+      .map((table) => table.toUpperCase())
+      .flatMap((table) => [table, ...(MANUAL_TABLE_DEPENDENCIES[table] || [])])
+  )];
   const regularRequestedTables = requestedTables.filter((table) => !getManualTableDefinition(table));
 
   const fbOptions = {

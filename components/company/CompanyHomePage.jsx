@@ -142,10 +142,8 @@ export default function CompanyHomePage({ slug }) {
           {enabledInternalTools.length > 0 || canUseExternalDashboard ? (
             <>
               {canUseExternalDashboard ? (
-                <a
-                  href={company.externalDashboardUrl}
-                  target="_blank"
-                  rel="noreferrer"
+                <Link
+                  href={`/empresa/${company.slug}/dashboard`}
                   className="group rounded-[28px] border border-white/8 bg-[#1c191d] p-6 transition hover:border-[#e3ad5a]/40 hover:bg-[#221e22]"
                 >
                   <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e3ad5a]/15 text-[#e3ad5a]">
@@ -153,13 +151,13 @@ export default function CompanyHomePage({ slug }) {
                   </div>
                   <h3 className="text-2xl font-semibold">Dashboard</h3>
                   <p className="mt-3 text-sm leading-7 text-[#bdb7ae]">
-                    Acesso ao dashboard externo configurado para esta empresa.
+                    Acesso ao dashboard externo encapsulado dentro do portal desta empresa.
                   </p>
                   <div className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[#f1b867]">
                     Abrir dashboard
                     <ArrowLeft size={15} className="rotate-180 transition group-hover:translate-x-1" />
                   </div>
-                </a>
+                </Link>
               ) : null}
 
               {enabledInternalTools.map(tool => {
