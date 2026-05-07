@@ -668,6 +668,14 @@ function isPgTimeoutError(error) {
   );
 }
 
+function isSupabaseSchemaCacheMiss(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    message.includes("could not find the table") &&
+    message.includes("schema cache")
+  );
+}
+
 async function getPgPool() {
   const connectionString = getSupabaseDatabaseUrl();
   if (!connectionString) {
@@ -914,6 +922,7 @@ async function ensureRotulosClienTable(supabase) {
   for (const statement of alterStatements) {
     await execSupabaseSql(supabase, statement);
   }
+  await sleep(1200);
 }
 
 async function rebuildRoteiroCache(supabase, fromDate) {
@@ -1416,36 +1425,45 @@ async function writeBatch(supabase, tableName, rows, primaryKeys, mode = "insert
   const batchRows =
     primaryKeys.length > 0 ? dedupeRowsByPrimaryKeys(rows, primaryKeys) : rows;
 
-  if (mode === "upsert" && primaryKeys.length > 0) {
-    const { error } = await supabase.from(tableName).upsert(batchRows, {
-      onConflict: primaryKeys.join(","),
-      ignoreDuplicates: false,
-      defaultToNull: true,
-    });
+  let currentClient = supabase;
+  const attempts = 3;
 
-    if (error) {
-      throw new Error(`Supabase ${tableName}: ${error.message}`);
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    if (mode === "upsert" && primaryKeys.length > 0) {
+      const { error } = await currentClient.from(tableName).upsert(batchRows, {
+        onConflict: primaryKeys.join(","),
+        ignoreDuplicates: false,
+        defaultToNull: true,
+      });
+
+      if (!error) return;
+      if (!isSupabaseSchemaCacheMiss(error) || attempt === attempts) {
+        throw new Error(`Supabase ${tableName}: ${error.message}`);
+      }
+    } else {
+      let query = currentClient.from(tableName).upsert(batchRows, {
+        ignoreDuplicates: true,
+        defaultToNull: true,
+      });
+
+      if (primaryKeys.length > 0) {
+        query = currentClient.from(tableName).upsert(batchRows, {
+          onConflict: primaryKeys.join(","),
+          ignoreDuplicates: true,
+          defaultToNull: true,
+        });
+      }
+
+      const { error } = await query;
+      if (!error) return;
+      if (!isSupabaseSchemaCacheMiss(error) || attempt === attempts) {
+        throw new Error(`Supabase ${tableName}: ${error.message}`);
+      }
     }
 
-    return;
-  }
-
-  let query = supabase.from(tableName).upsert(batchRows, {
-    ignoreDuplicates: true,
-    defaultToNull: true,
-  });
-
-  if (primaryKeys.length > 0) {
-    query = supabase.from(tableName).upsert(batchRows, {
-      onConflict: primaryKeys.join(","),
-      ignoreDuplicates: true,
-      defaultToNull: true,
-    });
-  }
-
-  const { error } = await query;
-  if (error) {
-    throw new Error(`Supabase ${tableName}: ${error.message}`);
+    log(`  AVISO ${tableName}: tabela criada recentemente, aguardando cache do schema do Supabase...`);
+    await sleep(1500 * attempt);
+    currentClient = getSupabase();
   }
 }
 
