@@ -38,7 +38,7 @@ function EmbeddedToolFrame({ company, src, backHref }) {
         aria-label="Voltar ao portal"
         className="absolute left-4 top-4 z-20 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#1f1b20]/88 text-2xl text-white shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-[#2a242b] sm:left-6 sm:top-6"
       >
-        &larr;
+        <span aria-hidden="true">←</span>
       </Link>
 
       <section className="h-screen w-full overflow-hidden bg-[#0f0d11]">

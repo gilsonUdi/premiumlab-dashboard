@@ -70,11 +70,6 @@ function cloneUserForm(user, company) {
   }
 }
 
-function formatToolsLabel(company) {
-  if (!company.supabaseEnabled) return 'Dashboard externo'
-  return 'PPS e Analise de Dados'
-}
-
 function getCompanyUserList(companyUsers, company) {
   return [...(companyUsers[company.id] || [])].sort((a, b) => {
     if (a.uid === company.authUid) return -1
@@ -501,8 +496,8 @@ export default function AdminPage() {
       </div>
 
       {isCompanyModalOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4 py-8">
-          <div className="w-full max-w-[880px] rounded-[28px] bg-[#171418] shadow-[0_28px_120px_rgba(0,0,0,0.45)]">
+        <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-4 sm:items-center sm:py-8">
+          <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-[880px] flex-col overflow-hidden rounded-[28px] bg-[#171418] shadow-[0_28px_120px_rgba(0,0,0,0.45)] sm:max-h-[92vh]">
             <div className="flex items-center justify-between px-6 py-5">
               <div>
                 <h3 className="text-2xl font-semibold">{form.id ? 'Editar empresa' : 'Nova empresa'}</h3>
@@ -517,8 +512,9 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <form className="space-y-5 bg-[#191510] px-6 py-6" onSubmit={handleSaveCompany}>
-              <div className="grid gap-4 md:grid-cols-2">
+            <form className="flex min-h-0 flex-1 flex-col bg-[#191510]" onSubmit={handleSaveCompany}>
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 py-6">
+                <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
                   <label className="portal-label">Nome da empresa</label>
                   <input
@@ -567,137 +563,138 @@ export default function AdminPage() {
                     required={!form.id}
                   />
                 </div>
-              </div>
-
-              <div className="rounded-[24px] bg-white/[0.05] p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h4 className="text-sm font-semibold text-white">Tipo de portal</h4>
-                    <p className="mt-1 text-sm text-[#b7b0a6]">
-                      Defina se a empresa usa o portal interno com Supabase ou um dashboard externo.
-                    </p>
-                  </div>
-
-                  <label className="portal-checkbox shrink-0">
-                    <input
-                      type="checkbox"
-                      checked={form.supabaseEnabled}
-                      onChange={event => setForm(previous => ({ ...previous, supabaseEnabled: event.target.checked }))}
-                    />
-                    <span>Supabase</span>
-                  </label>
                 </div>
 
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  {form.supabaseEnabled ? (
-                    <>
-                      <div className="space-y-2">
-                        <label className="portal-label">Supabase URL</label>
+                <div className="rounded-[24px] bg-white/[0.05] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-white">Tipo de portal</h4>
+                      <p className="mt-1 text-sm text-[#b7b0a6]">
+                        Defina se a empresa usa o portal interno com Supabase ou um dashboard externo.
+                      </p>
+                    </div>
+
+                    <label className="portal-checkbox shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={form.supabaseEnabled}
+                        onChange={event => setForm(previous => ({ ...previous, supabaseEnabled: event.target.checked }))}
+                      />
+                      <span>Supabase</span>
+                    </label>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    {form.supabaseEnabled ? (
+                      <>
+                        <div className="space-y-2">
+                          <label className="portal-label">Supabase URL</label>
+                          <input
+                            className="portal-input"
+                            value={form.supabaseUrl}
+                            onChange={event => setForm(previous => ({ ...previous, supabaseUrl: event.target.value }))}
+                            placeholder="https://projeto.supabase.co"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="portal-label">Identificacao do banco</label>
+                          <input
+                            className="portal-input"
+                            value={form.supabaseLabel}
+                            onChange={event => setForm(previous => ({ ...previous, supabaseLabel: event.target.value }))}
+                            placeholder="Ex.: sincronizado em Supabase producao"
+                          />
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <label className="portal-label">Supabase Service Role Key</label>
+                          <input
+                            className="portal-input"
+                            type="password"
+                            value={form.supabaseServiceRoleKey}
+                            onChange={event => setForm(previous => ({ ...previous, supabaseServiceRoleKey: event.target.value }))}
+                            placeholder={form.id ? 'Preencha so se quiser trocar a chave' : 'Cole a service_role_key do tenant'}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2 md:col-span-2">
+                        <label className="portal-label">Link do dashboard externo</label>
                         <input
                           className="portal-input"
-                          value={form.supabaseUrl}
-                          onChange={event => setForm(previous => ({ ...previous, supabaseUrl: event.target.value }))}
-                          placeholder="https://projeto.supabase.co"
+                          value={form.externalDashboardUrl}
+                          onChange={event => setForm(previous => ({ ...previous, externalDashboardUrl: event.target.value }))}
+                          placeholder="https://dashboard-da-empresa.com.br"
+                          required={!form.supabaseEnabled}
                         />
                       </div>
+                    )}
+                  </div>
+                </div>
 
-                      <div className="space-y-2">
-                        <label className="portal-label">Identificacao do banco</label>
+                <div className="rounded-[24px] bg-white/[0.05] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-white">Power BI hospedado no portal</h4>
+                      <p className="mt-1 text-sm text-[#b7b0a6]">
+                        Habilite quando a empresa tiver um painel Power BI para abrir dentro do site e liberar por usuario.
+                      </p>
+                    </div>
+
+                    <label className="portal-checkbox shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={form.powerBiEnabled}
+                        onChange={event => setForm(previous => ({ ...previous, powerBiEnabled: event.target.checked }))}
+                      />
+                      <span>Power BI</span>
+                    </label>
+                  </div>
+
+                  {form.powerBiEnabled ? (
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2 md:col-span-2">
+                        <label className="portal-label">Link de embed do Power BI</label>
                         <input
                           className="portal-input"
-                          value={form.supabaseLabel}
-                          onChange={event => setForm(previous => ({ ...previous, supabaseLabel: event.target.value }))}
-                          placeholder="Ex.: sincronizado em Supabase producao"
+                          value={form.powerBiEmbedUrl}
+                          onChange={event => setForm(previous => ({ ...previous, powerBiEmbedUrl: event.target.value }))}
+                          placeholder="https://app.powerbi.com/reportEmbed?..."
+                          required={form.powerBiEnabled}
                         />
                       </div>
 
                       <div className="space-y-2 md:col-span-2">
-                        <label className="portal-label">Supabase Service Role Key</label>
+                        <label className="portal-label">Rotulo interno do painel</label>
                         <input
                           className="portal-input"
-                          type="password"
-                          value={form.supabaseServiceRoleKey}
-                          onChange={event => setForm(previous => ({ ...previous, supabaseServiceRoleKey: event.target.value }))}
-                          placeholder={form.id ? 'Preencha so se quiser trocar a chave' : 'Cole a service_role_key do tenant'}
+                          value={form.powerBiLabel}
+                          onChange={event => setForm(previous => ({ ...previous, powerBiLabel: event.target.value }))}
+                          placeholder="Ex.: Painel Comercial Power BI"
                         />
                       </div>
-                    </>
-                  ) : (
-                    <div className="space-y-2 md:col-span-2">
-                      <label className="portal-label">Link do dashboard externo</label>
-                      <input
-                        className="portal-input"
-                        value={form.externalDashboardUrl}
-                        onChange={event => setForm(previous => ({ ...previous, externalDashboardUrl: event.target.value }))}
-                        placeholder="https://dashboard-da-empresa.com.br"
-                        required={!form.supabaseEnabled}
-                      />
                     </div>
-                  )}
+                  ) : null}
                 </div>
-              </div>
 
-              <div className="rounded-[24px] bg-white/[0.05] p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h4 className="text-sm font-semibold text-white">Power BI hospedado no portal</h4>
-                    <p className="mt-1 text-sm text-[#b7b0a6]">
-                      Habilite quando a empresa tiver um painel Power BI para abrir dentro do site e liberar por usuario.
-                    </p>
-                  </div>
-
-                  <label className="portal-checkbox shrink-0">
+                {!hasPremiumLab || form.isPremiumLab ? (
+                  <label className="portal-checkbox">
                     <input
                       type="checkbox"
-                      checked={form.powerBiEnabled}
-                      onChange={event => setForm(previous => ({ ...previous, powerBiEnabled: event.target.checked }))}
+                      checked={form.isPremiumLab}
+                      onChange={event => setForm(previous => ({ ...previous, isPremiumLab: event.target.checked }))}
                     />
-                    <span>Power BI</span>
+                    <span>Marcar como Premium Lab</span>
                   </label>
-                </div>
-
-                {form.powerBiEnabled ? (
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2 md:col-span-2">
-                      <label className="portal-label">Link de embed do Power BI</label>
-                      <input
-                        className="portal-input"
-                        value={form.powerBiEmbedUrl}
-                        onChange={event => setForm(previous => ({ ...previous, powerBiEmbedUrl: event.target.value }))}
-                        placeholder="https://app.powerbi.com/reportEmbed?..."
-                        required={form.powerBiEnabled}
-                      />
-                    </div>
-
-                    <div className="space-y-2 md:col-span-2">
-                      <label className="portal-label">Rotulo interno do painel</label>
-                      <input
-                        className="portal-input"
-                        value={form.powerBiLabel}
-                        onChange={event => setForm(previous => ({ ...previous, powerBiLabel: event.target.value }))}
-                        placeholder="Ex.: Painel Comercial Power BI"
-                      />
-                    </div>
+                ) : (
+                  <div className="rounded-2xl bg-[#e3ad5a]/10 px-4 py-3 text-sm text-[#e6d5b7]">
+                    Premium Lab ja esta definida como tenant principal.
                   </div>
-                ) : null}
+                )}
               </div>
 
-              {!hasPremiumLab || form.isPremiumLab ? (
-                <label className="portal-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={form.isPremiumLab}
-                    onChange={event => setForm(previous => ({ ...previous, isPremiumLab: event.target.checked }))}
-                  />
-                  <span>Marcar como Premium Lab</span>
-                </label>
-              ) : (
-                <div className="rounded-2xl bg-[#e3ad5a]/10 px-4 py-3 text-sm text-[#e6d5b7]">
-                  Premium Lab ja esta definida como tenant principal.
-                </div>
-              )}
-
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/6 px-6 py-5">
                 <div className="flex flex-wrap gap-2">
                   {form.id ? (
                     <>
