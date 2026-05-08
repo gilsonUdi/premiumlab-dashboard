@@ -41,6 +41,9 @@ const emptyForm = {
   supabaseServiceRoleKey: '',
   supabaseLabel: '',
   externalDashboardUrl: '',
+  powerBiEnabled: false,
+  powerBiEmbedUrl: '',
+  powerBiLabel: '',
   tools: ['dashboard'],
   isPremiumLab: false,
 }
@@ -100,6 +103,8 @@ function formatCompanyDate(value) {
 }
 
 function formatCompanyStatus(company) {
+  if (company.supabaseEnabled && company.powerBiEnabled) return 'Portal interno + Power BI'
+  if (!company.supabaseEnabled && company.powerBiEnabled) return 'Dashboard externo + Power BI'
   return company.supabaseEnabled ? 'Portal interno' : 'Dashboard externo'
 }
 
@@ -162,7 +167,7 @@ export default function AdminPage() {
     if (!query) return state?.companies || []
 
     return (state?.companies || []).filter(company =>
-      [company.name, company.slug, company.email, company.supabaseLabel, company.externalDashboardUrl]
+      [company.name, company.slug, company.email, company.supabaseLabel, company.externalDashboardUrl, company.powerBiEmbedUrl, company.powerBiLabel]
         .filter(Boolean)
         .some(value => value.toLowerCase().includes(query))
     )
@@ -230,6 +235,9 @@ export default function AdminPage() {
       supabaseServiceRoleKey: '',
       supabaseLabel: company.supabaseLabel || '',
       externalDashboardUrl: company.externalDashboardUrl || '',
+      powerBiEnabled: company.powerBiEnabled === true,
+      powerBiEmbedUrl: company.powerBiEmbedUrl || '',
+      powerBiLabel: company.powerBiLabel || '',
       tools: company.tools || ['dashboard'],
       isPremiumLab: company.isPremiumLab,
     })
@@ -629,6 +637,51 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              <div className="rounded-[24px] bg-white/[0.05] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-white">Power BI hospedado no portal</h4>
+                    <p className="mt-1 text-sm text-[#b7b0a6]">
+                      Habilite quando a empresa tiver um painel Power BI para abrir dentro do site e liberar por usuario.
+                    </p>
+                  </div>
+
+                  <label className="portal-checkbox shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={form.powerBiEnabled}
+                      onChange={event => setForm(previous => ({ ...previous, powerBiEnabled: event.target.checked }))}
+                    />
+                    <span>Power BI</span>
+                  </label>
+                </div>
+
+                {form.powerBiEnabled ? (
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="portal-label">Link de embed do Power BI</label>
+                      <input
+                        className="portal-input"
+                        value={form.powerBiEmbedUrl}
+                        onChange={event => setForm(previous => ({ ...previous, powerBiEmbedUrl: event.target.value }))}
+                        placeholder="https://app.powerbi.com/reportEmbed?..."
+                        required={form.powerBiEnabled}
+                      />
+                    </div>
+
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="portal-label">Rotulo interno do painel</label>
+                      <input
+                        className="portal-input"
+                        value={form.powerBiLabel}
+                        onChange={event => setForm(previous => ({ ...previous, powerBiLabel: event.target.value }))}
+                        placeholder="Ex.: Painel Comercial Power BI"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
               {!hasPremiumLab || form.isPremiumLab ? (
                 <label className="portal-checkbox">
                   <input
@@ -805,6 +858,15 @@ export default function AdminPage() {
                           disabled={managingCompany.supabaseEnabled || !managingCompany.externalDashboardUrl}
                         />
                         <span>Dashboard externo</span>
+                      </label>
+                      <label className="portal-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.POWER_BI]}
+                          onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.POWER_BI)}
+                          disabled={!managingCompany.powerBiEnabled || !managingCompany.powerBiEmbedUrl}
+                        />
+                        <span>Power BI</span>
                       </label>
                     </div>
                   </div>

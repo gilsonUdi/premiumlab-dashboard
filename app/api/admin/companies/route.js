@@ -47,6 +47,9 @@ function normalizeCompanyPayload(payload = {}) {
     dashboardMode: payload.dashboardMode || (payload.isPremiumLab ? 'premium' : 'external'),
     supabaseEnabled: portalSettings.supabaseEnabled,
     externalDashboardUrl: portalSettings.externalDashboardUrl,
+    powerBiEnabled: portalSettings.powerBiEnabled,
+    powerBiEmbedUrl: portalSettings.powerBiEmbedUrl,
+    powerBiLabel: portalSettings.powerBiLabel,
     createdAt: payload.createdAt || new Date().toISOString(),
   }
 }
@@ -127,6 +130,9 @@ export async function POST(request) {
         dashboardMode: company.dashboardMode,
         supabaseEnabled: company.supabaseEnabled,
         externalDashboardUrl: company.externalDashboardUrl,
+        powerBiEnabled: company.powerBiEnabled,
+        powerBiEmbedUrl: company.powerBiEmbedUrl,
+        powerBiLabel: company.powerBiLabel,
         authUid: authUser.uid,
         hasServiceRoleKey: Boolean(supabaseServiceRoleKey),
         createdAt: existingCompany?.createdAt || company.createdAt,

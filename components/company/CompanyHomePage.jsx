@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BarChart3, LayoutPanelTop, LogOut, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { ArrowLeft, BarChart3, LayoutPanelTop, LogOut, PieChart, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import {
   clearPortalSession,
   getCompanyById,
@@ -27,6 +27,13 @@ const TOOL_CARDS = [
     title: 'PPS',
     description: 'Modo enxuto com foco operacional no historico de pedidos e leitura rapida da producao.',
     icon: LayoutPanelTop,
+  },
+  {
+    key: 'powerBi',
+    href: slug => `/empresa/${slug}/power-bi`,
+    title: 'Power BI',
+    description: 'Acesso interno ao painel Power BI publicado para esta empresa dentro do proprio portal.',
+    icon: PieChart,
   },
 ]
 
@@ -93,14 +100,22 @@ export default function CompanyHomePage({ slug }) {
   }
 
   const enabledInternalTools =
-    company.supabaseEnabled && company.tools.includes('dashboard')
+    company.tools.includes('dashboard')
       ? TOOL_CARDS.filter(tool =>
           canAccessPortalPage(
             company,
             userPermissions,
-            tool.key === 'analysis' ? PORTAL_PAGE_KEYS.ANALYSIS : PORTAL_PAGE_KEYS.PPS
+            tool.key === 'analysis'
+              ? PORTAL_PAGE_KEYS.ANALYSIS
+              : tool.key === 'pps'
+                ? PORTAL_PAGE_KEYS.PPS
+                : PORTAL_PAGE_KEYS.POWER_BI
           )
         )
+          .filter(tool => {
+            if (tool.key === 'powerBi') return company.powerBiEnabled && Boolean(company.powerBiEmbedUrl)
+            return company.supabaseEnabled
+          })
       : []
   const canUseExternalDashboard =
     !company.supabaseEnabled &&

@@ -23,6 +23,8 @@ function normalizePayload(payload = {}) {
     companySlug: String(payload.companySlug || '').trim(),
     companyName: String(payload.companyName || '').trim(),
     externalDashboardUrl: String(payload.externalDashboardUrl || '').trim(),
+    powerBiEnabled: companySettings.powerBiEnabled,
+    powerBiEmbedUrl: String(payload.powerBiEmbedUrl || '').trim(),
     supabaseEnabled: companySettings.supabaseEnabled,
     email: String(payload.email || '').trim().toLowerCase(),
     password: String(payload.password || ''),
@@ -33,6 +35,8 @@ function normalizePayload(payload = {}) {
       name: payload.companyName,
       supabaseEnabled: companySettings.supabaseEnabled,
       externalDashboardUrl: payload.externalDashboardUrl,
+      powerBiEnabled: companySettings.powerBiEnabled,
+      powerBiEmbedUrl: payload.powerBiEmbedUrl,
     }),
   }
 }

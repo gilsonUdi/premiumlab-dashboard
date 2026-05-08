@@ -30,21 +30,21 @@ function PlaceholderTool({ company }) {
   )
 }
 
-function ExternalDashboardFrame({ company }) {
+function EmbeddedToolFrame({ company, src, backHref }) {
   return (
     <main className="relative min-h-screen bg-[#141216] text-white">
       <Link
-        href={`/empresa/${company.slug}`}
+        href={backHref}
         aria-label="Voltar ao portal"
         className="absolute left-4 top-4 z-20 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#1f1b20]/88 text-2xl text-white shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-[#2a242b] sm:left-6 sm:top-6"
       >
-        ←
+        &larr;
       </Link>
 
       <section className="h-screen w-full overflow-hidden bg-[#0f0d11]">
         <iframe
-          title={`Dashboard externo de ${company.name}`}
-          src={company.externalDashboardUrl}
+          title={`Painel incorporado de ${company.name}`}
+          src={src}
           className="h-full w-full bg-white"
           referrerPolicy="no-referrer"
           allow="fullscreen"
@@ -72,7 +72,8 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
         }
 
         if (currentSession.type === 'company' && currentSession.companySlug !== slug) {
-          router.replace(`/empresa/${currentSession.companySlug}/${mode === 'pps' ? 'pps' : 'dashboard'}`)
+          const targetMode = mode === 'pps' ? 'pps' : mode === 'power-bi' ? 'power-bi' : 'dashboard'
+          router.replace(`/empresa/${currentSession.companySlug}/${targetMode}`)
           return
         }
 
@@ -100,8 +101,11 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
   }, [session?.companyId, slug, state])
 
   const isExternalDashboard = !company?.supabaseEnabled && Boolean(company?.externalDashboardUrl)
+  const isPowerBi = mode === 'power-bi' && Boolean(company?.powerBiEnabled) && Boolean(company?.powerBiEmbedUrl)
   const pageKey = isExternalDashboard
     ? PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD
+    : isPowerBi
+      ? PORTAL_PAGE_KEYS.POWER_BI
     : mode === 'pps'
       ? PORTAL_PAGE_KEYS.PPS
       : PORTAL_PAGE_KEYS.ANALYSIS
@@ -123,7 +127,7 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
           <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Acesso restrito</p>
           <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
           <p className="mt-4 text-base leading-8 text-[#c6c0b7]">
-            Este usuario nao possui permissao para acessar {isExternalDashboard ? 'o dashboard externo' : mode === 'pps' ? 'o PPS' : 'a Analise de Dados'} desta empresa.
+            Este usuario nao possui permissao para acessar {isExternalDashboard ? 'o dashboard externo' : isPowerBi ? 'o Power BI' : mode === 'pps' ? 'o PPS' : 'a Analise de Dados'} desta empresa.
           </p>
         </div>
       </main>
@@ -131,7 +135,11 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
   }
 
   if (isExternalDashboard) {
-    return <ExternalDashboardFrame company={company} />
+    return <EmbeddedToolFrame company={company} src={company.externalDashboardUrl} backHref={`/empresa/${company.slug}`} />
+  }
+
+  if (isPowerBi) {
+    return <EmbeddedToolFrame company={company} src={company.powerBiEmbedUrl} backHref={`/empresa/${company.slug}`} />
   }
 
   if (!company.hasServiceRoleKey && !company.isPremiumLab) {
@@ -151,3 +159,4 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
     />
   )
 }
+
