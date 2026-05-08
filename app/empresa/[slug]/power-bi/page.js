@@ -1,5 +1,5 @@
-import CompanyDashboardPage from '@/components/company/CompanyDashboardPage'
+import PowerBiCatalogPage from '@/components/company/PowerBiCatalogPage'
 
 export default function CompanyPowerBiRoute({ params }) {
-  return <CompanyDashboardPage slug={params.slug} mode="power-bi" />
+  return <PowerBiCatalogPage slug={params.slug} />
 }

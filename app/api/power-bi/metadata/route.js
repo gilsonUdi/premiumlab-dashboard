@@ -1,7 +1,17 @@
-import { NextResponse } from 'next/server'
-import { getAllowedPowerBiPages, normalizeUserPermissions, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
-import { getPowerBiReportMetadata, hasEmbeddedPowerBiConfig, isPowerBiNavigablePage } from '@/lib/power-bi'
+import {
+  canAccessPowerBiReport,
+  getAllowedPowerBiPages,
+  normalizeUserPermissions,
+  PORTAL_PAGE_KEYS,
+} from '@/lib/portal-config'
+import {
+  getPowerBiCatalogMetadata,
+  getPowerBiReportMetadata,
+  hasAnyPowerBiConfig,
+  isPowerBiNavigablePage,
+} from '@/lib/power-bi'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
+import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,10 +27,11 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const slug = String(searchParams.get('slug') || '').trim()
+    const reportKey = String(searchParams.get('report') || '').trim()
     const { profile, company } = await resolveAuthorizedCompany(request, slug)
 
-    if (!hasEmbeddedPowerBiConfig(company)) {
-      return NextResponse.json({ pages: [], reportName: company.powerBiLabel || '' })
+    if (!hasAnyPowerBiConfig(company)) {
+      return NextResponse.json({ reports: [], reportName: '' })
     }
 
     const permissions = normalizeUserPermissions(profile.permissions, company)
@@ -28,16 +39,40 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Usuario sem acesso ao Power BI desta empresa.' }, { status: 403 })
     }
 
-    const metadata = await getPowerBiReportMetadata(company)
+    if (!reportKey) {
+      const catalog = await getPowerBiCatalogMetadata(company)
+      const visibleReports =
+        profile.role === 'admin'
+          ? catalog
+          : catalog.filter(report => canAccessPowerBiReport(company, permissions, report.id))
+
+      return NextResponse.json({
+        reports: visibleReports.map(report => ({
+          id: report.id,
+          label: report.label || report.reportName,
+          reportName: report.reportName,
+          pages: report.pages,
+          lastRefreshAt: report.lastRefreshAt || '',
+          lastRefreshStatus: report.lastRefreshStatus || '',
+        })),
+      })
+    }
+
+    if (profile.role !== 'admin' && !canAccessPowerBiReport(company, permissions, reportKey)) {
+      return NextResponse.json({ error: 'Usuario sem acesso a este modelo de Power BI.' }, { status: 403 })
+    }
+
+    const metadata = await getPowerBiReportMetadata(company, reportKey)
     const navigablePages = metadata.pages.filter(isPowerBiNavigablePage)
-    const allowedPageNames = getAllowedPowerBiPages(company, permissions)
+    const allowedPageNames = getAllowedPowerBiPages(company, permissions, reportKey)
     const visiblePages =
       profile.role === 'admin' || allowedPageNames.length === 0
         ? navigablePages
         : navigablePages.filter(page => allowedPageNames.includes(page.name))
 
     return NextResponse.json({
-      reportName: company.powerBiLabel || metadata.report.name,
+      reportId: metadata.config.id,
+      reportName: metadata.config.label || metadata.report.name,
       pages: visiblePages,
       allPages: navigablePages,
     })

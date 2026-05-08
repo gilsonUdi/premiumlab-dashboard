@@ -7,7 +7,7 @@ import { models } from 'powerbi-client'
 import { ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { getPortalAccessToken } from '@/lib/portal-store'
 
-export default function PowerBiEmbeddedView({ company }) {
+export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [config, setConfig] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -23,12 +23,15 @@ export default function PowerBiEmbeddedView({ company }) {
         setLoading(true)
         setError('')
         const token = await getPortalAccessToken()
-        const response = await fetch(`/api/power-bi/embed?slug=${encodeURIComponent(company.slug)}`, {
+        const response = await fetch(
+          `/api/power-bi/embed?slug=${encodeURIComponent(company.slug)}&report=${encodeURIComponent(reportKey)}`,
+          {
           headers: {
             Authorization: `Bearer ${token}`,
           },
           cache: 'no-store',
-        })
+          }
+        )
         const payload = await response.json()
         if (!response.ok) {
           throw new Error(payload.error || 'Nao foi possivel preparar o Power BI.')
@@ -50,7 +53,7 @@ export default function PowerBiEmbeddedView({ company }) {
     return () => {
       active = false
     }
-  }, [company.slug])
+  }, [company.slug, reportKey])
 
   const pageMap = useMemo(() => new Map((config?.pages || []).map(page => [page.name, page])), [config?.pages])
 
@@ -72,6 +75,7 @@ export default function PowerBiEmbeddedView({ company }) {
         navContentPaneEnabled: false,
         background: models.BackgroundType.Default,
       },
+      filters: Array.isArray(config.filters) ? config.filters : [],
     }
   }, [activePageName, config])
 

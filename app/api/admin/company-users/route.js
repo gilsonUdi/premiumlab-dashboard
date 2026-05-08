@@ -27,6 +27,7 @@ function normalizePayload(payload = {}) {
     powerBiEmbedUrl: String(payload.powerBiEmbedUrl || '').trim(),
     powerBiWorkspaceId: String(payload.powerBiWorkspaceId || '').trim(),
     powerBiReportId: String(payload.powerBiReportId || '').trim(),
+    powerBiReports: Array.isArray(payload.powerBiReports) ? payload.powerBiReports : [],
     supabaseEnabled: companySettings.supabaseEnabled,
     email: String(payload.email || '').trim().toLowerCase(),
     password: String(payload.password || ''),
@@ -41,6 +42,7 @@ function normalizePayload(payload = {}) {
       powerBiEmbedUrl: payload.powerBiEmbedUrl,
       powerBiWorkspaceId: payload.powerBiWorkspaceId,
       powerBiReportId: payload.powerBiReportId,
+      powerBiReports: payload.powerBiReports,
     }),
   }
 }

@@ -11,6 +11,7 @@ import {
   loadCompanyState,
 } from '@/lib/portal-store'
 import { canAccessPortalPage, getSectionVisibility, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
+import { getPowerBiConfigFromCompany, hasAnyPowerBiConfig } from '@/lib/power-bi'
 
 function PlaceholderTool({ company }) {
   const usesExternalDashboard = !company.supabaseEnabled && company.externalDashboardUrl
@@ -55,7 +56,7 @@ function EmbeddedToolFrame({ company, src, backHref }) {
   )
 }
 
-export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
+export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiReportKey = '' }) {
   const router = useRouter()
   const [state, setState] = useState(null)
   const [session, setSession] = useState(null)
@@ -73,7 +74,7 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
         }
 
         if (currentSession.type === 'company' && currentSession.companySlug !== slug) {
-          const targetMode = mode === 'pps' ? 'pps' : mode === 'power-bi' ? 'power-bi' : 'dashboard'
+          const targetMode = mode === 'pps' ? 'pps' : mode === 'power-bi' ? `power-bi${powerBiReportKey ? `/${powerBiReportKey}` : ''}` : 'dashboard'
           router.replace(`/empresa/${currentSession.companySlug}/${targetMode}`)
           return
         }
@@ -94,7 +95,7 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
     return () => {
       active = false
     }
-  }, [mode, router, slug])
+  }, [mode, powerBiReportKey, router, slug])
 
   const company = useMemo(() => {
     if (!state) return null
@@ -102,9 +103,9 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
   }, [session?.companyId, slug, state])
 
   const isExternalDashboard = !company?.supabaseEnabled && Boolean(company?.externalDashboardUrl)
-  const isEmbeddedPowerBi =
-    mode === 'power-bi' && Boolean(company?.powerBiEnabled) && Boolean(company?.powerBiWorkspaceId) && Boolean(company?.powerBiReportId)
-  const isLegacyPowerBi = mode === 'power-bi' && Boolean(company?.powerBiEnabled) && Boolean(company?.powerBiEmbedUrl)
+  const selectedPowerBiReport = mode === 'power-bi' ? getPowerBiConfigFromCompany(company || {}, powerBiReportKey) : null
+  const isEmbeddedPowerBi = mode === 'power-bi' && Boolean(selectedPowerBiReport?.workspaceId) && Boolean(selectedPowerBiReport?.reportId)
+  const isLegacyPowerBi = mode === 'power-bi' && Boolean(selectedPowerBiReport?.embedUrl) && !isEmbeddedPowerBi
   const pageKey = isExternalDashboard
     ? PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD
     : isEmbeddedPowerBi || isLegacyPowerBi
@@ -142,11 +143,28 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
   }
 
   if (isEmbeddedPowerBi) {
-    return <PowerBiEmbeddedView company={company} />
+    return <PowerBiEmbeddedView company={company} reportKey={selectedPowerBiReport.id} />
   }
 
   if (isLegacyPowerBi) {
-    return <EmbeddedToolFrame company={company} src={company.powerBiEmbedUrl} backHref={`/empresa/${company.slug}`} />
+    return <EmbeddedToolFrame company={company} src={selectedPowerBiReport.embedUrl} backHref={`/empresa/${company.slug}/power-bi`} />
+  }
+
+  if (mode === 'power-bi' && hasAnyPowerBiConfig(company)) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#141216] px-6 text-white">
+        <div className="max-w-[720px] rounded-[30px] border border-white/8 bg-[#1c191d] p-8">
+          <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Modelo nao encontrado</p>
+          <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
+          <p className="mt-4 text-base leading-8 text-[#c6c0b7]">
+            O modelo de Power BI solicitado nao esta disponivel para esta empresa. Volte para a lista de modelos e escolha um relatorio valido.
+          </p>
+          <Link href={`/empresa/${company.slug}/power-bi`} className="portal-ghost-button mt-6 inline-flex">
+            Voltar para os modelos
+          </Link>
+        </div>
+      </main>
+    )
   }
 
   if (!company.hasServiceRoleKey && !company.isPremiumLab) {

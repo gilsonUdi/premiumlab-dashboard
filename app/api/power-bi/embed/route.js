@@ -1,7 +1,13 @@
-import { NextResponse } from 'next/server'
-import { getAllowedPowerBiPages, normalizeUserPermissions, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
+import {
+  canAccessPowerBiReport,
+  getAllowedPowerBiPages,
+  getPowerBiReportFilters,
+  normalizeUserPermissions,
+  PORTAL_PAGE_KEYS,
+} from '@/lib/portal-config'
 import { generatePowerBiEmbedConfig, hasEmbeddedPowerBiConfig, isPowerBiNavigablePage } from '@/lib/power-bi'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
+import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,10 +23,11 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const slug = String(searchParams.get('slug') || '').trim()
+    const reportKey = String(searchParams.get('report') || '').trim()
     const { profile, company } = await resolveAuthorizedCompany(request, slug)
 
-    if (!hasEmbeddedPowerBiConfig(company)) {
-      return NextResponse.json({ error: 'Power BI Embedded ainda nao configurado para esta empresa.' }, { status: 400 })
+    if (!hasEmbeddedPowerBiConfig(company, reportKey)) {
+      return NextResponse.json({ error: 'Power BI Embedded ainda nao configurado para este modelo.' }, { status: 400 })
     }
 
     const permissions = normalizeUserPermissions(profile.permissions, company)
@@ -28,9 +35,13 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Usuario sem acesso ao Power BI desta empresa.' }, { status: 403 })
     }
 
-    const embedConfig = await generatePowerBiEmbedConfig(company)
+    if (profile.role !== 'admin' && !canAccessPowerBiReport(company, permissions, reportKey)) {
+      return NextResponse.json({ error: 'Usuario sem acesso a este modelo de Power BI.' }, { status: 403 })
+    }
+
+    const embedConfig = await generatePowerBiEmbedConfig(company, reportKey, getPowerBiReportFilters(company, permissions, reportKey))
     const navigablePages = embedConfig.pages.filter(isPowerBiNavigablePage)
-    const allowedPageNames = getAllowedPowerBiPages(company, permissions)
+    const allowedPageNames = getAllowedPowerBiPages(company, permissions, reportKey)
     const visiblePages =
       profile.role === 'admin' || allowedPageNames.length === 0
         ? navigablePages
@@ -42,12 +53,14 @@ export async function GET(request) {
 
     return NextResponse.json({
       reportId: embedConfig.reportId,
-      reportName: company.powerBiLabel || embedConfig.reportName,
+      reportKey: embedConfig.reportKey,
+      reportName: embedConfig.reportName,
       embedUrl: embedConfig.embedUrl,
       accessToken: embedConfig.embedToken,
       tokenExpiration: embedConfig.tokenExpiration,
       pages: visiblePages,
       initialPageName: visiblePages[0]?.name || navigablePages[0]?.name || null,
+      filters: embedConfig.filters || [],
     })
   } catch (error) {
     console.error('[power-bi-embed:get]', error)

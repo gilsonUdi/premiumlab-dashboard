@@ -29,7 +29,19 @@ import {
   updateCompanyUser,
   upsertCompany,
 } from '@/lib/portal-store'
-import { DASHBOARD_SECTION_GROUPS, normalizeUserPermissions, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
+import { DASHBOARD_SECTION_GROUPS, normalizeUserPermissions, PORTAL_PAGE_KEYS, POWER_BI_FILTER_OPERATORS } from '@/lib/portal-config'
+import { getPowerBiReportCatalog } from '@/lib/power-bi'
+
+function createEmptyPowerBiReport() {
+  return {
+    id: `power-bi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    label: '',
+    workspaceId: '',
+    reportId: '',
+    datasetId: '',
+    enabled: true,
+  }
+}
 
 const emptyForm = {
   id: '',
@@ -48,6 +60,7 @@ const emptyForm = {
   powerBiWorkspaceId: '',
   powerBiReportId: '',
   powerBiDatasetId: '',
+  powerBiReports: [],
   tools: ['dashboard'],
   isPremiumLab: false,
 }
@@ -108,7 +121,7 @@ function formatCompanyStatus(company) {
 }
 
 function hasConfiguredPowerBi(company) {
-  return Boolean(company?.powerBiEnabled && company?.powerBiWorkspaceId && company?.powerBiReportId)
+  return getPowerBiReportCatalog(company).length > 0
 }
 
 export default function AdminPage() {
@@ -227,7 +240,7 @@ export default function AdminPage() {
           throw new Error(payload.error || 'Nao foi possivel carregar as paginas do Power BI.')
         }
         if (!active) return
-        setPowerBiCatalog(Array.isArray(payload.pages) ? payload.pages : [])
+        setPowerBiCatalog(Array.isArray(payload.reports) ? payload.reports : [])
       } catch (error) {
         console.error(error)
         if (!active) return
@@ -266,11 +279,30 @@ export default function AdminPage() {
 
     try {
       const slug = slugifyCompanyName(form.slug || form.name)
+      const normalizedReports = form.powerBiEnabled
+        ? form.powerBiReports
+            .map(report => ({
+              ...report,
+              label: String(report.label || '').trim(),
+              workspaceId: String(report.workspaceId || '').trim(),
+              reportId: String(report.reportId || '').trim(),
+              datasetId: String(report.datasetId || '').trim(),
+              enabled: report.enabled !== false,
+            }))
+            .filter(report => report.workspaceId && report.reportId)
+        : []
+      const primaryReport = normalizedReports[0] || null
       const nextState = await upsertCompany(state, {
         ...form,
         id: form.id || slug,
         slug,
         tools: ['dashboard'],
+        powerBiReports: normalizedReports,
+        powerBiEnabled: form.powerBiEnabled && normalizedReports.length > 0,
+        powerBiLabel: primaryReport?.label || '',
+        powerBiWorkspaceId: primaryReport?.workspaceId || '',
+        powerBiReportId: primaryReport?.reportId || '',
+        powerBiDatasetId: primaryReport?.datasetId || '',
       })
 
       setState(nextState)
@@ -303,6 +335,7 @@ export default function AdminPage() {
       powerBiWorkspaceId: company.powerBiWorkspaceId || '',
       powerBiReportId: company.powerBiReportId || '',
       powerBiDatasetId: company.powerBiDatasetId || '',
+      powerBiReports: getPowerBiReportCatalog(company),
       tools: company.tools || ['dashboard'],
       isPremiumLab: company.isPremiumLab,
     })
@@ -391,37 +424,128 @@ export default function AdminPage() {
     }))
   }
 
-  const useAllPowerBiPages = !userForm.permissions.powerBiPages || userForm.permissions.powerBiPages.length === 0
-
-  const enableSpecificPowerBiPages = () => {
-    setUserForm(previous => ({
+  const updatePowerBiReportField = (reportId, field, value) => {
+    setForm(previous => ({
       ...previous,
-      permissions: {
-        ...previous.permissions,
-        powerBiPages: powerBiCatalog.map(page => page.name),
-      },
+      powerBiReports: previous.powerBiReports.map(report => (report.id === reportId ? { ...report, [field]: value } : report)),
     }))
   }
 
-  const enableAllPowerBiPages = () => {
-    setUserForm(previous => ({
+  const addPowerBiReport = () => {
+    setForm(previous => ({
       ...previous,
-      permissions: {
-        ...previous.permissions,
-        powerBiPages: [],
-      },
+      powerBiReports: [...previous.powerBiReports, createEmptyPowerBiReport()],
     }))
   }
 
-  const toggleUserPowerBiPage = pageName => {
+  const removePowerBiReport = reportId => {
+    setForm(previous => ({
+      ...previous,
+      powerBiReports: previous.powerBiReports.filter(report => report.id !== reportId),
+    }))
+  }
+
+  const toggleUserPowerBiReport = reportId => {
     setUserForm(previous => {
-      const current = previous.permissions.powerBiPages || []
-      const nextPages = current.includes(pageName) ? current.filter(value => value !== pageName) : [...current, pageName]
+      const current = previous.permissions.powerBiReports?.[reportId] || { enabled: true, pages: [], filters: [] }
       return {
         ...previous,
         permissions: {
           ...previous.permissions,
-          powerBiPages: nextPages,
+          powerBiReports: {
+            ...previous.permissions.powerBiReports,
+            [reportId]: {
+              ...current,
+              enabled: !current.enabled,
+            },
+          },
+        },
+      }
+    })
+  }
+
+  const toggleUserPowerBiReportPage = (reportId, pageName) => {
+    setUserForm(previous => {
+      const current = previous.permissions.powerBiReports?.[reportId] || { enabled: true, pages: [], filters: [] }
+      const pages = current.pages || []
+      const nextPages = pages.includes(pageName) ? pages.filter(value => value !== pageName) : [...pages, pageName]
+      return {
+        ...previous,
+        permissions: {
+          ...previous.permissions,
+          powerBiReports: {
+            ...previous.permissions.powerBiReports,
+            [reportId]: {
+              ...current,
+              pages: nextPages,
+            },
+          },
+        },
+      }
+    })
+  }
+
+  const addUserPowerBiFilter = reportId => {
+    setUserForm(previous => {
+      const current = previous.permissions.powerBiReports?.[reportId] || { enabled: true, pages: [], filters: [] }
+      return {
+        ...previous,
+        permissions: {
+          ...previous.permissions,
+          powerBiReports: {
+            ...previous.permissions.powerBiReports,
+            [reportId]: {
+              ...current,
+              filters: [
+                ...(current.filters || []),
+                {
+                  id: `filter-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                  table: '',
+                  column: '',
+                  operator: 'is',
+                  value: '',
+                },
+              ],
+            },
+          },
+        },
+      }
+    })
+  }
+
+  const updateUserPowerBiFilter = (reportId, filterId, field, value) => {
+    setUserForm(previous => {
+      const current = previous.permissions.powerBiReports?.[reportId] || { enabled: true, pages: [], filters: [] }
+      return {
+        ...previous,
+        permissions: {
+          ...previous.permissions,
+          powerBiReports: {
+            ...previous.permissions.powerBiReports,
+            [reportId]: {
+              ...current,
+              filters: (current.filters || []).map(filter => (filter.id === filterId ? { ...filter, [field]: value } : filter)),
+            },
+          },
+        },
+      }
+    })
+  }
+
+  const removeUserPowerBiFilter = (reportId, filterId) => {
+    setUserForm(previous => {
+      const current = previous.permissions.powerBiReports?.[reportId] || { enabled: true, pages: [], filters: [] }
+      return {
+        ...previous,
+        permissions: {
+          ...previous.permissions,
+          powerBiReports: {
+            ...previous.permissions.powerBiReports,
+            [reportId]: {
+              ...current,
+              filters: (current.filters || []).filter(filter => filter.id !== filterId),
+            },
+          },
         },
       }
     })
@@ -747,7 +871,7 @@ export default function AdminPage() {
                     <div>
                       <h4 className="text-sm font-semibold text-white">Power BI hospedado no portal</h4>
                       <p className="mt-1 text-sm text-[#b7b0a6]">
-                        Habilite quando a empresa tiver um painel Power BI para abrir dentro do site e liberar por usuario.
+                        Cadastre um ou mais modelos de Power BI para esta empresa e controle os acessos por usuario.
                       </p>
                     </div>
 
@@ -755,56 +879,108 @@ export default function AdminPage() {
                       <input
                         type="checkbox"
                         checked={form.powerBiEnabled}
-                        onChange={event => setForm(previous => ({ ...previous, powerBiEnabled: event.target.checked }))}
+                        onChange={event =>
+                          setForm(previous => ({
+                            ...previous,
+                            powerBiEnabled: event.target.checked,
+                            powerBiReports:
+                              event.target.checked && previous.powerBiReports.length === 0
+                                ? [createEmptyPowerBiReport()]
+                                : previous.powerBiReports,
+                          }))
+                        }
                       />
                       <span>Power BI</span>
                     </label>
                   </div>
 
                   {form.powerBiEnabled ? (
-                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <label className="portal-label">Workspace ID</label>
-                        <input
-                          className="portal-input"
-                          value={form.powerBiWorkspaceId}
-                          onChange={event => setForm(previous => ({ ...previous, powerBiWorkspaceId: event.target.value }))}
-                          placeholder="a4f4dbd4-d6ef-43d7-ad10-c7d9426ea112"
-                          required={form.powerBiEnabled}
-                        />
-                      </div>
+                    <div className="mt-4 space-y-4">
+                      {form.powerBiReports.length === 0 ? (
+                        <div className="rounded-2xl bg-white/[0.04] px-4 py-4 text-sm text-[#b7b0a6]">
+                          Nenhum modelo cadastrado ainda. Adicione o primeiro para liberar o catalogo de Power BI.
+                        </div>
+                      ) : null}
 
-                      <div className="space-y-2">
-                        <label className="portal-label">Report ID</label>
-                        <input
-                          className="portal-input"
-                          value={form.powerBiReportId}
-                          onChange={event => setForm(previous => ({ ...previous, powerBiReportId: event.target.value }))}
-                          placeholder="37daae5a-d2f3-4237-8fc8-c176a3518d21"
-                          required={form.powerBiEnabled}
-                        />
-                      </div>
+                      {form.powerBiReports.map((report, index) => (
+                        <div key={report.id} className="rounded-[22px] bg-white/[0.04] p-4">
+                          <div className="mb-4 flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-white">Modelo {index + 1}</p>
+                              <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#8d867c]">Power BI Embedded</p>
+                            </div>
 
-                      <div className="space-y-2 md:col-span-2">
-                        <label className="portal-label">Dataset ID</label>
-                        <input
-                          className="portal-input"
-                          value={form.powerBiDatasetId}
-                          onChange={event => setForm(previous => ({ ...previous, powerBiDatasetId: event.target.value }))}
-                          placeholder="17301e64-6e62-4c66-ad24-ee7d3e68e21b"
-                          required={form.powerBiEnabled}
-                        />
-                      </div>
+                            <div className="flex items-center gap-2">
+                              <label className="portal-checkbox">
+                                <input
+                                  type="checkbox"
+                                  checked={report.enabled !== false}
+                                  onChange={event => updatePowerBiReportField(report.id, 'enabled', event.target.checked)}
+                                />
+                                <span>Ativo</span>
+                              </label>
+                              <button
+                                type="button"
+                                className="inline-flex h-11 items-center justify-center rounded-2xl bg-red-500/10 px-4 text-sm font-medium text-red-200 transition hover:bg-red-500/15"
+                                onClick={() => removePowerBiReport(report.id)}
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </div>
 
-                      <div className="space-y-2 md:col-span-2">
-                        <label className="portal-label">Rotulo interno do painel</label>
-                        <input
-                          className="portal-input"
-                          value={form.powerBiLabel}
-                          onChange={event => setForm(previous => ({ ...previous, powerBiLabel: event.target.value }))}
-                          placeholder="Ex.: Painel Comercial Power BI"
-                        />
-                      </div>
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2 md:col-span-2">
+                              <label className="portal-label">Nome do modelo</label>
+                              <input
+                                className="portal-input"
+                                value={report.label}
+                                onChange={event => updatePowerBiReportField(report.id, 'label', event.target.value)}
+                                placeholder="Ex.: Performance em Vendas"
+                                required={form.powerBiEnabled}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="portal-label">Workspace ID</label>
+                              <input
+                                className="portal-input"
+                                value={report.workspaceId}
+                                onChange={event => updatePowerBiReportField(report.id, 'workspaceId', event.target.value)}
+                                placeholder="a4f4dbd4-d6ef-43d7-ad10-c7d9426ea112"
+                                required={form.powerBiEnabled}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="portal-label">Report ID</label>
+                              <input
+                                className="portal-input"
+                                value={report.reportId}
+                                onChange={event => updatePowerBiReportField(report.id, 'reportId', event.target.value)}
+                                placeholder="37daae5a-d2f3-4237-8fc8-c176a3518d21"
+                                required={form.powerBiEnabled}
+                              />
+                            </div>
+
+                            <div className="space-y-2 md:col-span-2">
+                              <label className="portal-label">Dataset ID</label>
+                              <input
+                                className="portal-input"
+                                value={report.datasetId}
+                                onChange={event => updatePowerBiReportField(report.id, 'datasetId', event.target.value)}
+                                placeholder="17301e64-6e62-4c66-ad24-ee7d3e68e21b"
+                                required={form.powerBiEnabled}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      <button type="button" className="portal-ghost-button" onClick={addPowerBiReport}>
+                        <Plus size={15} />
+                        Adicionar modelo
+                      </button>
                     </div>
                   ) : null}
                 </div>
@@ -1002,48 +1178,168 @@ export default function AdminPage() {
                   <div className="grid gap-4 xl:grid-cols-2">
                     {hasConfiguredPowerBi(managingCompany) ? (
                       <div className="rounded-[24px] bg-white/[0.05] p-4 xl:col-span-2">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <h4 className="text-sm font-semibold text-white">Paginas do Power BI</h4>
-                            <p className="mt-1 text-sm text-[#b7b0a6]">
-                              Defina se o usuario pode navegar por todas as paginas do relatorio ou somente por algumas.
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <button type="button" className="portal-ghost-button" onClick={enableAllPowerBiPages}>
-                              Todas as paginas
-                            </button>
-                            <button type="button" className="portal-ghost-button" onClick={enableSpecificPowerBiPages} disabled={powerBiCatalog.length === 0}>
-                              Escolher paginas
-                            </button>
-                          </div>
+                        <div>
+                          <h4 className="text-sm font-semibold text-white">Modelos de Power BI</h4>
+                          <p className="mt-1 text-sm text-[#b7b0a6]">
+                            Controle quais modelos o usuario enxerga, quais paginas de cada relatorio ficam acessiveis e quais filtros devem ser aplicados.
+                          </p>
                         </div>
 
                         {powerBiCatalogLoading ? (
-                          <p className="mt-4 text-sm text-[#b7b0a6]">Carregando paginas do relatorio...</p>
+                          <p className="mt-4 text-sm text-[#b7b0a6]">Carregando modelos do relatorio...</p>
                         ) : powerBiCatalogError ? (
                           <p className="mt-4 text-sm text-[#f0b8b8]">{powerBiCatalogError}</p>
                         ) : powerBiCatalog.length === 0 ? (
-                          <p className="mt-4 text-sm text-[#b7b0a6]">Nenhuma pagina foi encontrada para este relatorio ainda.</p>
+                          <p className="mt-4 text-sm text-[#b7b0a6]">Nenhum modelo foi encontrado para esta empresa ainda.</p>
                         ) : (
-                          <>
-                            <p className="mt-4 text-xs uppercase tracking-[0.18em] text-[#8d867c]">
-                              {useAllPowerBiPages ? 'Todas as paginas estao liberadas.' : 'Paginas selecionadas manualmente.'}
-                            </p>
-                            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                              {powerBiCatalog.map(page => (
-                                <label key={page.name} className="portal-checkbox">
-                                  <input
-                                    type="checkbox"
-                                    checked={useAllPowerBiPages ? true : userForm.permissions.powerBiPages.includes(page.name)}
-                                    onChange={() => toggleUserPowerBiPage(page.name)}
-                                    disabled={useAllPowerBiPages}
-                                  />
-                                  <span>{page.displayName || page.name}</span>
-                                </label>
-                              ))}
-                            </div>
-                          </>
+                          <div className="mt-4 space-y-4">
+                            {powerBiCatalog.map(report => {
+                              const reportPermission = userForm.permissions.powerBiReports?.[report.id] || {
+                                enabled: true,
+                                pages: [],
+                                filters: [],
+                              }
+                              const allowAllPages = !reportPermission.pages || reportPermission.pages.length === 0
+
+                              return (
+                                <div key={report.id} className="rounded-[22px] bg-white/[0.04] p-4">
+                                  <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-semibold text-white">{report.label || report.reportName}</p>
+                                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#8d867c]">{report.reportName || 'Relatorio Power BI'}</p>
+                                    </div>
+
+                                    <label className="portal-checkbox">
+                                      <input
+                                        type="checkbox"
+                                        checked={reportPermission.enabled !== false}
+                                        onChange={() => toggleUserPowerBiReport(report.id)}
+                                      />
+                                      <span>Mostrar modelo</span>
+                                    </label>
+                                  </div>
+
+                                  <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
+                                    <div className="rounded-[18px] bg-white/[0.04] p-4">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <p className="text-sm font-semibold text-white">Paginas liberadas</p>
+                                          <p className="mt-1 text-sm text-[#b7b0a6]">
+                                            Deixe sem marcar para liberar todas ou selecione somente as paginas permitidas.
+                                          </p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          className="portal-ghost-button"
+                                          onClick={() =>
+                                            setUserForm(previous => ({
+                                              ...previous,
+                                              permissions: {
+                                                ...previous.permissions,
+                                                powerBiReports: {
+                                                  ...previous.permissions.powerBiReports,
+                                                  [report.id]: {
+                                                    ...reportPermission,
+                                                    pages: [],
+                                                  },
+                                                },
+                                              },
+                                            }))
+                                          }
+                                        >
+                                          Todas
+                                        </button>
+                                      </div>
+
+                                      <p className="mt-3 text-xs uppercase tracking-[0.18em] text-[#8d867c]">
+                                        {allowAllPages ? 'Todas as paginas estao liberadas.' : 'Paginas escolhidas manualmente.'}
+                                      </p>
+
+                                      <div className="mt-4 grid gap-2 md:grid-cols-2">
+                                        {(report.pages || []).map(page => (
+                                          <label key={page.name} className="portal-checkbox">
+                                            <input
+                                              type="checkbox"
+                                              checked={allowAllPages ? true : reportPermission.pages.includes(page.name)}
+                                              onChange={() => toggleUserPowerBiReportPage(report.id, page.name)}
+                                              disabled={allowAllPages}
+                                            />
+                                            <span>{page.displayName || page.name}</span>
+                                          </label>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    <div className="rounded-[18px] bg-white/[0.04] p-4">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <p className="text-sm font-semibold text-white">Filtros do usuario</p>
+                                          <p className="mt-1 text-sm text-[#b7b0a6]">
+                                            Aplique filtros permanentes neste modelo para restringir dados por tabela, coluna e valor.
+                                          </p>
+                                        </div>
+                                        <button type="button" className="portal-ghost-button" onClick={() => addUserPowerBiFilter(report.id)}>
+                                          <Plus size={14} />
+                                          Adicionar filtro
+                                        </button>
+                                      </div>
+
+                                      <div className="mt-4 space-y-3">
+                                        {(reportPermission.filters || []).length === 0 ? (
+                                          <p className="text-sm text-[#b7b0a6]">Nenhum filtro configurado para este modelo.</p>
+                                        ) : (
+                                          (reportPermission.filters || []).map(filter => (
+                                            <div key={filter.id} className="rounded-[16px] bg-[#141216] p-3">
+                                              <div className="mb-3 flex justify-end">
+                                                <button
+                                                  type="button"
+                                                  className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
+                                                  onClick={() => removeUserPowerBiFilter(report.id, filter.id)}
+                                                >
+                                                  Remover
+                                                </button>
+                                              </div>
+                                              <div className="grid gap-3 md:grid-cols-2">
+                                                <input
+                                                  className="portal-input"
+                                                  value={filter.table}
+                                                  onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'table', event.target.value)}
+                                                  placeholder="Tabela"
+                                                />
+                                                <input
+                                                  className="portal-input"
+                                                  value={filter.column}
+                                                  onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'column', event.target.value)}
+                                                  placeholder="Coluna"
+                                                />
+                                                <select
+                                                  className="portal-input"
+                                                  value={filter.operator}
+                                                  onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'operator', event.target.value)}
+                                                >
+                                                  {POWER_BI_FILTER_OPERATORS.map(option => (
+                                                    <option key={option.value} value={option.value}>
+                                                      {option.label}
+                                                    </option>
+                                                  ))}
+                                                </select>
+                                                <input
+                                                  className="portal-input"
+                                                  value={filter.value}
+                                                  onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'value', event.target.value)}
+                                                  placeholder="Valor ou lista separada por virgula"
+                                                />
+                                              </div>
+                                            </div>
+                                          ))
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
                         )}
                       </div>
                     ) : null}

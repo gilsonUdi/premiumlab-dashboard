@@ -12,6 +12,7 @@ import {
   loadCompanyState,
 } from '@/lib/portal-store'
 import { canAccessPortalPage, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
+import { hasAnyPowerBiConfig } from '@/lib/power-bi'
 
 const TOOL_CARDS = [
   {
@@ -114,7 +115,7 @@ export default function CompanyHomePage({ slug }) {
         )
           .filter(tool => {
             if (tool.key === 'powerBi') {
-              return company.powerBiEnabled && (Boolean(company.powerBiWorkspaceId && company.powerBiReportId) || Boolean(company.powerBiEmbedUrl))
+              return hasAnyPowerBiConfig(company)
             }
             return company.supabaseEnabled
           })
