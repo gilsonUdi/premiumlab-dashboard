@@ -621,6 +621,43 @@ function getNumberArg(name) {
   return Number.isFinite(value) ? value : null;
 }
 
+function getStringArg(name) {
+  const index = args.indexOf(name);
+  if (index === -1) return "";
+  const value = String(args[index + 1] || "").trim();
+  return value.startsWith("--") ? "" : value;
+}
+
+function getCacheOnlyTargets() {
+  const raw = getStringArg("--cache-only");
+  if (!args.includes("--cache-only")) return [];
+
+  const values = raw
+    ? raw
+        .split(",")
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean)
+    : ["all"];
+
+  const normalized = new Set();
+  for (const value of values) {
+    if (value === "all") {
+      normalized.add("roteiro");
+      normalized.add("dashboard");
+      continue;
+    }
+    if (["route", "roteiro", "pedido_roteiro_cache"].includes(value)) {
+      normalized.add("roteiro");
+      continue;
+    }
+    if (["dashboard", "pedido_dashboard_cache"].includes(value)) {
+      normalized.add("dashboard");
+    }
+  }
+
+  return [...normalized];
+}
+
 function envIsTrue(name) {
   return String(process.env[name] || "").trim().toLowerCase() === "true";
 }
@@ -1737,6 +1774,78 @@ async function syncTable(db, supabase, tableName, options) {
 }
 
 async function runOnce() {
+  const dryRun = args.includes("--dry-run");
+  const tableArg = getTableArg();
+  const tablesArg = getTablesArg();
+  const refreshRecentDays = getNumberArg("--refresh-recent-days");
+  const cacheOnlyTargets = getCacheOnlyTargets();
+  const cacheOnlyMode = cacheOnlyTargets.length > 0;
+  const incrementalEnabled = incrementalSyncEnabled();
+  const cacheFromDateArg = getStringArg("--cache-from-date");
+
+  if (cacheOnlyMode) {
+    requiredEnv(["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]);
+
+    const supabase = getSupabase();
+    const startedAt = Date.now();
+    const fromDate =
+      cacheFromDateArg ||
+      (incrementalEnabled
+        ? dateDaysAgo(Number(process.env.SYNC_RECENT_DAYS || 30))
+        : cleanEnvValue(process.env.SYNC_DATE_FROM || "2025-01-01"));
+
+    log("");
+    log("=== Rebuild de Cache Supabase ===");
+    log(`Supabase : ${cleanEnvValue(process.env.SUPABASE_URL)}`);
+    log(`Caches   : ${cacheOnlyTargets.join(", ")}`);
+    log(`Desde    : ${fromDate}`);
+    if (dryRun) log("Modo     : dry-run");
+
+    if (!dryRun) {
+      await ensureRoteiroCacheTable(supabase);
+      await ensureDashboardCacheTable(supabase);
+    }
+
+    let ok = 0;
+    let failed = 0;
+
+    if (cacheOnlyTargets.includes("roteiro")) {
+      log(`Cache    : iniciando rebuild de pedido_roteiro_cache desde ${fromDate}`);
+      try {
+        if (!dryRun) await rebuildRoteiroCache(supabase, fromDate);
+        ok += 1;
+      } catch (error) {
+        failed += 1;
+        log(`Cache    : erro no pedido_roteiro_cache: ${error.message}`);
+      }
+    }
+
+    if (cacheOnlyTargets.includes("dashboard")) {
+      log(`Cache    : iniciando rebuild de pedido_dashboard_cache desde ${fromDate}`);
+      try {
+        if (!dryRun) await rebuildDashboardCache(supabase, fromDate);
+        ok += 1;
+      } catch (error) {
+        failed += 1;
+        log(`Cache    : erro no pedido_dashboard_cache: ${error.message}`);
+      }
+    }
+
+    const summary = {
+      ok: failed === 0,
+      cacheOnly: true,
+      cachesOk: ok,
+      cachesFailed: failed,
+      elapsedSeconds: Number(((Date.now() - startedAt) / 1000).toFixed(1)),
+      finishedAt: timestamp(),
+    };
+
+    log(`Concluido: ${ok} cache(s) OK, ${failed} erro(s).`);
+    log(`Resumo   : ${JSON.stringify(summary)}`);
+    if (failed > 0) process.exitCode = 1;
+    return;
+  }
+
   requiredEnv([
     "FIREBIRD_HOST",
     "FIREBIRD_DATABASE",
@@ -1745,12 +1854,7 @@ async function runOnce() {
     "SUPABASE_SERVICE_ROLE_KEY",
   ]);
 
-  const dryRun = args.includes("--dry-run");
-  const tableArg = getTableArg();
-  const tablesArg = getTablesArg();
-  const refreshRecentDays = getNumberArg("--refresh-recent-days");
   const automaticRun = !tableArg && tablesArg.length === 0;
-  const incrementalEnabled = incrementalSyncEnabled();
   const dateFilters = incrementalEnabled ? parseDateFilters() : {};
   const linkedDateFilters = incrementalEnabled ? parseLinkedDateFilters() : {};
   const refreshLinkedTables = incrementalEnabled ? parseRefreshLinkedTables() : {};
