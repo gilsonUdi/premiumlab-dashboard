@@ -70,7 +70,7 @@ export default function PowerBiEmbeddedView({ company }) {
           pageNavigation: { visible: false },
         },
         navContentPaneEnabled: false,
-        background: models.BackgroundType.Transparent,
+        background: models.BackgroundType.Default,
       },
     }
   }, [activePageName, config])
@@ -165,7 +165,7 @@ export default function PowerBiEmbeddedView({ company }) {
         </aside>
 
         <div className="min-w-0 pt-20 lg:pt-0">
-          <div className="h-full w-full bg-transparent">
+          <div className="h-full w-full bg-[#0f0d11]">
             {loading ? (
               <div className="flex h-full items-center justify-center px-6 text-sm text-[#d8d2c8]">Preparando Power BI...</div>
             ) : error ? (
@@ -179,7 +179,7 @@ export default function PowerBiEmbeddedView({ company }) {
               <div className="h-full w-full">
                 <PowerBIEmbed
                   embedConfig={embedConfig}
-                  cssClassName="powerbi-embed-shell h-full w-full"
+                  cssClassName="h-full w-full"
                   getEmbeddedComponent={embeddedReport => {
                     reportRef.current = embeddedReport
                   }}
@@ -219,14 +219,6 @@ export default function PowerBiEmbeddedView({ company }) {
           </div>
         </div>
       </section>
-
-      <style jsx global>{`
-        .powerbi-embed-shell,
-        .powerbi-embed-shell > div,
-        .powerbi-embed-shell iframe {
-          background: transparent !important;
-        }
-      `}</style>
     </main>
   )
 }
