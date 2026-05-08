@@ -177,9 +177,9 @@ export default function PowerBiEmbeddedView({ company }) {
               </div>
             ) : embedConfig ? (
               <div className="relative h-full w-full overflow-hidden">
-                <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-14 bg-[#141216]">
-                  <div className="flex h-full items-center px-5 sm:px-6">
-                    <span className="text-xs font-medium uppercase tracking-[0.28em] text-[#e3ad5a]">GSControladoria</span>
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-11 bg-[#141216]">
+                  <div className="flex h-full items-center px-4 sm:px-5">
+                    <span className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#e3ad5a]">GSControladoria</span>
                   </div>
                 </div>
                 <PowerBIEmbed
