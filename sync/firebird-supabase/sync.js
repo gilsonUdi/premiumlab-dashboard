@@ -827,6 +827,19 @@ async function withPgTransaction(work) {
   });
 }
 
+async function withPgClientSession(work) {
+  return withPgRetries(async () => {
+    const pool = await getPgPool();
+    const client = await pool.connect();
+
+    try {
+      return await work(client);
+    } finally {
+      client.release();
+    }
+  });
+}
+
 async function insertPgRowsInBatches(client, tableName, columns, rows, mapRowToValues, batchSize = 250) {
   if (!rows.length) return;
 
@@ -987,21 +1000,25 @@ async function ensureRotulosClienTable(supabase) {
 
 async function rebuildRoteiroCache(supabase, fromDate) {
   await ensureRoteiroCacheTable(supabase);
-  const orders = await pgPoolQuery(
-    `
-      select
-        ped.id_pedido,
-        ped.pedcodigo,
-        ped.pedpzentre,
-        ped.pedhrentre,
-        ped.peddtemis,
-        ped.pedsitped
-      from public.pedid ped
-      where ped.peddtemis >= $1
-        and coalesce(ped.pedsitped, '') <> 'C'
-      order by ped.id_pedido
-    `,
-    [`${fromDate}T00:00:00`]
+  const readChunkSize = Math.max(100, Number(process.env.SYNC_CACHE_READ_CHUNK || 500));
+  const orders = await withPgClientSession((client) =>
+    pgQuery(
+      client,
+      `
+        select
+          ped.id_pedido,
+          ped.pedcodigo,
+          ped.pedpzentre,
+          ped.pedhrentre,
+          ped.peddtemis,
+          ped.pedsitped
+        from public.pedid ped
+        where ped.peddtemis >= $1
+          and coalesce(ped.pedsitped, '') <> 'C'
+        order by ped.id_pedido
+      `,
+      [`${fromDate}T00:00:00`]
+    )
   );
 
   if (!orders.length) return;
@@ -1021,42 +1038,46 @@ async function rebuildRoteiroCache(supabase, fromDate) {
 
   const roteiroRows = [];
   const passRows = [];
-  for (let index = 0; index < orderIds.length; index += 500) {
-    const chunkIds = orderIds.slice(index, index + 500);
-    const routeChunk = await pgPoolQuery(
-      `
-        select
-          jr.id_pedido,
-          jr.jbrordem,
-          jr.alxcodigo,
-          a.alxdescricao::text as celula_descricao
-        from public.jbxroteiro jr
-        left join public.almox a on a.alxcodigo = jr.alxcodigo and a.empcodigo = jr.empcodigo
-        where jr.id_pedido = any($1::bigint[])
-        order by jr.id_pedido, jr.jbrordem asc, jr.alxcodigo asc
-      `,
-      [chunkIds]
-    );
-    roteiroRows.push(...routeChunk);
+  await withPgClientSession(async (client) => {
+    for (let index = 0; index < orderIds.length; index += readChunkSize) {
+      const chunkIds = orderIds.slice(index, index + readChunkSize);
+      const routeChunk = await pgQuery(
+        client,
+        `
+          select
+            jr.id_pedido,
+            jr.jbrordem,
+            jr.alxcodigo,
+            a.alxdescricao::text as celula_descricao
+          from public.jbxroteiro jr
+          left join public.almox a on a.alxcodigo = jr.alxcodigo and a.empcodigo = jr.empcodigo
+          where jr.id_pedido = any($1::bigint[])
+          order by jr.id_pedido, jr.jbrordem asc, jr.alxcodigo asc
+        `,
+        [chunkIds]
+      );
+      roteiroRows.push(...routeChunk);
 
-    const passChunk = await pgPoolQuery(
-      `
-        select distinct on (ac.id_pedido, ac.alxcodigo)
-          ac.id_pedido,
-          ac.alxcodigo,
-          a.alxdescricao::text as celula_descricao,
-          ac.apdata,
-          ac.aphora
-        from public.acoped ac
-        left join public.almox a on a.alxcodigo = ac.alxcodigo and a.empcodigo = ac.empcodigo
-        where ac.id_pedido = any($1::bigint[])
-          and ac.alxcodigo is not null
-        order by ac.id_pedido, ac.alxcodigo, ac.apdata asc nulls last, ac.aphora asc nulls last
-      `,
-      [chunkIds]
-    );
-    passRows.push(...passChunk);
-  }
+      const passChunk = await pgQuery(
+        client,
+        `
+          select distinct on (ac.id_pedido, ac.alxcodigo)
+            ac.id_pedido,
+            ac.alxcodigo,
+            a.alxdescricao::text as celula_descricao,
+            ac.apdata,
+            ac.aphora
+          from public.acoped ac
+          left join public.almox a on a.alxcodigo = ac.alxcodigo and a.empcodigo = ac.empcodigo
+          where ac.id_pedido = any($1::bigint[])
+            and ac.alxcodigo is not null
+          order by ac.id_pedido, ac.alxcodigo, ac.apdata asc nulls last, ac.aphora asc nulls last
+        `,
+        [chunkIds]
+      );
+      passRows.push(...passChunk);
+    }
+  });
 
   const passMap = new Map();
   const observedByOrder = new Map();
@@ -1170,8 +1191,10 @@ async function rebuildDashboardCache(supabase, fromDate) {
   log(`Cache    : reconstruindo pedido_dashboard_cache desde ${fromDate}`);
 
   const now = nowInProductionTimeZone();
-  const [orders, clients, sellers] = await Promise.all([
-    pgPoolQuery(
+  const readChunkSize = Math.max(100, Number(process.env.SYNC_CACHE_READ_CHUNK || 250));
+  const { orders, clients, sellers } = await withPgClientSession(async (client) => {
+    const fetchedOrders = await pgQuery(
+      client,
       `
         select
           id_pedido,
@@ -1190,22 +1213,30 @@ async function rebuildDashboardCache(supabase, fromDate) {
         order by id_pedido
       `,
       [`${fromDate}T00:00:00`]
-    ),
-    pgPoolQuery(
+    );
+    const fetchedClients = await pgQuery(
+      client,
       `
         select clicodigo, clinomefant, clirazsocial, gclcodigo
         from public.clien
         order by clicodigo
       `
-    ),
-    pgPoolQuery(
+    );
+    const fetchedSellers = await pgQuery(
+      client,
       `
         select funcodigo, funnome
         from public.funcio
         order by funcodigo
       `
-    ),
-  ]);
+    );
+
+    return {
+      orders: fetchedOrders,
+      clients: fetchedClients,
+      sellers: fetchedSellers,
+    };
+  });
 
   const clientMap = new Map(
     clients.map((row) => [
@@ -1246,11 +1277,12 @@ async function rebuildDashboardCache(supabase, fromDate) {
   const quantityMap = new Map();
   const roteiroCacheMap = new Map();
 
-  for (let index = 0; index < orderIds.length; index += 250) {
-    const chunkIds = orderIds.slice(index, index + 250);
+  await withPgClientSession(async (client) => {
+    for (let index = 0; index < orderIds.length; index += readChunkSize) {
+      const chunkIds = orderIds.slice(index, index + readChunkSize);
 
-    const [latestCellRows, fallbackRows, productQuantityRows, serviceQuantityRows, roteiroRows] = await Promise.all([
-      pgPoolQuery(
+      const latestCellRows = await pgQuery(
+        client,
         `
           select distinct on (ac.id_pedido)
             ac.id_pedido,
@@ -1262,8 +1294,9 @@ async function rebuildDashboardCache(supabase, fromDate) {
           order by ac.id_pedido, ac.apdata desc nulls last, ac.aphora desc nulls last
         `,
         [chunkIds]
-      ),
-      pgPoolQuery(
+      );
+      const fallbackRows = await pgQuery(
+        client,
         `
           select distinct on (rq.pdccodigo)
             rq.pdccodigo as id_pedido,
@@ -1276,8 +1309,9 @@ async function rebuildDashboardCache(supabase, fromDate) {
           order by rq.pdccodigo, rq.reqdata desc nulls last, rq.reqhora desc nulls last, rq.reqcodigo desc
         `,
         [chunkIds]
-      ),
-      pgPoolQuery(
+      );
+      const productQuantityRows = await pgQuery(
+        client,
         `
           select
             id_pedido,
@@ -1287,8 +1321,9 @@ async function rebuildDashboardCache(supabase, fromDate) {
           group by id_pedido
         `,
         [chunkIds]
-      ),
-      pgPoolQuery(
+      );
+      const serviceQuantityRows = await pgQuery(
+        client,
         `
           select
             id_pedido,
@@ -1298,8 +1333,9 @@ async function rebuildDashboardCache(supabase, fromDate) {
           group by id_pedido
         `,
         [chunkIds]
-      ),
-      pgPoolQuery(
+      );
+      const roteiroRows = await pgQuery(
+        client,
         `
           select
             id_pedido,
@@ -1309,43 +1345,43 @@ async function rebuildDashboardCache(supabase, fromDate) {
           where id_pedido = any($1::bigint[])
         `,
         [chunkIds]
-      ),
-    ]);
+      );
 
-    for (const row of latestCellRows) {
-      latestCellMap.set(String(row.id_pedido), {
-        current_cell: normalizeText(row.celula),
-        caixa: normalizeText(row.caixa),
-      });
-    }
-
-    for (const row of fallbackRows) {
-      const currentCell =
-        normalizeText(row.estoque_descricao) || (row.reqentsai === "S" ? "Saida" : row.dptcodigo != null ? `Depto ${row.dptcodigo}` : "");
-      fallbackCellMap.set(String(row.id_pedido), currentCell);
-    }
-
-    for (const row of [...productQuantityRows, ...serviceQuantityRows]) {
-      const key = String(row.id_pedido);
-      quantityMap.set(key, (quantityMap.get(key) || 0) + (Number(row.quantidade_total) || 0));
-    }
-
-    for (const row of roteiroRows) {
-      let roteiro = row.roteiro_json;
-      if (typeof roteiro === "string") {
-        try {
-          roteiro = JSON.parse(roteiro);
-        } catch {
-          roteiro = [];
-        }
+      for (const row of latestCellRows) {
+        latestCellMap.set(String(row.id_pedido), {
+          current_cell: normalizeText(row.celula),
+          caixa: normalizeText(row.caixa),
+        });
       }
 
-      roteiroCacheMap.set(String(row.id_pedido), {
-        roteiro_resumo: String(row.roteiro_resumo || "").trim(),
-        roteiro_json: Array.isArray(roteiro) ? roteiro : [],
-      });
+      for (const row of fallbackRows) {
+        const currentCell =
+          normalizeText(row.estoque_descricao) || (row.reqentsai === "S" ? "Saida" : row.dptcodigo != null ? `Depto ${row.dptcodigo}` : "");
+        fallbackCellMap.set(String(row.id_pedido), currentCell);
+      }
+
+      for (const row of [...productQuantityRows, ...serviceQuantityRows]) {
+        const key = String(row.id_pedido);
+        quantityMap.set(key, (quantityMap.get(key) || 0) + (Number(row.quantidade_total) || 0));
+      }
+
+      for (const row of roteiroRows) {
+        let roteiro = row.roteiro_json;
+        if (typeof roteiro === "string") {
+          try {
+            roteiro = JSON.parse(roteiro);
+          } catch {
+            roteiro = [];
+          }
+        }
+
+        roteiroCacheMap.set(String(row.id_pedido), {
+          roteiro_resumo: String(row.roteiro_resumo || "").trim(),
+          roteiro_json: Array.isArray(roteiro) ? roteiro : [],
+        });
+      }
     }
-  }
+  });
 
   const cacheRows = [];
   for (const [orderId, order] of orderMap.entries()) {
