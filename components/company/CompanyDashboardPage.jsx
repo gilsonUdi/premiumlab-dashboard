@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ProductionDashboard from '@/components/ProductionDashboard'
+import PowerBiEmbeddedView from '@/components/company/PowerBiEmbeddedView'
 import {
   getCompanyById,
   getCompanyBySlug,
@@ -38,7 +39,7 @@ function EmbeddedToolFrame({ company, src, backHref }) {
         aria-label="Voltar ao portal"
         className="absolute left-4 top-4 z-20 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#1f1b20]/88 text-2xl text-white shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-[#2a242b] sm:left-6 sm:top-6"
       >
-        <span aria-hidden="true">←</span>
+        <span aria-hidden="true">{'\u2190'}</span>
       </Link>
 
       <section className="h-screen w-full overflow-hidden bg-[#0f0d11]">
@@ -101,14 +102,16 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
   }, [session?.companyId, slug, state])
 
   const isExternalDashboard = !company?.supabaseEnabled && Boolean(company?.externalDashboardUrl)
-  const isPowerBi = mode === 'power-bi' && Boolean(company?.powerBiEnabled) && Boolean(company?.powerBiEmbedUrl)
+  const isEmbeddedPowerBi =
+    mode === 'power-bi' && Boolean(company?.powerBiEnabled) && Boolean(company?.powerBiWorkspaceId) && Boolean(company?.powerBiReportId)
+  const isLegacyPowerBi = mode === 'power-bi' && Boolean(company?.powerBiEnabled) && Boolean(company?.powerBiEmbedUrl)
   const pageKey = isExternalDashboard
     ? PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD
-    : isPowerBi
+    : isEmbeddedPowerBi || isLegacyPowerBi
       ? PORTAL_PAGE_KEYS.POWER_BI
-    : mode === 'pps'
-      ? PORTAL_PAGE_KEYS.PPS
-      : PORTAL_PAGE_KEYS.ANALYSIS
+      : mode === 'pps'
+        ? PORTAL_PAGE_KEYS.PPS
+        : PORTAL_PAGE_KEYS.ANALYSIS
 
   if (!state || !session || !company) {
     return (
@@ -127,7 +130,7 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
           <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Acesso restrito</p>
           <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
           <p className="mt-4 text-base leading-8 text-[#c6c0b7]">
-            Este usuario nao possui permissao para acessar {isExternalDashboard ? 'o dashboard externo' : isPowerBi ? 'o Power BI' : mode === 'pps' ? 'o PPS' : 'a Analise de Dados'} desta empresa.
+            Este usuario nao possui permissao para acessar {isExternalDashboard ? 'o dashboard externo' : isEmbeddedPowerBi || isLegacyPowerBi ? 'o Power BI' : mode === 'pps' ? 'o PPS' : 'a Analise de Dados'} desta empresa.
           </p>
         </div>
       </main>
@@ -138,7 +141,11 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
     return <EmbeddedToolFrame company={company} src={company.externalDashboardUrl} backHref={`/empresa/${company.slug}`} />
   }
 
-  if (isPowerBi) {
+  if (isEmbeddedPowerBi) {
+    return <PowerBiEmbeddedView company={company} />
+  }
+
+  if (isLegacyPowerBi) {
     return <EmbeddedToolFrame company={company} src={company.powerBiEmbedUrl} backHref={`/empresa/${company.slug}`} />
   }
 
@@ -159,4 +166,3 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis' }) {
     />
   )
 }
-

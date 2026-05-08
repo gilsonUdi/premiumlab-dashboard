@@ -24,6 +24,7 @@ import {
   ensurePremiumLabTenant,
   getCurrentPortalSession,
   getDefaultPermissionsForCompany,
+  getPortalAccessToken,
   slugifyCompanyName,
   updateCompanyUser,
   upsertCompany,
@@ -44,6 +45,9 @@ const emptyForm = {
   powerBiEnabled: false,
   powerBiEmbedUrl: '',
   powerBiLabel: '',
+  powerBiWorkspaceId: '',
+  powerBiReportId: '',
+  powerBiDatasetId: '',
   tools: ['dashboard'],
   isPremiumLab: false,
 }
@@ -103,6 +107,10 @@ function formatCompanyStatus(company) {
   return company.supabaseEnabled ? 'Portal interno' : 'Dashboard externo'
 }
 
+function hasConfiguredPowerBi(company) {
+  return Boolean(company?.powerBiEnabled && company?.powerBiWorkspaceId && company?.powerBiReportId)
+}
+
 export default function AdminPage() {
   const router = useRouter()
   const [state, setState] = useState(null)
@@ -115,6 +123,9 @@ export default function AdminPage() {
   const [managingCompanyId, setManagingCompanyId] = useState('')
   const [userForm, setUserForm] = useState(buildEmptyUserForm({ supabaseEnabled: true }))
   const [editingUserId, setEditingUserId] = useState('')
+  const [powerBiCatalog, setPowerBiCatalog] = useState([])
+  const [powerBiCatalogLoading, setPowerBiCatalogLoading] = useState(false)
+  const [powerBiCatalogError, setPowerBiCatalogError] = useState('')
 
   useEffect(() => {
     let active = true
@@ -162,7 +173,17 @@ export default function AdminPage() {
     if (!query) return state?.companies || []
 
     return (state?.companies || []).filter(company =>
-      [company.name, company.slug, company.email, company.supabaseLabel, company.externalDashboardUrl, company.powerBiEmbedUrl, company.powerBiLabel]
+      [
+        company.name,
+        company.slug,
+        company.email,
+        company.supabaseLabel,
+        company.externalDashboardUrl,
+        company.powerBiEmbedUrl,
+        company.powerBiLabel,
+        company.powerBiWorkspaceId,
+        company.powerBiReportId,
+      ]
         .filter(Boolean)
         .some(value => value.toLowerCase().includes(query))
     )
@@ -177,6 +198,52 @@ export default function AdminPage() {
     () => (state?.companies || []).find(company => company.id === form.id) || null,
     [form.id, state?.companies]
   )
+
+  useEffect(() => {
+    let active = true
+
+    async function loadPowerBiCatalog() {
+      if (!isUserModalOpen || !managingCompany || !hasConfiguredPowerBi(managingCompany)) {
+        if (active) {
+          setPowerBiCatalog([])
+          setPowerBiCatalogError('')
+          setPowerBiCatalogLoading(false)
+        }
+        return
+      }
+
+      try {
+        setPowerBiCatalogLoading(true)
+        setPowerBiCatalogError('')
+        const token = await getPortalAccessToken()
+        const response = await fetch(`/api/power-bi/metadata?slug=${encodeURIComponent(managingCompany.slug)}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: 'no-store',
+        })
+        const payload = await response.json()
+        if (!response.ok) {
+          throw new Error(payload.error || 'Nao foi possivel carregar as paginas do Power BI.')
+        }
+        if (!active) return
+        setPowerBiCatalog(Array.isArray(payload.pages) ? payload.pages : [])
+      } catch (error) {
+        console.error(error)
+        if (!active) return
+        setPowerBiCatalog([])
+        setPowerBiCatalogError(error.message || 'Nao foi possivel carregar as paginas do Power BI.')
+      } finally {
+        if (active) setPowerBiCatalogLoading(false)
+      }
+    }
+
+    loadPowerBiCatalog()
+
+    return () => {
+      active = false
+    }
+  }, [isUserModalOpen, managingCompany])
 
   const handleLogout = async () => {
     await clearPortalSession()
@@ -233,6 +300,9 @@ export default function AdminPage() {
       powerBiEnabled: company.powerBiEnabled === true,
       powerBiEmbedUrl: company.powerBiEmbedUrl || '',
       powerBiLabel: company.powerBiLabel || '',
+      powerBiWorkspaceId: company.powerBiWorkspaceId || '',
+      powerBiReportId: company.powerBiReportId || '',
+      powerBiDatasetId: company.powerBiDatasetId || '',
       tools: company.tools || ['dashboard'],
       isPremiumLab: company.isPremiumLab,
     })
@@ -271,6 +341,9 @@ export default function AdminPage() {
     setIsUserModalOpen(false)
     setManagingCompanyId('')
     setEditingUserId('')
+    setPowerBiCatalog([])
+    setPowerBiCatalogError('')
+    setPowerBiCatalogLoading(false)
   }
 
   const startCreateUser = () => {
@@ -316,6 +389,42 @@ export default function AdminPage() {
         },
       },
     }))
+  }
+
+  const useAllPowerBiPages = !userForm.permissions.powerBiPages || userForm.permissions.powerBiPages.length === 0
+
+  const enableSpecificPowerBiPages = () => {
+    setUserForm(previous => ({
+      ...previous,
+      permissions: {
+        ...previous.permissions,
+        powerBiPages: powerBiCatalog.map(page => page.name),
+      },
+    }))
+  }
+
+  const enableAllPowerBiPages = () => {
+    setUserForm(previous => ({
+      ...previous,
+      permissions: {
+        ...previous.permissions,
+        powerBiPages: [],
+      },
+    }))
+  }
+
+  const toggleUserPowerBiPage = pageName => {
+    setUserForm(previous => {
+      const current = previous.permissions.powerBiPages || []
+      const nextPages = current.includes(pageName) ? current.filter(value => value !== pageName) : [...current, pageName]
+      return {
+        ...previous,
+        permissions: {
+          ...previous.permissions,
+          powerBiPages: nextPages,
+        },
+      }
+    })
   }
 
   const handleSaveUser = async event => {
@@ -654,13 +763,35 @@ export default function AdminPage() {
 
                   {form.powerBiEnabled ? (
                     <div className="mt-4 grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2 md:col-span-2">
-                        <label className="portal-label">Link de embed do Power BI</label>
+                      <div className="space-y-2">
+                        <label className="portal-label">Workspace ID</label>
                         <input
                           className="portal-input"
-                          value={form.powerBiEmbedUrl}
-                          onChange={event => setForm(previous => ({ ...previous, powerBiEmbedUrl: event.target.value }))}
-                          placeholder="https://app.powerbi.com/reportEmbed?..."
+                          value={form.powerBiWorkspaceId}
+                          onChange={event => setForm(previous => ({ ...previous, powerBiWorkspaceId: event.target.value }))}
+                          placeholder="a4f4dbd4-d6ef-43d7-ad10-c7d9426ea112"
+                          required={form.powerBiEnabled}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="portal-label">Report ID</label>
+                        <input
+                          className="portal-input"
+                          value={form.powerBiReportId}
+                          onChange={event => setForm(previous => ({ ...previous, powerBiReportId: event.target.value }))}
+                          placeholder="37daae5a-d2f3-4237-8fc8-c176a3518d21"
+                          required={form.powerBiEnabled}
+                        />
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2">
+                        <label className="portal-label">Dataset ID</label>
+                        <input
+                          className="portal-input"
+                          value={form.powerBiDatasetId}
+                          onChange={event => setForm(previous => ({ ...previous, powerBiDatasetId: event.target.value }))}
+                          placeholder="17301e64-6e62-4c66-ad24-ee7d3e68e21b"
                           required={form.powerBiEnabled}
                         />
                       </div>
@@ -861,7 +992,7 @@ export default function AdminPage() {
                           type="checkbox"
                           checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.POWER_BI]}
                           onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.POWER_BI)}
-                          disabled={!managingCompany.powerBiEnabled || !managingCompany.powerBiEmbedUrl}
+                          disabled={!hasConfiguredPowerBi(managingCompany)}
                         />
                         <span>Power BI</span>
                       </label>
@@ -869,6 +1000,54 @@ export default function AdminPage() {
                   </div>
 
                   <div className="grid gap-4 xl:grid-cols-2">
+                    {hasConfiguredPowerBi(managingCompany) ? (
+                      <div className="rounded-[24px] bg-white/[0.05] p-4 xl:col-span-2">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-semibold text-white">Paginas do Power BI</h4>
+                            <p className="mt-1 text-sm text-[#b7b0a6]">
+                              Defina se o usuario pode navegar por todas as paginas do relatorio ou somente por algumas.
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" className="portal-ghost-button" onClick={enableAllPowerBiPages}>
+                              Todas as paginas
+                            </button>
+                            <button type="button" className="portal-ghost-button" onClick={enableSpecificPowerBiPages} disabled={powerBiCatalog.length === 0}>
+                              Escolher paginas
+                            </button>
+                          </div>
+                        </div>
+
+                        {powerBiCatalogLoading ? (
+                          <p className="mt-4 text-sm text-[#b7b0a6]">Carregando paginas do relatorio...</p>
+                        ) : powerBiCatalogError ? (
+                          <p className="mt-4 text-sm text-[#f0b8b8]">{powerBiCatalogError}</p>
+                        ) : powerBiCatalog.length === 0 ? (
+                          <p className="mt-4 text-sm text-[#b7b0a6]">Nenhuma pagina foi encontrada para este relatorio ainda.</p>
+                        ) : (
+                          <>
+                            <p className="mt-4 text-xs uppercase tracking-[0.18em] text-[#8d867c]">
+                              {useAllPowerBiPages ? 'Todas as paginas estao liberadas.' : 'Paginas selecionadas manualmente.'}
+                            </p>
+                            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                              {powerBiCatalog.map(page => (
+                                <label key={page.name} className="portal-checkbox">
+                                  <input
+                                    type="checkbox"
+                                    checked={useAllPowerBiPages ? true : userForm.permissions.powerBiPages.includes(page.name)}
+                                    onChange={() => toggleUserPowerBiPage(page.name)}
+                                    disabled={useAllPowerBiPages}
+                                  />
+                                  <span>{page.displayName || page.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ) : null}
+
                     {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode, sections]) => (
                       <div key={mode} className="rounded-[24px] bg-white/[0.05] p-4">
                         <h4 className="text-sm font-semibold text-white">

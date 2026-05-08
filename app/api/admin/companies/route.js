@@ -55,6 +55,9 @@ function normalizeCompanyPayload(payload = {}) {
     powerBiEnabled: portalSettings.powerBiEnabled,
     powerBiEmbedUrl: portalSettings.powerBiEmbedUrl,
     powerBiLabel: portalSettings.powerBiLabel,
+    powerBiWorkspaceId: portalSettings.powerBiWorkspaceId,
+    powerBiReportId: portalSettings.powerBiReportId,
+    powerBiDatasetId: portalSettings.powerBiDatasetId,
     createdAt: payload.createdAt || new Date().toISOString(),
   }
 }
@@ -138,6 +141,9 @@ export async function POST(request) {
         powerBiEnabled: company.powerBiEnabled,
         powerBiEmbedUrl: company.powerBiEmbedUrl,
         powerBiLabel: company.powerBiLabel,
+        powerBiWorkspaceId: company.powerBiWorkspaceId,
+        powerBiReportId: company.powerBiReportId,
+        powerBiDatasetId: company.powerBiDatasetId,
         authUid: authUser.uid,
         hasServiceRoleKey: Boolean(supabaseServiceRoleKey),
         createdAt: existingCompany?.createdAt || company.createdAt,
@@ -155,7 +161,8 @@ export async function POST(request) {
     ownerPermissions.pages[PORTAL_PAGE_KEYS.PPS] = company.supabaseEnabled
     ownerPermissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD] =
       !company.supabaseEnabled && Boolean(company.externalDashboardUrl)
-    ownerPermissions.pages[PORTAL_PAGE_KEYS.POWER_BI] = company.powerBiEnabled && Boolean(company.powerBiEmbedUrl)
+    ownerPermissions.pages[PORTAL_PAGE_KEYS.POWER_BI] =
+      company.powerBiEnabled && (Boolean(company.powerBiWorkspaceId && company.powerBiReportId) || Boolean(company.powerBiEmbedUrl))
 
     await mainUserRef.set(
       {

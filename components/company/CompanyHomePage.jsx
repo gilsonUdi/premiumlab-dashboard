@@ -113,7 +113,9 @@ export default function CompanyHomePage({ slug }) {
           )
         )
           .filter(tool => {
-            if (tool.key === 'powerBi') return company.powerBiEnabled && Boolean(company.powerBiEmbedUrl)
+            if (tool.key === 'powerBi') {
+              return company.powerBiEnabled && (Boolean(company.powerBiWorkspaceId && company.powerBiReportId) || Boolean(company.powerBiEmbedUrl))
+            }
             return company.supabaseEnabled
           })
       : []

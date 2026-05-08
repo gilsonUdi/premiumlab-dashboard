@@ -25,6 +25,8 @@ function normalizePayload(payload = {}) {
     externalDashboardUrl: String(payload.externalDashboardUrl || '').trim(),
     powerBiEnabled: companySettings.powerBiEnabled,
     powerBiEmbedUrl: String(payload.powerBiEmbedUrl || '').trim(),
+    powerBiWorkspaceId: String(payload.powerBiWorkspaceId || '').trim(),
+    powerBiReportId: String(payload.powerBiReportId || '').trim(),
     supabaseEnabled: companySettings.supabaseEnabled,
     email: String(payload.email || '').trim().toLowerCase(),
     password: String(payload.password || ''),
@@ -37,6 +39,8 @@ function normalizePayload(payload = {}) {
       externalDashboardUrl: payload.externalDashboardUrl,
       powerBiEnabled: companySettings.powerBiEnabled,
       powerBiEmbedUrl: payload.powerBiEmbedUrl,
+      powerBiWorkspaceId: payload.powerBiWorkspaceId,
+      powerBiReportId: payload.powerBiReportId,
     }),
   }
 }
