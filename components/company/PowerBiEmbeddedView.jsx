@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { PowerBIEmbed } from 'powerbi-client-react'
 import { models } from 'powerbi-client'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { getPortalAccessToken } from '@/lib/portal-store'
 
 export default function PowerBiEmbeddedView({ company }) {
@@ -12,6 +12,7 @@ export default function PowerBiEmbeddedView({ company }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [activePageName, setActivePageName] = useState('')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const reportRef = useRef(null)
 
   useEffect(() => {
@@ -98,17 +99,25 @@ export default function PowerBiEmbeddedView({ company }) {
         <span aria-hidden="true">{'\u2190'}</span>
       </Link>
 
-      <section className="grid h-screen grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="hidden border-r border-white/6 bg-[#141216] pt-24 lg:flex lg:flex-col">
-          <div className="px-6 pb-5">
-            <p className="text-xs uppercase tracking-[0.24em] text-[#bca27a]">Power BI Embedded</p>
-            <h1 className="mt-3 text-2xl font-semibold text-white">{config?.reportName || company.powerBiLabel || company.name}</h1>
-            <p className="mt-2 text-sm leading-6 text-[#bcb5aa]">
-              Navegue entre as paginas liberadas para este usuario.
-            </p>
+      <section className={`grid h-screen grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[88px_minmax(0,1fr)]' : 'lg:grid-cols-[290px_minmax(0,1fr)]'}`}>
+        <aside className="hidden bg-[#141216] pt-24 lg:flex lg:min-h-0 lg:flex-col">
+          <div className={`${sidebarCollapsed ? 'px-3 pb-4' : 'px-6 pb-5'}`}>
+            <div className={`flex items-start ${sidebarCollapsed ? 'justify-center' : 'justify-between gap-3'}`}>
+              {sidebarCollapsed ? null : (
+                <h1 className="text-2xl font-semibold text-white">{config?.reportName || company.powerBiLabel || company.name}</h1>
+              )}
+              <button
+                type="button"
+                aria-label={sidebarCollapsed ? 'Expandir paginas' : 'Recolher paginas'}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/[0.05] text-[#d9d1c7] transition hover:bg-white/[0.1]"
+                onClick={() => setSidebarCollapsed(previous => !previous)}
+              >
+                {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+              </button>
+            </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+          <div className={`min-h-0 flex-1 overflow-y-auto ${sidebarCollapsed ? 'px-3 pb-6' : 'px-4 pb-6'}`}>
             {loading ? (
               <div className="rounded-[22px] bg-white/[0.05] px-4 py-4 text-sm text-[#d8d2c8]">Carregando paginas...</div>
             ) : error ? (
@@ -126,14 +135,27 @@ export default function PowerBiEmbeddedView({ company }) {
                       key={page.name}
                       type="button"
                       onClick={() => handleSelectPage(page.name)}
-                      className={`flex w-full items-center justify-between rounded-[18px] px-4 py-3 text-left text-sm transition ${
+                      title={page.displayName || page.name}
+                      className={`flex w-full items-center ${sidebarCollapsed ? 'justify-center px-2 py-3' : 'justify-between px-4 py-3'} rounded-[18px] text-left text-sm transition ${
                         isActive
                           ? 'bg-[#e3ad5a] text-[#17120c] shadow-[0_12px_30px_rgba(227,173,90,0.24)]'
                           : 'bg-white/[0.04] text-[#ddd5c8] hover:bg-white/[0.08]'
                       }`}
                     >
-                      <span className="pr-3">{page.displayName || page.name}</span>
-                      <ChevronRight size={16} className={isActive ? 'text-[#17120c]' : 'text-[#8f877d]'} />
+                      {sidebarCollapsed ? (
+                        <span className="text-[11px] font-medium uppercase tracking-[0.18em]">
+                          {String(page.displayName || page.name)
+                            .split(/\s+/)
+                            .map(word => word[0] || '')
+                            .join('')
+                            .slice(0, 3)}
+                        </span>
+                      ) : (
+                        <>
+                          <span className="pr-3">{page.displayName || page.name}</span>
+                          <ChevronRight size={16} className={isActive ? 'text-[#17120c]' : 'text-[#8f877d]'} />
+                        </>
+                      )}
                     </button>
                   )
                 })}
@@ -143,7 +165,7 @@ export default function PowerBiEmbeddedView({ company }) {
         </aside>
 
         <div className="min-w-0 pt-20 lg:pt-0">
-          <div className="h-full w-full bg-[#0f0d11]">
+          <div className="h-full w-full bg-transparent">
             {loading ? (
               <div className="flex h-full items-center justify-center px-6 text-sm text-[#d8d2c8]">Preparando Power BI...</div>
             ) : error ? (
@@ -154,47 +176,57 @@ export default function PowerBiEmbeddedView({ company }) {
                 </div>
               </div>
             ) : embedConfig ? (
-              <PowerBIEmbed
-                embedConfig={embedConfig}
-                cssClassName="h-full w-full"
-                getEmbeddedComponent={embeddedReport => {
-                  reportRef.current = embeddedReport
-                }}
-                eventHandlers={
-                  new Map([
-                    [
-                      'loaded',
-                      async () => {
-                        if (!reportRef.current || !activePageName) return
-                        try {
-                          const pages = await reportRef.current.getPages()
-                          const selectedPage = pages.find(page => page.name === activePageName)
-                          if (selectedPage) await selectedPage.setActive()
-                        } catch (loadError) {
-                          console.error(loadError)
-                        }
-                      },
-                    ],
-                    [
-                      'pageChanged',
-                      event => {
-                        const nextName = event?.detail?.newPage?.name || ''
-                        if (!nextName) return
-                        if (pageMap.size > 0 && !pageMap.has(nextName)) {
-                          handleSelectPage(config.initialPageName)
-                          return
-                        }
-                        setActivePageName(nextName)
-                      },
-                    ],
-                    ['error', event => console.error(event?.detail || event)],
-                  ])
-                }
-              />
+              <div className="h-full w-full">
+                <PowerBIEmbed
+                  embedConfig={embedConfig}
+                  cssClassName="powerbi-embed-shell h-full w-full"
+                  getEmbeddedComponent={embeddedReport => {
+                    reportRef.current = embeddedReport
+                  }}
+                  eventHandlers={
+                    new Map([
+                      [
+                        'loaded',
+                        async () => {
+                          if (!reportRef.current || !activePageName) return
+                          try {
+                            const pages = await reportRef.current.getPages()
+                            const selectedPage = pages.find(page => page.name === activePageName)
+                            if (selectedPage) await selectedPage.setActive()
+                          } catch (loadError) {
+                            console.error(loadError)
+                          }
+                        },
+                      ],
+                      [
+                        'pageChanged',
+                        event => {
+                          const nextName = event?.detail?.newPage?.name || ''
+                          if (!nextName) return
+                          if (pageMap.size > 0 && !pageMap.has(nextName)) {
+                            handleSelectPage(config.initialPageName)
+                            return
+                          }
+                          setActivePageName(nextName)
+                        },
+                      ],
+                      ['error', event => console.error(event?.detail || event)],
+                    ])
+                  }
+                />
+              </div>
             ) : null}
           </div>
         </div>
       </section>
+
+      <style jsx global>{`
+        .powerbi-embed-shell,
+        .powerbi-embed-shell > div,
+        .powerbi-embed-shell iframe {
+          background: transparent !important;
+        }
+      `}</style>
     </main>
   )
 }
