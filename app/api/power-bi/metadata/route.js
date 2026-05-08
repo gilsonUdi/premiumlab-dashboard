@@ -28,6 +28,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const slug = String(searchParams.get('slug') || '').trim()
     const reportKey = String(searchParams.get('report') || '').trim()
+    const includeSchema = String(searchParams.get('includeSchema') || '').trim() === '1'
     const { profile, company } = await resolveAuthorizedCompany(request, slug)
 
     if (!hasAnyPowerBiConfig(company)) {
@@ -40,7 +41,7 @@ export async function GET(request) {
     }
 
     if (!reportKey) {
-      const catalog = await getPowerBiCatalogMetadata(company)
+      const catalog = await getPowerBiCatalogMetadata(company, { includeSchema })
       const visibleReports =
         profile.role === 'admin'
           ? catalog
@@ -52,6 +53,7 @@ export async function GET(request) {
           label: report.label || report.reportName,
           reportName: report.reportName,
           pages: report.pages,
+          tables: includeSchema ? report.tables || [] : undefined,
           lastRefreshAt: report.lastRefreshAt || '',
           lastRefreshStatus: report.lastRefreshStatus || '',
         })),

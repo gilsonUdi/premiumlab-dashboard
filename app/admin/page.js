@@ -124,6 +124,10 @@ function hasConfiguredPowerBi(company) {
   return getPowerBiReportCatalog(company).length > 0
 }
 
+function getReportSchemaTables(report = {}) {
+  return Array.isArray(report.tables) ? report.tables.filter(table => table?.name) : []
+}
+
 export default function AdminPage() {
   const router = useRouter()
   const [state, setState] = useState(null)
@@ -229,7 +233,7 @@ export default function AdminPage() {
         setPowerBiCatalogLoading(true)
         setPowerBiCatalogError('')
         const token = await getPortalAccessToken()
-        const response = await fetch(`/api/power-bi/metadata?slug=${encodeURIComponent(managingCompany.slug)}`, {
+        const response = await fetch(`/api/power-bi/metadata?slug=${encodeURIComponent(managingCompany.slug)}&includeSchema=1`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -525,6 +529,40 @@ export default function AdminPage() {
             [reportId]: {
               ...current,
               filters: (current.filters || []).map(filter => (filter.id === filterId ? { ...filter, [field]: value } : filter)),
+            },
+          },
+        },
+      }
+    })
+  }
+
+  const updateUserPowerBiFilterTable = (reportId, filterId, tableName, availableTables = []) => {
+    const normalizedTable = String(tableName || '').trim()
+    const matchedTable = availableTables.find(table => table.name === normalizedTable)
+
+    setUserForm(previous => {
+      const current = previous.permissions.powerBiReports?.[reportId] || { enabled: true, pages: [], filters: [] }
+      return {
+        ...previous,
+        permissions: {
+          ...previous.permissions,
+          powerBiReports: {
+            ...previous.permissions.powerBiReports,
+            [reportId]: {
+              ...current,
+              filters: (current.filters || []).map(filter => {
+                if (filter.id !== filterId) return filter
+                const shouldKeepColumn =
+                  matchedTable &&
+                  Array.isArray(matchedTable.columns) &&
+                  matchedTable.columns.some(column => column.name === filter.column)
+
+                return {
+                  ...filter,
+                  table: normalizedTable,
+                  column: shouldKeepColumn ? filter.column : '',
+                }
+              }),
             },
           },
         },
@@ -1200,6 +1238,8 @@ export default function AdminPage() {
                                 filters: [],
                               }
                               const allowAllPages = !reportPermission.pages || reportPermission.pages.length === 0
+                              const schemaTables = getReportSchemaTables(report)
+                              const hasSchemaTables = schemaTables.length > 0
 
                               return (
                                 <div key={report.id} className="rounded-[22px] bg-white/[0.04] p-4">
@@ -1299,19 +1339,57 @@ export default function AdminPage() {
                                                   Remover
                                                 </button>
                                               </div>
+                                              {!hasSchemaTables ? (
+                                                <p className="mb-3 text-xs text-[#b7b0a6]">
+                                                  Este modelo ainda nao expôs a estrutura de tabelas e colunas. Você pode preencher manualmente por enquanto.
+                                                </p>
+                                              ) : null}
                                               <div className="grid gap-3 md:grid-cols-2">
-                                                <input
-                                                  className="portal-input"
-                                                  value={filter.table}
-                                                  onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'table', event.target.value)}
-                                                  placeholder="Tabela"
-                                                />
-                                                <input
-                                                  className="portal-input"
-                                                  value={filter.column}
-                                                  onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'column', event.target.value)}
-                                                  placeholder="Coluna"
-                                                />
+                                                {hasSchemaTables ? (
+                                                  <select
+                                                    className="portal-input"
+                                                    value={filter.table}
+                                                    onChange={event =>
+                                                      updateUserPowerBiFilterTable(report.id, filter.id, event.target.value, schemaTables)
+                                                    }
+                                                  >
+                                                    <option value="">Selecione a tabela</option>
+                                                    {schemaTables.map(table => (
+                                                      <option key={table.name} value={table.name}>
+                                                        {table.name}
+                                                      </option>
+                                                    ))}
+                                                  </select>
+                                                ) : (
+                                                  <input
+                                                    className="portal-input"
+                                                    value={filter.table}
+                                                    onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'table', event.target.value)}
+                                                    placeholder="Tabela"
+                                                  />
+                                                )}
+                                                {hasSchemaTables ? (
+                                                  <select
+                                                    className="portal-input"
+                                                    value={filter.column}
+                                                    onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'column', event.target.value)}
+                                                    disabled={!filter.table}
+                                                  >
+                                                    <option value="">{filter.table ? 'Selecione a coluna' : 'Escolha a tabela primeiro'}</option>
+                                                    {(schemaTables.find(table => table.name === filter.table)?.columns || []).map(column => (
+                                                      <option key={column.name} value={column.name}>
+                                                        {column.name}
+                                                      </option>
+                                                    ))}
+                                                  </select>
+                                                ) : (
+                                                  <input
+                                                    className="portal-input"
+                                                    value={filter.column}
+                                                    onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'column', event.target.value)}
+                                                    placeholder="Coluna"
+                                                  />
+                                                )}
                                                 <select
                                                   className="portal-input"
                                                   value={filter.operator}

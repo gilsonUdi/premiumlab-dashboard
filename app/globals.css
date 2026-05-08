@@ -175,6 +175,22 @@ body {
   color: #8b8378;
 }
 
+select.portal-input {
+  color-scheme: dark;
+  background-color: #221d18;
+  color: #f7f5f2;
+}
+
+select.portal-input option {
+  background-color: #221d18;
+  color: #f7f5f2;
+}
+
+select.portal-input:disabled {
+  color: #8b8378;
+  background: rgba(255, 255, 255, 0.02);
+}
+
 .portal-label {
   display: block;
   font-size: 13px;
