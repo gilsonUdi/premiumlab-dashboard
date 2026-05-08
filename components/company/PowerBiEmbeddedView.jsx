@@ -176,7 +176,12 @@ export default function PowerBiEmbeddedView({ company }) {
                 </div>
               </div>
             ) : embedConfig ? (
-              <div className="h-full w-full">
+              <div className="relative h-full w-full">
+                <div className="pointer-events-none absolute left-4 right-4 top-14 z-20 flex justify-end sm:left-6 sm:right-6 lg:top-4">
+                  <div className="rounded-full bg-[#141216]/92 px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-[#e3ad5a] shadow-[0_14px_32px_rgba(0,0,0,0.28)] backdrop-blur">
+                    GSControladoria
+                  </div>
+                </div>
                 <PowerBIEmbed
                   embedConfig={embedConfig}
                   cssClassName="h-full w-full"
