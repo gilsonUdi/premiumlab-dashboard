@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAllowedPowerBiPages, normalizeUserPermissions, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
-import { generatePowerBiEmbedConfig, hasEmbeddedPowerBiConfig } from '@/lib/power-bi'
+import { generatePowerBiEmbedConfig, hasEmbeddedPowerBiConfig, isPowerBiNavigablePage } from '@/lib/power-bi'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
 
 export const dynamic = 'force-dynamic'
@@ -29,11 +29,12 @@ export async function GET(request) {
     }
 
     const embedConfig = await generatePowerBiEmbedConfig(company)
+    const navigablePages = embedConfig.pages.filter(isPowerBiNavigablePage)
     const allowedPageNames = getAllowedPowerBiPages(company, permissions)
     const visiblePages =
       profile.role === 'admin' || allowedPageNames.length === 0
-        ? embedConfig.pages
-        : embedConfig.pages.filter(page => allowedPageNames.includes(page.name))
+        ? navigablePages
+        : navigablePages.filter(page => allowedPageNames.includes(page.name))
 
     if (profile.role !== 'admin' && allowedPageNames.length > 0 && visiblePages.length === 0) {
       return NextResponse.json({ error: 'Nenhuma pagina do Power BI foi liberada para este usuario.' }, { status: 403 })
@@ -46,7 +47,7 @@ export async function GET(request) {
       accessToken: embedConfig.embedToken,
       tokenExpiration: embedConfig.tokenExpiration,
       pages: visiblePages,
-      initialPageName: visiblePages[0]?.name || embedConfig.pages[0]?.name || null,
+      initialPageName: visiblePages[0]?.name || navigablePages[0]?.name || null,
     })
   } catch (error) {
     console.error('[power-bi-embed:get]', error)

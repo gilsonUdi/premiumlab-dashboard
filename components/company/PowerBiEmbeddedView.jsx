@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { PowerBIEmbed } from 'powerbi-client-react'
 import { models } from 'powerbi-client'
+import { ChevronRight } from 'lucide-react'
 import { getPortalAccessToken } from '@/lib/portal-store'
 
 export default function PowerBiEmbeddedView({ company }) {
@@ -50,9 +51,7 @@ export default function PowerBiEmbeddedView({ company }) {
     }
   }, [company.slug])
 
-  const pageMap = useMemo(() => {
-    return new Map((config?.pages || []).map(page => [page.name, page]))
-  }, [config?.pages])
+  const pageMap = useMemo(() => new Map((config?.pages || []).map(page => [page.name, page])), [config?.pages])
 
   const embedConfig = useMemo(() => {
     if (!config) return null
@@ -87,8 +86,10 @@ export default function PowerBiEmbeddedView({ company }) {
     }
   }
 
+  const sidebarPages = config?.pages || []
+
   return (
-    <main className="relative min-h-screen bg-[#0f0d11] text-white">
+    <main className="relative h-screen overflow-hidden bg-[#0f0d11] text-white">
       <Link
         href={`/empresa/${company.slug}`}
         aria-label="Voltar ao portal"
@@ -97,49 +98,62 @@ export default function PowerBiEmbeddedView({ company }) {
         <span aria-hidden="true">{'\u2190'}</span>
       </Link>
 
-      <section className="flex min-h-screen flex-col">
-        <div className="border-b border-white/6 bg-[#141216]/92 px-20 py-4 backdrop-blur">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-[#bca27a]">Power BI Embedded</p>
-              <h1 className="mt-2 text-2xl font-semibold text-white">{config?.reportName || company.powerBiLabel || company.name}</h1>
-            </div>
-
-            {config?.pages?.length ? (
-              <div className="flex flex-wrap gap-2">
-                {config.pages.map(page => (
-                  <button
-                    key={page.name}
-                    type="button"
-                    onClick={() => handleSelectPage(page.name)}
-                    className={`rounded-full px-4 py-2 text-sm transition ${
-                      activePageName === page.name
-                        ? 'bg-[#e3ad5a] text-[#1a1510]'
-                        : 'bg-white/[0.06] text-[#ddd5c8] hover:bg-white/[0.1]'
-                    }`}
-                  >
-                    {page.displayName || page.name}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+      <section className="grid h-screen grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="hidden border-r border-white/6 bg-[#141216] pt-24 lg:flex lg:flex-col">
+          <div className="px-6 pb-5">
+            <p className="text-xs uppercase tracking-[0.24em] text-[#bca27a]">Power BI Embedded</p>
+            <h1 className="mt-3 text-2xl font-semibold text-white">{config?.reportName || company.powerBiLabel || company.name}</h1>
+            <p className="mt-2 text-sm leading-6 text-[#bcb5aa]">
+              Navegue entre as paginas liberadas para este usuario.
+            </p>
           </div>
-        </div>
 
-        <div className="flex-1">
-          {loading ? (
-            <div className="flex h-[calc(100vh-88px)] items-center justify-center text-sm text-[#d8d2c8]">
-              Preparando Power BI...
-            </div>
-          ) : error ? (
-            <div className="flex h-[calc(100vh-88px)] items-center justify-center px-6">
-              <div className="max-w-[720px] rounded-[30px] border border-white/8 bg-[#1c191d] p-8">
-                <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Falha no Power BI</p>
-                <p className="mt-4 text-base leading-8 text-[#c6c0b7]">{error}</p>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+            {loading ? (
+              <div className="rounded-[22px] bg-white/[0.05] px-4 py-4 text-sm text-[#d8d2c8]">Carregando paginas...</div>
+            ) : error ? (
+              <div className="rounded-[22px] bg-red-500/10 px-4 py-4 text-sm text-[#f3c6c6]">{error}</div>
+            ) : sidebarPages.length === 0 ? (
+              <div className="rounded-[22px] bg-white/[0.05] px-4 py-4 text-sm text-[#d8d2c8]">
+                Nenhuma pagina disponivel neste relatorio.
               </div>
-            </div>
-          ) : embedConfig ? (
-            <div className="h-[calc(100vh-88px)] w-full bg-[#0f0d11]">
+            ) : (
+              <div className="space-y-2">
+                {sidebarPages.map(page => {
+                  const isActive = activePageName === page.name
+                  return (
+                    <button
+                      key={page.name}
+                      type="button"
+                      onClick={() => handleSelectPage(page.name)}
+                      className={`flex w-full items-center justify-between rounded-[18px] px-4 py-3 text-left text-sm transition ${
+                        isActive
+                          ? 'bg-[#e3ad5a] text-[#17120c] shadow-[0_12px_30px_rgba(227,173,90,0.24)]'
+                          : 'bg-white/[0.04] text-[#ddd5c8] hover:bg-white/[0.08]'
+                      }`}
+                    >
+                      <span className="pr-3">{page.displayName || page.name}</span>
+                      <ChevronRight size={16} className={isActive ? 'text-[#17120c]' : 'text-[#8f877d]'} />
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </aside>
+
+        <div className="min-w-0 pt-20 lg:pt-0">
+          <div className="h-full w-full bg-[#0f0d11]">
+            {loading ? (
+              <div className="flex h-full items-center justify-center px-6 text-sm text-[#d8d2c8]">Preparando Power BI...</div>
+            ) : error ? (
+              <div className="flex h-full items-center justify-center px-6">
+                <div className="max-w-[720px] rounded-[30px] border border-white/8 bg-[#1c191d] p-8">
+                  <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Falha no Power BI</p>
+                  <p className="mt-4 text-base leading-8 text-[#c6c0b7]">{error}</p>
+                </div>
+              </div>
+            ) : embedConfig ? (
               <PowerBIEmbed
                 embedConfig={embedConfig}
                 cssClassName="h-full w-full"
@@ -177,11 +191,10 @@ export default function PowerBiEmbeddedView({ company }) {
                   ])
                 }
               />
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </section>
     </main>
   )
 }
-

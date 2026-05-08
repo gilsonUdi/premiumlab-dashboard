@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAllowedPowerBiPages, normalizeUserPermissions, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
-import { getPowerBiReportMetadata, hasEmbeddedPowerBiConfig } from '@/lib/power-bi'
+import { getPowerBiReportMetadata, hasEmbeddedPowerBiConfig, isPowerBiNavigablePage } from '@/lib/power-bi'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
 
 export const dynamic = 'force-dynamic'
@@ -29,16 +29,17 @@ export async function GET(request) {
     }
 
     const metadata = await getPowerBiReportMetadata(company)
+    const navigablePages = metadata.pages.filter(isPowerBiNavigablePage)
     const allowedPageNames = getAllowedPowerBiPages(company, permissions)
     const visiblePages =
       profile.role === 'admin' || allowedPageNames.length === 0
-        ? metadata.pages
-        : metadata.pages.filter(page => allowedPageNames.includes(page.name))
+        ? navigablePages
+        : navigablePages.filter(page => allowedPageNames.includes(page.name))
 
     return NextResponse.json({
       reportName: company.powerBiLabel || metadata.report.name,
       pages: visiblePages,
-      allPages: metadata.pages,
+      allPages: navigablePages,
     })
   } catch (error) {
     console.error('[power-bi-metadata:get]', error)
