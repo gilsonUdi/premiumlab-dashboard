@@ -7,7 +7,12 @@ import {
   USERS_COLLECTION,
   requireAdmin,
 } from '@/lib/server-auth'
-import { buildDefaultUserPermissions, normalizeCompanyPortalSettings } from '@/lib/portal-config'
+import {
+  buildDefaultUserPermissions,
+  normalizeCompanyPortalSettings,
+  normalizeUserPermissions,
+  PORTAL_PAGE_KEYS,
+} from '@/lib/portal-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -141,6 +146,17 @@ export async function POST(request) {
       { merge: true }
     )
 
+    const ownerPermissions = normalizeUserPermissions(
+      mainUserSnapshot.exists ? mainUserSnapshot.data()?.permissions || buildDefaultUserPermissions(company) : buildDefaultUserPermissions(company),
+      company
+    )
+
+    ownerPermissions.pages[PORTAL_PAGE_KEYS.ANALYSIS] = company.supabaseEnabled
+    ownerPermissions.pages[PORTAL_PAGE_KEYS.PPS] = company.supabaseEnabled
+    ownerPermissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD] =
+      !company.supabaseEnabled && Boolean(company.externalDashboardUrl)
+    ownerPermissions.pages[PORTAL_PAGE_KEYS.POWER_BI] = company.powerBiEnabled && Boolean(company.powerBiEmbedUrl)
+
     await mainUserRef.set(
       {
         role: 'company',
@@ -149,9 +165,7 @@ export async function POST(request) {
         companyId: company.id,
         companySlug: company.slug,
         companyName: company.name,
-        permissions: mainUserSnapshot.exists
-          ? mainUserSnapshot.data()?.permissions || buildDefaultUserPermissions(company)
-          : buildDefaultUserPermissions(company),
+        permissions: ownerPermissions,
         active: true,
         updatedAt: FieldValue.serverTimestamp(),
       },
