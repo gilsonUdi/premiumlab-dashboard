@@ -914,6 +914,13 @@ async function ensureRoteiroCacheTable(supabase) {
   `;
 
   await execSupabaseSql(supabase, ddl);
+  await execSupabaseSql(
+    supabase,
+    `
+      create index if not exists idx_pedido_roteiro_cache_pedcodigo
+      on public.pedido_roteiro_cache (pedcodigo)
+    `
+  );
 }
 
 async function ensureDashboardCacheTable(supabase) {
@@ -944,6 +951,20 @@ async function ensureDashboardCacheTable(supabase) {
   `;
 
   await execSupabaseSql(supabase, ddl);
+  await execSupabaseSql(
+    supabase,
+    `
+      create index if not exists idx_pedido_dashboard_cache_emissao
+      on public.pedido_dashboard_cache (emissao)
+    `
+  );
+  await execSupabaseSql(
+    supabase,
+    `
+      create index if not exists idx_pedido_dashboard_cache_status
+      on public.pedido_dashboard_cache (status)
+    `
+  );
 }
 
 async function ensureCliencrmTable(supabase) {
@@ -1021,7 +1042,22 @@ async function rebuildRoteiroCache(supabase, fromDate) {
     )
   );
 
-  if (!orders.length) return;
+  if (!orders.length) {
+    await withPgTransaction(async (client) => {
+      await client.query(
+        `
+          delete from public.pedido_roteiro_cache pr
+          using public.pedid ped
+          where pr.id_pedido = ped.id_pedido
+            and ped.peddtemis >= $1
+        `,
+        [`${fromDate}T00:00:00`]
+      );
+    });
+
+    log("Cache    : pedido_roteiro_cache atualizado para 0 pedido(s).");
+    return;
+  }
 
   const orderMap = new Map();
   const orderIds = [];
@@ -1192,8 +1228,8 @@ async function rebuildDashboardCache(supabase, fromDate) {
 
   const now = nowInProductionTimeZone();
   const readChunkSize = Math.max(100, Number(process.env.SYNC_CACHE_READ_CHUNK || 250));
-  const { orders, clients, sellers } = await withPgClientSession(async (client) => {
-    const fetchedOrders = await pgQuery(
+  const orders = await withPgClientSession((client) =>
+    pgQuery(
       client,
       `
         select
@@ -1213,26 +1249,62 @@ async function rebuildDashboardCache(supabase, fromDate) {
         order by id_pedido
       `,
       [`${fromDate}T00:00:00`]
-    );
-    const fetchedClients = await pgQuery(
-      client,
-      `
-        select clicodigo, clinomefant, clirazsocial, gclcodigo
-        from public.clien
-        order by clicodigo
-      `
-    );
-    const fetchedSellers = await pgQuery(
-      client,
-      `
-        select funcodigo, funnome
-        from public.funcio
-        order by funcodigo
-      `
-    );
+    )
+  );
+
+  if (!orders.length) {
+    await withPgTransaction(async (client) => {
+      await client.query(
+        `
+          delete from public.pedido_dashboard_cache
+          where emissao >= $1
+        `,
+        [`${fromDate}T00:00:00`]
+      );
+    });
+
+    log("Cache    : pedido_dashboard_cache atualizado para 0 pedido(s).");
+    return;
+  }
+
+  const clientIds = [...new Set(
+    orders
+      .map((row) => (row.clicodigo != null ? Number(row.clicodigo) : null))
+      .filter((value) => Number.isFinite(value))
+  )];
+  const sellerIds = [...new Set(
+    orders
+      .map((row) => (row.funcodigo != null ? Number(row.funcodigo) : null))
+      .filter((value) => Number.isFinite(value))
+  )];
+
+  const { clients, sellers } = await withPgClientSession(async (client) => {
+    const fetchedClients = clientIds.length
+      ? await pgQuery(
+          client,
+          `
+            select clicodigo, clinomefant, clirazsocial, gclcodigo
+            from public.clien
+            where clicodigo = any($1::bigint[])
+            order by clicodigo
+          `,
+          [clientIds]
+        )
+      : [];
+    const fetchedSellers = sellerIds.length
+      ? await pgQuery(
+          client,
+          `
+            select funcodigo, funnome
+            from public.funcio
+            where funcodigo = any($1::bigint[])
+            order by funcodigo
+          `,
+          [sellerIds]
+        )
+      : [];
 
     return {
-      orders: fetchedOrders,
       clients: fetchedClients,
       sellers: fetchedSellers,
     };
