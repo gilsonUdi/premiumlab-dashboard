@@ -23,6 +23,21 @@ npm run sync:dry
 npm run sync
 ```
 
+## Conexao Postgres recomendada para os caches
+
+Para os rebuilds de `pedido_dashboard_cache` e `pedido_roteiro_cache`, use a
+`SUPABASE_DATABASE_URL` apontando para o **Session Pooler** do Supabase
+(`aws-...pooler.supabase.com:5432`).
+
+Exemplo:
+
+```env
+SUPABASE_DATABASE_URL=postgresql://postgres.<project-ref>:SENHA@aws-1-sa-east-1.pooler.supabase.com:5432/postgres
+```
+
+Evite usar o host direto `db.<project-ref>.supabase.co:5432` nesta rotina.
+Na pratica, o Session Pooler se mostrou muito mais estavel para o rebuild dos caches.
+
 ## Atualizacao automatica a cada 10 minutos
 
 O fluxo automatico fica configurado para:
@@ -99,6 +114,7 @@ Esse comando:
 
 - O Supabase precisa ter as tabelas ja criadas com os mesmos nomes em minusculo.
 - O sync cria automaticamente a tabela `pedido_roteiro_cache` no Supabase quando necessario.
+- Para os comandos `--cache-only`, prefira sempre a `SUPABASE_DATABASE_URL` do Session Pooler.
 - Para PPS e Analise de Dados, as tabelas realmente necessarias sao: `CLIEN`, `FUNCIO`, `ALMOX`, `LOCALPED`, `USUARIO`, `REQUI`, `PEDID`, `PDPRD`, `PDSER`, `ACOPED`, `PEDFINALIDADE` e `JBXROTEIRO`.
 - As tabelas nao necessarias para esses dois modos sao: `BANCO`, `PRODU`, `CFOP`, `CIDADE`, `CCORR`, `PAGAR`, `RECEB`, `MOVIMENTACAO`, `GRUPOCLI`, `GRUPOROTULOS`, `PEDFO`, `NOTAS`, `TBFIS`, `COMPOPROROT` e `REGRAPROMO`.
 - A tabela derivada `CLIENCRM` fica fora do automatico. Ela pode ser sincronizada manualmente quando voce quiser atualizar a visao de CRM.

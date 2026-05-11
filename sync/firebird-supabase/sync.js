@@ -706,7 +706,7 @@ async function getPgPool() {
   const connectionString = getSupabaseDatabaseUrl();
   if (!connectionString) {
     throw new Error(
-      "SUPABASE_DATABASE_URL nao configurada. Configure a conexao Postgres direta para reconstruir o pedido_dashboard_cache."
+      "SUPABASE_DATABASE_URL nao configurada. Configure a conexao Postgres do Session Pooler do Supabase para reconstruir o pedido_dashboard_cache."
     );
   }
 
