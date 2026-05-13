@@ -381,6 +381,35 @@ async function fetchSellerLookup(supabase, sellerIds = []) {
   )
 }
 
+async function fetchAlmoxLookup(supabase, almoxCodes = []) {
+  const ids = [...new Set((almoxCodes || []).map(asSqlNumber).filter(Number.isFinite))]
+  if (ids.length === 0) return new Map()
+
+  const chunks = chunkArray(ids, 500)
+  const rows = []
+
+  for (const chunk of chunks) {
+    const result = await fetchOptionalPages(
+      () =>
+        supabase
+          .from('almox')
+          .select('alxcodigo, alxdescricao')
+          .in('alxcodigo', chunk),
+      { maxRows: 2000 }
+    )
+
+    if (result.error) throw new Error(result.error.message || 'Falha ao carregar celulas do roteiro.')
+    rows.push(...(result.data || []))
+  }
+
+  return new Map(
+    rows.map(row => [
+      String(row.alxcodigo),
+      normalizeText(row.alxdescricao),
+    ])
+  )
+}
+
 async function fetchOrderBaseRows(supabase, { dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [] }) {
   const pedidoIds = [...new Set((pedcodigos || []).map(asSqlNumber).filter(Number.isFinite))]
   const pedidoCodes = [...new Set((pedcodigos || []).map(value => String(value || '').trim()).filter(Boolean))]
@@ -998,22 +1027,47 @@ export async function GET(request) {
       }
     })
 
-    const clientLookup = await fetchClientLookup(
-      supabase,
-      cachedOrders.map(order => order.clicodigo)
-    )
-    const sellerLookup = await fetchSellerLookup(
-      supabase,
-      cachedOrders.map(order => order.vendedorCodigo)
-    )
+    const [clientLookup, sellerLookup, almoxLookup] = await Promise.all([
+      fetchClientLookup(
+        supabase,
+        cachedOrders.map(order => order.clicodigo)
+      ),
+      fetchSellerLookup(
+        supabase,
+        cachedOrders.map(order => order.vendedorCodigo)
+      ),
+      fetchAlmoxLookup(
+        supabase,
+        cachedOrders.flatMap(order => (order.roteiro || []).map(step => step.alxcodigo))
+      ),
+    ])
 
     cachedOrders = cachedOrders.map(order => ({
       ...order,
+      roteiro: (order.roteiro || []).map(step => {
+        const descricao = normalizeText(step.descricao) || almoxLookup.get(String(step.alxcodigo || '')) || ''
+        const normalizedLabel =
+          !String(step.label || '').trim() || /^\d+$/.test(String(step.label || '').trim())
+            ? buildRouteStepLabel(step.alxcodigo || step.label, descricao)
+            : String(step.label || '').trim()
+
+        return {
+          ...step,
+          descricao,
+          label: normalizedLabel,
+        }
+      }),
       clinome: order.clinome || clientLookup.get(String(order.clicodigo)) || '',
       vendedorNome:
         order.vendedorNome ||
         sellerLookup.get(String(order.vendedorCodigo)) ||
         '',
+    })).map(order => ({
+      ...order,
+      roteiroResumo:
+        (order.roteiro || []).length > 0
+          ? order.roteiro.map(step => step.label).join(' | ')
+          : order.roteiroResumo,
     }))
 
     if (pedcodigoValues.length > 0) {
