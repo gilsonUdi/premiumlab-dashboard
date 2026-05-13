@@ -142,12 +142,14 @@ export async function GET(request) {
     const tenantSlug = searchParams.get('tenant') || ''
     const supabase = await getTenantSupabase(request, tenantSlug)
 
-    const [almoxColumns, clienColumns, localPedColumns, funcioColumns, grupocliColumns] = await Promise.all([
+    const [almoxColumns, clienColumns, localPedColumns, funcioColumns, grupocliColumns, endcliColumns, zonaColumns] = await Promise.all([
       getTableColumns(supabase, 'almox'),
       getTableColumns(supabase, 'clien'),
       getTableColumns(supabase, 'localped'),
       getTableColumns(supabase, 'funcio'),
       getTableColumns(supabase, 'grupocli'),
+      getTableColumns(supabase, 'endcli'),
+      getTableColumns(supabase, 'zona'),
     ])
 
     const almoxOrderColumn = pickFirstAvailable(almoxColumns, ['alxordem', 'alxcodigo'])
@@ -161,6 +163,8 @@ export async function GET(request) {
     const localPedSelect = buildSelect(localPedColumns, ['lpcodigo', 'lpdescricao', 'lpfimprocesso', 'lpiniprocesso'])
     const funcioSelect = buildSelect(funcioColumns, ['funcodigo', 'funnome'])
     const grupocliSelect = buildSelect(grupocliColumns, ['cod_grupo', 'nome_grupo'])
+    const endcliSelect = buildSelect(endcliColumns, ['clicodigo', 'endcodigo', 'zocodigo'])
+    const zonaSelect = buildSelect(zonaColumns, ['zocodigo', 'zodescricao'])
 
     let cellsQuery = supabase.from('almox').select(almoxSelect)
     if (almoxOrderColumn) cellsQuery = cellsQuery.order(almoxOrderColumn)
@@ -181,12 +185,24 @@ export async function GET(request) {
       if (grupocliOrderColumn) grupocliQuery = grupocliQuery.order(grupocliOrderColumn)
     }
 
-    const [cellsRes, clientsRes, localPedRes, empRes, grupocliRes] = await Promise.all([
+    let endcliQuery = null
+    if (endcliSelect && endcliColumns.has('clicodigo') && endcliColumns.has('endcodigo') && endcliColumns.has('zocodigo')) {
+      endcliQuery = supabase.from('endcli').select(endcliSelect).eq('endcodigo', 1).limit(5000)
+    }
+
+    let zonaQuery = null
+    if (zonaSelect) {
+      zonaQuery = supabase.from('zona').select(zonaSelect).order('zocodigo')
+    }
+
+    const [cellsRes, clientsRes, localPedRes, empRes, grupocliRes, endcliRes, zonaRes] = await Promise.all([
       cellsQuery,
       clientsQuery,
       localPedQuery,
       employeesQuery,
       grupocliQuery || Promise.resolve({ data: [], error: null }),
+      endcliQuery || Promise.resolve({ data: [], error: null }),
+      zonaQuery || Promise.resolve({ data: [], error: null }),
     ])
 
     const cells = (cellsRes.data || []).map(cell => ({
@@ -196,11 +212,23 @@ export async function GET(request) {
       alxperda: cell.alxperda,
     }))
 
+    const clientZoneMap = new Map(
+      (endcliRes.data || [])
+        .filter(row => row?.clicodigo != null && row?.zocodigo != null)
+        .map(row => [String(row.clicodigo), row.zocodigo])
+    )
+    const zonaNameMap = new Map(
+      (zonaRes.data || [])
+        .filter(row => row?.zocodigo != null)
+        .map(row => [String(row.zocodigo), normalizeText(row.zodescricao)])
+    )
+
     const clients = (clientsRes.data || []).map(client => ({
       clicodigo: client.clicodigo,
       label: normalizeText(client.clinomefant || client.clirazsocial),
       razaoSocial: normalizeText(client.clirazsocial),
       gclcodigo: client.gclcodigo,
+      zocodigo: clientZoneMap.get(String(client.clicodigo)) ?? null,
     }))
 
     const groupCodeSet = new Set((clientsRes.data || []).map(row => row.gclcodigo).filter(value => value != null && value !== ''))
@@ -213,6 +241,14 @@ export async function GET(request) {
       .map(groupCode => ({
         value: groupCode,
         label: groupNameMap.get(String(groupCode)) || `Grupo ${groupCode}`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
+
+    const zoneCodeSet = new Set(clients.map(client => client.zocodigo).filter(value => value != null && value !== ''))
+    const zones = [...zoneCodeSet]
+      .map(zoneCode => ({
+        value: zoneCode,
+        label: zonaNameMap.get(String(zoneCode)) || `Zona ${zoneCode}`,
       }))
       .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
 
@@ -235,7 +271,7 @@ export async function GET(request) {
       { value: 'pending', label: 'Aguardando' },
     ]
 
-    return NextResponse.json({ cells, clients, clientGroups, stages, employees, statuses }, { headers: NO_STORE_HEADERS })
+    return NextResponse.json({ cells, clients, clientGroups, zones, stages, employees, statuses }, { headers: NO_STORE_HEADERS })
   } catch (error) {
     console.error('[options]', error)
     return NextResponse.json({ error: error.message }, { status: getErrorStatus(error), headers: NO_STORE_HEADERS })

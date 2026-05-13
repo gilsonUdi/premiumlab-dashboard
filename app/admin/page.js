@@ -29,7 +29,13 @@ import {
   updateCompanyUser,
   upsertCompany,
 } from '@/lib/portal-store'
-import { DASHBOARD_SECTION_GROUPS, normalizeUserPermissions, PORTAL_PAGE_KEYS, POWER_BI_FILTER_OPERATORS } from '@/lib/portal-config'
+import {
+  DASHBOARD_FILTER_TABLES,
+  DASHBOARD_SECTION_GROUPS,
+  normalizeUserPermissions,
+  PORTAL_PAGE_KEYS,
+  POWER_BI_FILTER_OPERATORS,
+} from '@/lib/portal-config'
 import { getPowerBiReportCatalog } from '@/lib/power-bi'
 
 function createEmptyPowerBiReport() {
@@ -423,6 +429,80 @@ export default function AdminPage() {
             ...previous.permissions.sections[mode],
             [sectionKey]: !previous.permissions.sections[mode][sectionKey],
           },
+        },
+      },
+    }))
+  }
+
+  const addUserDashboardFilter = mode => {
+    setUserForm(previous => ({
+      ...previous,
+      permissions: {
+        ...previous.permissions,
+        dashboardFilters: {
+          ...previous.permissions.dashboardFilters,
+          [mode]: [
+            ...(previous.permissions.dashboardFilters?.[mode] || []),
+            {
+              id: `dashboard-filter-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              table: '',
+              column: '',
+              operator: 'is',
+              value: '',
+            },
+          ],
+        },
+      },
+    }))
+  }
+
+  const updateUserDashboardFilter = (mode, filterId, field, value) => {
+    setUserForm(previous => ({
+      ...previous,
+      permissions: {
+        ...previous.permissions,
+        dashboardFilters: {
+          ...previous.permissions.dashboardFilters,
+          [mode]: (previous.permissions.dashboardFilters?.[mode] || []).map(filter =>
+            filter.id === filterId ? { ...filter, [field]: value } : filter
+          ),
+        },
+      },
+    }))
+  }
+
+  const updateUserDashboardFilterTable = (mode, filterId, tableName) => {
+    const normalizedTable = String(tableName || '').trim()
+    const matchedTable = DASHBOARD_FILTER_TABLES.find(table => table.name === normalizedTable)
+
+    setUserForm(previous => ({
+      ...previous,
+      permissions: {
+        ...previous.permissions,
+        dashboardFilters: {
+          ...previous.permissions.dashboardFilters,
+          [mode]: (previous.permissions.dashboardFilters?.[mode] || []).map(filter => {
+            if (filter.id !== filterId) return filter
+            const shouldKeepColumn = matchedTable?.columns?.some(column => column.name === filter.column)
+            return {
+              ...filter,
+              table: normalizedTable,
+              column: shouldKeepColumn ? filter.column : '',
+            }
+          }),
+        },
+      },
+    }))
+  }
+
+  const removeUserDashboardFilter = (mode, filterId) => {
+    setUserForm(previous => ({
+      ...previous,
+      permissions: {
+        ...previous.permissions,
+        dashboardFilters: {
+          ...previous.permissions.dashboardFilters,
+          [mode]: (previous.permissions.dashboardFilters?.[mode] || []).filter(filter => filter.id !== filterId),
         },
       },
     }))
@@ -1439,6 +1519,85 @@ export default function AdminPage() {
                               <span>{section.label}</span>
                             </label>
                           ))}
+                        </div>
+
+                        <div className="mt-5 rounded-[18px] bg-white/[0.04] p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-white">Filtros do usuario</p>
+                              <p className="mt-1 text-sm text-[#b7b0a6]">
+                                Aplique filtros permanentes neste modulo para restringir pedidos, clientes, vendedores, produtos e rastreabilidade.
+                              </p>
+                            </div>
+                            <button type="button" className="portal-ghost-button" onClick={() => addUserDashboardFilter(mode)}>
+                              <Plus size={14} />
+                              Adicionar filtro
+                            </button>
+                          </div>
+
+                          <div className="mt-4 space-y-3">
+                            {(userForm.permissions.dashboardFilters?.[mode] || []).length === 0 ? (
+                              <p className="text-sm text-[#b7b0a6]">Nenhum filtro configurado para este modulo.</p>
+                            ) : (
+                              (userForm.permissions.dashboardFilters?.[mode] || []).map(filter => (
+                                <div key={filter.id} className="rounded-[16px] bg-[#141216] p-3">
+                                  <div className="mb-3 flex justify-end">
+                                    <button
+                                      type="button"
+                                      className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
+                                      onClick={() => removeUserDashboardFilter(mode, filter.id)}
+                                    >
+                                      Remover
+                                    </button>
+                                  </div>
+                                  <div className="grid gap-3 md:grid-cols-2">
+                                    <select
+                                      className="portal-input"
+                                      value={filter.table}
+                                      onChange={event => updateUserDashboardFilterTable(mode, filter.id, event.target.value)}
+                                    >
+                                      <option value="">Selecione a tabela</option>
+                                      {DASHBOARD_FILTER_TABLES.map(table => (
+                                        <option key={table.name} value={table.name}>
+                                          {table.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <select
+                                      className="portal-input"
+                                      value={filter.column}
+                                      onChange={event => updateUserDashboardFilter(mode, filter.id, 'column', event.target.value)}
+                                      disabled={!filter.table}
+                                    >
+                                      <option value="">{filter.table ? 'Selecione a coluna' : 'Escolha a tabela primeiro'}</option>
+                                      {(DASHBOARD_FILTER_TABLES.find(table => table.name === filter.table)?.columns || []).map(column => (
+                                        <option key={column.name} value={column.name}>
+                                          {column.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <select
+                                      className="portal-input"
+                                      value={filter.operator}
+                                      onChange={event => updateUserDashboardFilter(mode, filter.id, 'operator', event.target.value)}
+                                    >
+                                      {POWER_BI_FILTER_OPERATORS.map(option => (
+                                        <option key={option.value} value={option.value}>
+                                          {option.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <input
+                                      className="portal-input"
+                                      value={filter.value}
+                                      onChange={event => updateUserDashboardFilter(mode, filter.id, 'value', event.target.value)}
+                                      placeholder="Valor ou lista separada por virgula"
+                                    />
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}

@@ -1049,6 +1049,52 @@ async function ensureGrupoCliTable(supabase) {
   await sleep(1200);
 }
 
+async function ensureZonaTable(supabase) {
+  const ddl = `
+    create table if not exists public.zona (
+      zocodigo bigint primary key,
+      zodescricao text
+    )
+  `;
+
+  const alterStatements = [
+    "alter table public.zona add column if not exists zodescricao text",
+  ];
+
+  await execSupabaseSql(supabase, ddl);
+  for (const statement of alterStatements) {
+    await execSupabaseSql(supabase, statement);
+  }
+  await sleep(1200);
+}
+
+async function ensureEndCliTable(supabase) {
+  const ddl = `
+    create table if not exists public.endcli (
+      clicodigo bigint not null,
+      endcodigo bigint not null,
+      cidcodigo bigint,
+      zocodigo bigint,
+      endddd1 text,
+      endfone1 text,
+      primary key (clicodigo, endcodigo)
+    )
+  `;
+
+  const alterStatements = [
+    "alter table public.endcli add column if not exists cidcodigo bigint",
+    "alter table public.endcli add column if not exists zocodigo bigint",
+    "alter table public.endcli add column if not exists endddd1 text",
+    "alter table public.endcli add column if not exists endfone1 text",
+  ];
+
+  await execSupabaseSql(supabase, ddl);
+  for (const statement of alterStatements) {
+    await execSupabaseSql(supabase, statement);
+  }
+  await sleep(1200);
+}
+
 async function rebuildRoteiroCache(supabase, fromDate) {
   await ensureRoteiroCacheTable(supabase);
   const readChunkSize = Math.max(100, Number(process.env.SYNC_CACHE_READ_CHUNK || 500));
@@ -1851,6 +1897,13 @@ async function syncTable(db, supabase, tableName, options) {
   const linkedDateFilter = options.linkedDateFilters[tableName.toUpperCase()] || null;
   const writeMode = options.upsertTables.has(tableName.toUpperCase()) ? "upsert" : "insert-only";
   const primaryKeys = await getPrimaryKeys(db, tableName);
+  const upperTableName = String(tableName || "").toUpperCase();
+  if (upperTableName === "ZONA") {
+    await ensureZonaTable(supabase);
+  }
+  if (upperTableName === "ENDCLI") {
+    await ensureEndCliTable(supabase);
+  }
   const heavyTable = options.heavyTables.has(tableName.toUpperCase());
   const fetchBatch = heavyTable ? options.heavyFetchBatch : options.fetchBatch;
   const insertBatch = heavyTable ? options.heavyInsertBatch : options.insertBatch;

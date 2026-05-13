@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { addDays, differenceInDays, differenceInMinutes, format, parseISO, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { getDashboardFilters, normalizeUserPermissions, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
 import { createTenantSupabase } from '@/lib/supabase'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
 
@@ -239,6 +240,79 @@ function parseCsvParam(searchParams, key) {
   )]
 }
 
+function normalizePermissionFilterValue(value) {
+  if (value == null) return ''
+  return normalizeText(value).toLowerCase()
+}
+
+function parsePermissionFilterValues(value) {
+  return String(value || '')
+    .split(',')
+    .map(item => normalizePermissionFilterValue(item))
+    .filter(Boolean)
+}
+
+function coerceComparableValue(value) {
+  if (value == null) return null
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+
+  const text = String(value).trim()
+  if (!text) return ''
+
+  const numeric = Number(text.replace(',', '.'))
+  if (Number.isFinite(numeric) && /^-?\d+(?:[.,]\d+)?$/.test(text)) return numeric
+
+  const date = Date.parse(text)
+  if (!Number.isNaN(date) && /^\d{4}-\d{2}-\d{2}/.test(text)) return date
+
+  return normalizePermissionFilterValue(text)
+}
+
+function matchesPermissionFilter(rawValue, filter = {}) {
+  const operator = String(filter.operator || 'is').trim()
+  const rawFilterValue = String(filter.value || '').trim()
+  const normalizedLeft = normalizePermissionFilterValue(rawValue)
+  const normalizedRight = normalizePermissionFilterValue(rawFilterValue)
+  const listValues = parsePermissionFilterValues(rawFilterValue)
+  const comparableLeft = coerceComparableValue(rawValue)
+  const comparableRight = coerceComparableValue(rawFilterValue)
+
+  switch (operator) {
+    case 'is':
+      return normalizedLeft === normalizedRight
+    case 'isNot':
+      return normalizedLeft !== normalizedRight
+    case 'in':
+      return listValues.includes(normalizedLeft)
+    case 'contains':
+      return normalizedLeft.includes(normalizedRight)
+    case 'notContains':
+      return !normalizedLeft.includes(normalizedRight)
+    case 'startsWith':
+      return normalizedLeft.startsWith(normalizedRight)
+    case 'endsWith':
+      return normalizedLeft.endsWith(normalizedRight)
+    case 'greaterThan':
+      return comparableLeft != null && comparableRight != null && comparableLeft > comparableRight
+    case 'greaterThanOrEqual':
+      return comparableLeft != null && comparableRight != null && comparableLeft >= comparableRight
+    case 'lessThan':
+      return comparableLeft != null && comparableRight != null && comparableLeft < comparableRight
+    case 'lessThanOrEqual':
+      return comparableLeft != null && comparableRight != null && comparableLeft <= comparableRight
+    default:
+      return normalizedLeft === normalizedRight
+  }
+}
+
+function intersectSets(left, right) {
+  const result = new Set()
+  for (const value of left) {
+    if (right.has(value)) result.add(value)
+  }
+  return result
+}
+
 function minutesUntil(dateValue, now) {
   if (!dateValue) return null
   return differenceInMinutes(dateValue, now)
@@ -335,7 +409,7 @@ async function fetchClientLookup(supabase, clientIds = []) {
       () =>
         supabase
           .from('clien')
-          .select('clicodigo, clinomefant, clirazsocial')
+          .select('clicodigo, clinomefant, clirazsocial, gclcodigo')
           .in('clicodigo', chunk),
       { maxRows: 2000 }
     )
@@ -344,10 +418,27 @@ async function fetchClientLookup(supabase, clientIds = []) {
     rows.push(...(result.data || []))
   }
 
+  const endCliResult = await fetchOptionalPages(
+    () => supabase.from('endcli').select('clicodigo, endcodigo, zocodigo').eq('endcodigo', 1).in('clicodigo', ids),
+    { maxRows: 5000 }
+  )
+
+  if (endCliResult.error) throw new Error(endCliResult.error.message || 'Falha ao carregar enderecos de clientes.')
+
+  const clientZoneMap = new Map(
+    (endCliResult.data || [])
+      .filter(row => row?.clicodigo != null && row?.zocodigo != null)
+      .map(row => [String(row.clicodigo), row.zocodigo])
+  )
+
   return new Map(
     rows.map(row => [
       String(row.clicodigo),
-      normalizeText(row.clinomefant || row.clirazsocial),
+      {
+        clinome: normalizeText(row.clinomefant || row.clirazsocial),
+        gclcodigo: row.gclcodigo != null ? Number(row.gclcodigo) : null,
+        zocodigo: clientZoneMap.get(String(row.clicodigo)) ?? null,
+      },
     ])
   )
 }
@@ -925,7 +1016,26 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const tenantSlug = searchParams.get('tenant') || ''
-    const supabase = await getTenantSupabase(request, tenantSlug)
+    const requestedMode = String(searchParams.get('mode') || 'analysis').trim().toLowerCase()
+    const dashboardMode = requestedMode === 'pps' ? 'pps' : 'analysis'
+    const pageKey = dashboardMode === 'pps' ? PORTAL_PAGE_KEYS.PPS : PORTAL_PAGE_KEYS.ANALYSIS
+    const { company, companySecrets, profile } = await resolveAuthorizedCompany(request, tenantSlug)
+    const supabase = (() => {
+      const { url: supabaseUrl, serviceRoleKey: supabaseServiceRoleKey } = resolveSupabaseConfig(company, companySecrets)
+
+      if (!supabaseUrl || !supabaseServiceRoleKey) {
+        throw new Error(`Supabase nao configurado para o tenant ${company.slug}.`)
+      }
+
+      return createTenantSupabase(supabaseUrl, supabaseServiceRoleKey)
+    })()
+    const permissions = normalizeUserPermissions(profile.permissions, company)
+
+    if (profile.role !== 'admin' && !permissions.pages[pageKey]) {
+      throw new Error('Acesso negado a este modulo.')
+    }
+
+    const dashboardPermissionFilters = profile.role === 'admin' ? [] : getDashboardFilters(company, permissions, dashboardMode)
 
     const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
     const fallbackEnd = format(new Date(), 'yyyy-MM-dd')
@@ -936,6 +1046,7 @@ export async function GET(request) {
     const clicodigoValues = parseCsvParam(searchParams, 'clicodigo')
     const clinomeFilters = parseCsvParam(searchParams, 'clinome')
     const gclcodigoValues = parseCsvParam(searchParams, 'gclcodigo')
+    const zocodigoValues = parseCsvParam(searchParams, 'zocodigo')
     const emissaoFilters = parseCsvParam(searchParams, 'emissao')
     const indiceFilters = parseCsvParam(searchParams, 'indice')
     const previstoFilters = parseCsvParam(searchParams, 'previsto')
@@ -1042,7 +1153,10 @@ export async function GET(request) {
       ),
     ])
 
-    cachedOrders = cachedOrders.map(order => ({
+    cachedOrders = cachedOrders.map(order => {
+      const clientDetails = clientLookup.get(String(order.clicodigo)) || null
+
+      return {
       ...order,
       roteiro: (order.roteiro || []).map(step => {
         const descricao = normalizeText(step.descricao) || almoxLookup.get(String(step.alxcodigo || '')) || ''
@@ -1057,12 +1171,14 @@ export async function GET(request) {
           label: normalizedLabel,
         }
       }),
-      clinome: order.clinome || clientLookup.get(String(order.clicodigo)) || '',
+      clinome: order.clinome || clientDetails?.clinome || '',
+      gclcodigo: order.gclcodigo ?? clientDetails?.gclcodigo ?? null,
+      zocodigo: clientDetails?.zocodigo ?? null,
       vendedorNome:
         order.vendedorNome ||
         sellerLookup.get(String(order.vendedorCodigo)) ||
         '',
-    })).map(order => ({
+    }}).map(order => ({
       ...order,
       roteiroResumo:
         (order.roteiro || []).length > 0
@@ -1093,6 +1209,10 @@ export async function GET(request) {
       rowTone: order.rowTone,
       clicodigo: order.clicodigo,
       clinome: order.clinome,
+      gclcodigo: order.gclcodigo,
+      zocodigo: order.zocodigo,
+      vendedorCodigo: order.vendedorCodigo,
+      vendedorNome: order.vendedorNome,
     }))
 
     if (statusFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'status', statusFilters))
@@ -1102,6 +1222,7 @@ export async function GET(request) {
     if (saidaFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'saida', saidaFilters))
     if (quantidadeFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'quantidade', quantidadeFilters))
     if (currentCellFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'currentCell', currentCellFilters))
+    if (zocodigoValues.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'zocodigo', zocodigoValues))
 
     orders.sort((a, b) => {
       if (b.statusPriority !== a.statusPriority) return b.statusPriority - a.statusPriority
@@ -1164,6 +1285,113 @@ export async function GET(request) {
     products = products.filter(row => visibleOrderIds.has(row.pedidoId))
     traceability = traceability.filter(row => visibleOrderIds.has(row.pedidoId))
 
+    if (dashboardPermissionFilters.length > 0) {
+      let allowedOrderIds = new Set(orders.map(row => row.pedidoId))
+      const ordersByCustomer = new Map()
+      const ordersBySeller = new Map()
+
+      for (const order of selectedCachedOrders) {
+        const orderId = order.pedidoId
+        const customerKey = String(order.clicodigo || '')
+        const sellerKey = String(order.vendedorCodigo || '')
+
+        if (!ordersByCustomer.has(customerKey)) ordersByCustomer.set(customerKey, new Set())
+        ordersByCustomer.get(customerKey).add(orderId)
+
+        if (!ordersBySeller.has(sellerKey)) ordersBySeller.set(sellerKey, new Set())
+        ordersBySeller.get(sellerKey).add(orderId)
+      }
+
+      const customerSummaryRows = Object.values(
+        selectedCachedOrders.reduce((accumulator, order) => {
+          const key = String(order.clicodigo || '')
+          if (!accumulator[key]) {
+            accumulator[key] = {
+              clicodigo: order.clicodigo,
+              clinome: order.clinome || `Cliente ${order.clicodigo}`,
+              gclcodigo: order.gclcodigo,
+              zocodigo: order.zocodigo,
+              total: 0,
+              onTime: 0,
+              daysTotal: 0,
+              daysCount: 0,
+            }
+          }
+
+          accumulator[key].total += 1
+          accumulator[key].onTime += order.indice >= 100 ? 1 : 0
+          if (order.emittedDate && order.deliveredDate) {
+            accumulator[key].daysTotal += Math.max(0, differenceInDays(order.deliveredDate, order.emittedDate))
+            accumulator[key].daysCount += 1
+          }
+          return accumulator
+        }, {})
+      ).map(customer => ({
+        clicodigo: customer.clicodigo,
+        clinome: customer.clinome,
+        gclcodigo: customer.gclcodigo,
+        zocodigo: customer.zocodigo,
+        indice: customer.total > 0 ? Math.round((customer.onTime / customer.total) * 100) : 0,
+        mediaDias: customer.daysCount > 0 ? Number((customer.daysTotal / customer.daysCount).toFixed(1)) : 0,
+      }))
+
+      const sellerSummaryRows = Object.values(
+        selectedCachedOrders.reduce((accumulator, order) => {
+          const key = String(order.vendedorCodigo || '')
+          if (!accumulator[key]) {
+            accumulator[key] = {
+              vendedorCodigo: key,
+              vendedorNome: normalizeText(order.vendedorNome) || 'Nao informado',
+              totalVendas: 0,
+              totalPecas: 0,
+            }
+          }
+
+          accumulator[key].totalVendas += 1
+          accumulator[key].totalPecas += Number(order.quantidade) || 0
+          return accumulator
+        }, {})
+      )
+
+      const tableSources = {
+        orders,
+        products,
+        traceability,
+        customers: customerSummaryRows,
+        sellers: sellerSummaryRows,
+      }
+
+      for (const filter of dashboardPermissionFilters) {
+        const sourceRows = tableSources[filter.table]
+        if (!Array.isArray(sourceRows) || sourceRows.length === 0) continue
+
+        const matchingOrderIds = new Set()
+
+        if (filter.table === 'customers') {
+          for (const row of sourceRows) {
+            if (!matchesPermissionFilter(row[filter.column], filter)) continue
+            for (const orderId of ordersByCustomer.get(String(row.clicodigo || '')) || []) matchingOrderIds.add(orderId)
+          }
+        } else if (filter.table === 'sellers') {
+          for (const row of sourceRows) {
+            if (!matchesPermissionFilter(row[filter.column], filter)) continue
+            for (const orderId of ordersBySeller.get(String(row.vendedorCodigo || '')) || []) matchingOrderIds.add(orderId)
+          }
+        } else {
+          for (const row of sourceRows) {
+            if (!matchesPermissionFilter(row[filter.column], filter)) continue
+            if (row.pedidoId != null) matchingOrderIds.add(String(row.pedidoId))
+          }
+        }
+
+        allowedOrderIds = intersectSets(allowedOrderIds, matchingOrderIds)
+      }
+
+      orders = orders.filter(row => allowedOrderIds.has(row.pedidoId))
+      products = products.filter(row => allowedOrderIds.has(row.pedidoId))
+      traceability = traceability.filter(row => allowedOrderIds.has(row.pedidoId))
+    }
+
     let customerMap = {}
     for (const order of selectedCachedOrders) {
       if (!customerMap[order.clicodigo]) {
@@ -1175,6 +1403,7 @@ export async function GET(request) {
           daysTotal: 0,
           daysCount: 0,
           gclcodigo: order.gclcodigo,
+          zocodigo: order.zocodigo,
         }
       }
 
@@ -1194,6 +1423,7 @@ export async function GET(request) {
         indice: customer.total > 0 ? Math.round((customer.onTime / customer.total) * 100) : 0,
         mediaDias: customer.daysCount > 0 ? Number((customer.daysTotal / customer.daysCount).toFixed(1)) : 0,
         gclcodigo: customer.gclcodigo,
+        zocodigo: customer.zocodigo,
       }))
       .sort((a, b) => b.indice - a.indice)
 

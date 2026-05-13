@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, ChevronUp, RotateCcw, Search } from 'lucide-react'
 
-const VISIBLE_FILTER_FIELDS = ['currentCell', 'clicodigo', 'clinome', 'pedcodigo', 'gclcodigo', 'status']
+const VISIBLE_FILTER_FIELDS = ['currentCell', 'clicodigo', 'clinome', 'pedcodigo', 'gclcodigo', 'zocodigo', 'status']
 
 function MultiSelectField({ label, value = [], options = [], onChange, placeholder = 'Selecione' }) {
   const [open, setOpen] = useState(false)
@@ -119,6 +119,7 @@ export default function Filters({
   ].filter((stage, index, array) => array.findIndex(item => item.value === stage.value) === index)
   const clients = options?.clients || []
   const groups = options?.clientGroups || []
+  const zones = options?.zones || []
   const statuses = options?.statuses || []
 
   const activeCount = Object.entries(filters).filter(([key, value]) => {
@@ -223,6 +224,16 @@ export default function Filters({
               onChange={value => set('gclcodigo', value)}
               placeholder="Todos"
             />
+
+            {zones.length > 0 ? (
+              <MultiSelectField
+                label="Zona"
+                value={filters.zocodigo}
+                options={zones.map(zone => ({ value: String(zone.value), label: zone.label }))}
+                onChange={value => set('zocodigo', value)}
+                placeholder="Todas"
+              />
+            ) : null}
 
             <MultiSelectField
               label="Status"

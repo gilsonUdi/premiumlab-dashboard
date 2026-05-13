@@ -23,6 +23,7 @@ const defaultFilters = () => ({
   clinome: [],
   pedcodigo: [],
   gclcodigo: [],
+  zocodigo: [],
   status: [],
   emissao: [],
   indice: [],
@@ -43,6 +44,7 @@ const FILTER_LABELS = {
   clicodigo: 'Cliente',
   clinome: 'Nome Cliente',
   gclcodigo: 'Grupo Cliente',
+  zocodigo: 'Zona',
   status: 'Status',
   emissao: 'Emissao',
   indice: 'Indice',
@@ -195,6 +197,7 @@ export default function ProductionDashboard({
 
       if (value) params.set(key, value)
     })
+    params.set('mode', isPpsMode ? 'pps' : 'analysis')
     if (tenantSlug) params.set('tenant', tenantSlug)
 
     try {
@@ -265,11 +268,13 @@ export default function ProductionDashboard({
     )
     const clientNameLabels = new Map((options?.clients || []).map(client => [String(client.clicodigo), client.label]))
     const groupLabels = new Map((options?.clientGroups || []).map(group => [String(group.value), group.label]))
+    const zoneLabels = new Map((options?.zones || []).map(zone => [String(zone.value), zone.label]))
     const statusLabels = new Map((options?.statuses || []).map(status => [String(status.value), status.label]))
 
     const resolveChipValue = (key, value) => {
       if (key === 'clinome') return clientNameLabels.get(String(value)) || value
       if (key === 'gclcodigo') return groupLabels.get(String(value)) || value
+      if (key === 'zocodigo') return zoneLabels.get(String(value)) || value
       if (key === 'status') return statusLabels.get(String(value)) || value
       if (key === 'currentCell') return currentCellLabels.get(String(value)) || value
       return value
