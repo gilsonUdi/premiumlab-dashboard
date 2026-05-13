@@ -280,6 +280,21 @@ function buildRouteStepLabel(alxcodigo, descricao) {
   return prefix || shortCode || '-'
 }
 
+function normalizeCachedRouteStep(step) {
+  const rawLabel = String(step?.label || '').trim()
+  const rawCode = step?.alxcodigo == null ? '' : String(step.alxcodigo).trim()
+  const normalizedLabel =
+    !rawLabel || /^\d+$/.test(rawLabel)
+      ? buildRouteStepLabel(rawCode || rawLabel, step?.descricao)
+      : rawLabel
+
+  return {
+    ...step,
+    alxcodigo: rawCode || rawLabel,
+    label: normalizedLabel,
+  }
+}
+
 async function fetchAllPages(queryFactory, { pageSize = PAGE_SIZE, maxRows = MAX_REQUI_ROWS } = {}) {
   const rows = []
 
@@ -951,6 +966,8 @@ export async function GET(request) {
         }
       }
 
+      const normalizedRoute = (Array.isArray(roteiro) ? roteiro : []).map(normalizeCachedRouteStep)
+
       return {
         pedcodigo: normalizeOrderCode(row.pedcodigo || row.id_pedido),
         pedidoId: String(row.id_pedido),
@@ -962,8 +979,11 @@ export async function GET(request) {
         status: String(row.status || '').trim(),
         currentCell: normalizeText(row.current_cell) || '-',
         caixa: normalizeText(row.caixa) || '-',
-        roteiro: Array.isArray(roteiro) ? roteiro : [],
-        roteiroResumo: String(row.roteiro_resumo || '').trim(),
+        roteiro: normalizedRoute,
+        roteiroResumo:
+          normalizedRoute.length > 0
+            ? normalizedRoute.map(step => step.label).join(' | ')
+            : String(row.roteiro_resumo || '').trim(),
         delayRank: Number(row.delay_rank) || 0,
         statusPriority: Number(row.status_priority) || 0,
         rowTone: String(row.row_tone || '').trim() || 'success',
