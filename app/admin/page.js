@@ -30,8 +30,9 @@ import {
   upsertCompany,
 } from '@/lib/portal-store'
 import {
-  DASHBOARD_FILTER_TABLES,
+  DASHBOARD_FILTER_FIELDS,
   DASHBOARD_SECTION_GROUPS,
+  getDashboardFilterDefinition,
   normalizeUserPermissions,
   PORTAL_PAGE_KEYS,
   POWER_BI_FILTER_OPERATORS,
@@ -149,6 +150,9 @@ export default function AdminPage() {
   const [powerBiCatalog, setPowerBiCatalog] = useState([])
   const [powerBiCatalogLoading, setPowerBiCatalogLoading] = useState(false)
   const [powerBiCatalogError, setPowerBiCatalogError] = useState('')
+  const [dashboardFilterOptions, setDashboardFilterOptions] = useState(null)
+  const [dashboardFilterOptionsLoading, setDashboardFilterOptionsLoading] = useState(false)
+  const [dashboardFilterOptionsError, setDashboardFilterOptionsError] = useState('')
 
   useEffect(() => {
     let active = true
@@ -262,6 +266,52 @@ export default function AdminPage() {
     }
 
     loadPowerBiCatalog()
+
+    return () => {
+      active = false
+    }
+  }, [isUserModalOpen, managingCompany])
+
+  useEffect(() => {
+    let active = true
+
+    async function loadDashboardFilterOptions() {
+      if (!isUserModalOpen || !managingCompany || !managingCompany.supabaseEnabled) {
+        if (active) {
+          setDashboardFilterOptions(null)
+          setDashboardFilterOptionsError('')
+          setDashboardFilterOptionsLoading(false)
+        }
+        return
+      }
+
+      try {
+        setDashboardFilterOptionsLoading(true)
+        setDashboardFilterOptionsError('')
+        const token = await getPortalAccessToken()
+        const response = await fetch(`/api/options?tenant=${encodeURIComponent(managingCompany.slug)}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: 'no-store',
+        })
+        const payload = await response.json()
+        if (!response.ok) {
+          throw new Error(payload.error || 'Nao foi possivel carregar os filtros do dashboard.')
+        }
+        if (!active) return
+        setDashboardFilterOptions(payload || {})
+      } catch (error) {
+        console.error(error)
+        if (!active) return
+        setDashboardFilterOptions(null)
+        setDashboardFilterOptionsError(error.message || 'Nao foi possivel carregar os filtros do dashboard.')
+      } finally {
+        if (active) setDashboardFilterOptionsLoading(false)
+      }
+    }
+
+    loadDashboardFilterOptions()
 
     return () => {
       active = false
@@ -445,6 +495,7 @@ export default function AdminPage() {
             ...(previous.permissions.dashboardFilters?.[mode] || []),
             {
               id: `dashboard-filter-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              field: '',
               table: '',
               column: '',
               operator: 'is',
@@ -471,9 +522,8 @@ export default function AdminPage() {
     }))
   }
 
-  const updateUserDashboardFilterTable = (mode, filterId, tableName) => {
-    const normalizedTable = String(tableName || '').trim()
-    const matchedTable = DASHBOARD_FILTER_TABLES.find(table => table.name === normalizedTable)
+  const updateUserDashboardFilterField = (mode, filterId, fieldName) => {
+    const definition = getDashboardFilterDefinition(fieldName)
 
     setUserForm(previous => ({
       ...previous,
@@ -483,17 +533,61 @@ export default function AdminPage() {
           ...previous.permissions.dashboardFilters,
           [mode]: (previous.permissions.dashboardFilters?.[mode] || []).map(filter => {
             if (filter.id !== filterId) return filter
-            const shouldKeepColumn = matchedTable?.columns?.some(column => column.name === filter.column)
             return {
               ...filter,
-              table: normalizedTable,
-              column: shouldKeepColumn ? filter.column : '',
+              field: definition?.name || '',
+              table: definition?.table || '',
+              column: definition?.column || '',
+              value: '',
             }
           }),
         },
       },
     }))
   }
+
+  const getDashboardFieldOptions = fieldName => {
+    const definition = getDashboardFilterDefinition(fieldName)
+    if (!definition?.optionsKey || !dashboardFilterOptions) return []
+
+    switch (definition.optionsKey) {
+      case 'stages':
+        return [
+          ...((dashboardFilterOptions.stages || []).map(stage => ({ value: String(stage.label), label: stage.label }))),
+          { value: 'PEDIDO FATURADO', label: 'PEDIDO FATURADO' },
+        ].filter((option, index, array) => array.findIndex(item => item.value === option.value) === index)
+      case 'clients':
+        return (dashboardFilterOptions.clients || []).map(client => ({
+          value: String(client.clicodigo),
+          label: client.label,
+        }))
+      case 'clientGroups':
+        return (dashboardFilterOptions.clientGroups || []).map(group => ({
+          value: String(group.value),
+          label: group.label,
+        }))
+      case 'zones':
+        return (dashboardFilterOptions.zones || []).map(zone => ({
+          value: String(zone.value),
+          label: zone.label,
+        }))
+      case 'statuses':
+        return (dashboardFilterOptions.statuses || []).map(status => ({
+          value: String(status.value),
+          label: status.label,
+        }))
+      default:
+        return []
+    }
+  }
+
+  const getAvailableDashboardFields = () =>
+    DASHBOARD_FILTER_FIELDS.filter(field => {
+      if (field.optionsKey === 'zones') {
+        return (dashboardFilterOptions?.zones || []).length > 0
+      }
+      return true
+    })
 
   const removeUserDashboardFilter = (mode, filterId) => {
     setUserForm(previous => ({
@@ -1526,7 +1620,7 @@ export default function AdminPage() {
                             <div>
                               <p className="text-sm font-semibold text-white">Filtros do usuario</p>
                               <p className="mt-1 text-sm text-[#b7b0a6]">
-                                Aplique filtros permanentes neste modulo para restringir pedidos, clientes, vendedores, produtos e rastreabilidade.
+                                Aplique filtros permanentes usando os mesmos campos visiveis no dashboard deste modulo.
                               </p>
                             </div>
                             <button type="button" className="portal-ghost-button" onClick={() => addUserDashboardFilter(mode)}>
@@ -1534,6 +1628,13 @@ export default function AdminPage() {
                               Adicionar filtro
                             </button>
                           </div>
+
+                          {dashboardFilterOptionsLoading ? (
+                            <p className="mt-3 text-sm text-[#b7b0a6]">Carregando filtros disponiveis...</p>
+                          ) : null}
+                          {dashboardFilterOptionsError ? (
+                            <p className="mt-3 text-sm text-amber-200">{dashboardFilterOptionsError}</p>
+                          ) : null}
 
                           <div className="mt-4 space-y-3">
                             {(userForm.permissions.dashboardFilters?.[mode] || []).length === 0 ? (
@@ -1553,29 +1654,54 @@ export default function AdminPage() {
                                   <div className="grid gap-3 md:grid-cols-2">
                                     <select
                                       className="portal-input"
-                                      value={filter.table}
-                                      onChange={event => updateUserDashboardFilterTable(mode, filter.id, event.target.value)}
+                                      value={filter.field || ''}
+                                      onChange={event => updateUserDashboardFilterField(mode, filter.id, event.target.value)}
                                     >
-                                      <option value="">Selecione a tabela</option>
-                                      {DASHBOARD_FILTER_TABLES.map(table => (
-                                        <option key={table.name} value={table.name}>
-                                          {table.label}
+                                      <option value="">Selecione o filtro</option>
+                                      {getAvailableDashboardFields().map(field => (
+                                        <option key={field.name} value={field.name}>
+                                          {field.label}
                                         </option>
                                       ))}
                                     </select>
-                                    <select
-                                      className="portal-input"
-                                      value={filter.column}
-                                      onChange={event => updateUserDashboardFilter(mode, filter.id, 'column', event.target.value)}
-                                      disabled={!filter.table}
-                                    >
-                                      <option value="">{filter.table ? 'Selecione a coluna' : 'Escolha a tabela primeiro'}</option>
-                                      {(DASHBOARD_FILTER_TABLES.find(table => table.name === filter.table)?.columns || []).map(column => (
-                                        <option key={column.name} value={column.name}>
-                                          {column.label}
-                                        </option>
-                                      ))}
-                                    </select>
+                                    {(() => {
+                                      const filterDefinition = getDashboardFilterDefinition(filter.field)
+                                      const fieldOptions = getDashboardFieldOptions(filter.field)
+
+                                      if (filterDefinition?.inputType === 'select') {
+                                        return (
+                                          <select
+                                            className="portal-input"
+                                            value={filter.value}
+                                            onChange={event => updateUserDashboardFilter(mode, filter.id, 'value', event.target.value)}
+                                            disabled={!filter.field || fieldOptions.length === 0}
+                                          >
+                                            <option value="">
+                                              {!filter.field
+                                                ? 'Escolha o filtro primeiro'
+                                                : fieldOptions.length === 0
+                                                  ? 'Sem opcoes disponiveis'
+                                                  : 'Selecione um valor'}
+                                            </option>
+                                            {fieldOptions.map(option => (
+                                              <option key={option.value} value={option.value}>
+                                                {option.label}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        )
+                                      }
+
+                                      return (
+                                        <input
+                                          className="portal-input"
+                                          value={filter.value}
+                                          onChange={event => updateUserDashboardFilter(mode, filter.id, 'value', event.target.value)}
+                                          placeholder="Valor ou lista separada por virgula"
+                                          disabled={!filter.field}
+                                        />
+                                      )
+                                    })()}
                                     <select
                                       className="portal-input"
                                       value={filter.operator}
@@ -1583,16 +1709,15 @@ export default function AdminPage() {
                                     >
                                       {POWER_BI_FILTER_OPERATORS.map(option => (
                                         <option key={option.value} value={option.value}>
-                                          {option.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <input
-                                      className="portal-input"
-                                      value={filter.value}
-                                      onChange={event => updateUserDashboardFilter(mode, filter.id, 'value', event.target.value)}
-                                      placeholder="Valor ou lista separada por virgula"
-                                    />
+                                        {option.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                    <div className="portal-input flex items-center border-dashed text-sm text-[#b7b0a6]">
+                                      {getDashboardFilterDefinition(filter.field)?.inputType === 'select'
+                                        ? 'Valor definido por selecao'
+                                        : 'Valor digitado livremente'}
+                                    </div>
                                   </div>
                                 </div>
                               ))
