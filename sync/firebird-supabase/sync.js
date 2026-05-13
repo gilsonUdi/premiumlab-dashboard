@@ -285,13 +285,24 @@ const MANUAL_TABLE_DEFINITIONS = {
              ON r.RTCCODIGO = n.RTCCODIGO
     `,
   },
+  GRUPOCLI: {
+    targetTable: "grupocli",
+    primaryKeys: ["cod_grupo"],
+    replaceAll: true,
+    query: `
+      SELECT
+          g.GCLCODIGO AS COD_GRUPO,
+          g.GCLNOME   AS NOME_GRUPO
+      FROM GRUPOCLI g
+    `,
+  },
 };
 
 const MANUAL_TABLE_DEPENDENCIES = {
   CLIENCRM: ["ROTULOSCLIEN"],
 };
 
-const AUTO_MANUAL_TABLES = ["ROTULOSCLIEN"];
+const AUTO_MANUAL_TABLES = ["ROTULOSCLIEN", "GRUPOCLI"];
 
 const TABLE_COLUMN_OMISSIONS = {
   REQUI: new Set(["reqdtreceb"]),
@@ -1019,6 +1030,25 @@ async function ensureRotulosClienTable(supabase) {
   await sleep(1200);
 }
 
+async function ensureGrupoCliTable(supabase) {
+  const ddl = `
+    create table if not exists public.grupocli (
+      cod_grupo bigint primary key,
+      nome_grupo text
+    )
+  `;
+
+  const alterStatements = [
+    "alter table public.grupocli add column if not exists nome_grupo text",
+  ];
+
+  await execSupabaseSql(supabase, ddl);
+  for (const statement of alterStatements) {
+    await execSupabaseSql(supabase, statement);
+  }
+  await sleep(1200);
+}
+
 async function rebuildRoteiroCache(supabase, fromDate) {
   await ensureRoteiroCacheTable(supabase);
   const readChunkSize = Math.max(100, Number(process.env.SYNC_CACHE_READ_CHUNK || 500));
@@ -1691,6 +1721,9 @@ async function syncManualTable(db, supabase, tableName, definition, options) {
   }
   if (upperTableName === "ROTULOSCLIEN") {
     await ensureRotulosClienTable(supabase);
+  }
+  if (upperTableName === "GRUPOCLI") {
+    await ensureGrupoCliTable(supabase);
   }
   const rows = await fbQuery(db, definition.query);
 

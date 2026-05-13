@@ -142,22 +142,25 @@ export async function GET(request) {
     const tenantSlug = searchParams.get('tenant') || ''
     const supabase = await getTenantSupabase(request, tenantSlug)
 
-    const [almoxColumns, clienColumns, localPedColumns, funcioColumns] = await Promise.all([
+    const [almoxColumns, clienColumns, localPedColumns, funcioColumns, grupocliColumns] = await Promise.all([
       getTableColumns(supabase, 'almox'),
       getTableColumns(supabase, 'clien'),
       getTableColumns(supabase, 'localped'),
       getTableColumns(supabase, 'funcio'),
+      getTableColumns(supabase, 'grupocli'),
     ])
 
     const almoxOrderColumn = pickFirstAvailable(almoxColumns, ['alxordem', 'alxcodigo'])
     const clienLabelOrderColumn = pickFirstAvailable(clienColumns, ['clirazsocial', 'clinomefant', 'clicodigo'])
     const localPedOrderColumn = pickFirstAvailable(localPedColumns, ['lpordem', 'lpcodigo'])
     const funcioOrderColumn = pickFirstAvailable(funcioColumns, ['funnome', 'funcodigo'])
+    const grupocliOrderColumn = pickFirstAvailable(grupocliColumns, ['nome_grupo', 'cod_grupo'])
 
     const clienSelect = buildSelect(clienColumns, ['clicodigo', 'clirazsocial', 'clinomefant', 'gclcodigo', 'clicliente'])
     const almoxSelect = buildSelect(almoxColumns, ['alxcodigo', 'alxdescricao', 'dptcodigo', 'alxperda'])
     const localPedSelect = buildSelect(localPedColumns, ['lpcodigo', 'lpdescricao', 'lpfimprocesso', 'lpiniprocesso'])
     const funcioSelect = buildSelect(funcioColumns, ['funcodigo', 'funnome'])
+    const grupocliSelect = buildSelect(grupocliColumns, ['cod_grupo', 'nome_grupo'])
 
     let cellsQuery = supabase.from('almox').select(almoxSelect)
     if (almoxOrderColumn) cellsQuery = cellsQuery.order(almoxOrderColumn)
@@ -172,11 +175,18 @@ export async function GET(request) {
     let employeesQuery = supabase.from('funcio').select(funcioSelect).limit(200)
     if (funcioOrderColumn) employeesQuery = employeesQuery.order(funcioOrderColumn)
 
-    const [cellsRes, clientsRes, localPedRes, empRes] = await Promise.all([
+    let grupocliQuery = null
+    if (grupocliSelect) {
+      grupocliQuery = supabase.from('grupocli').select(grupocliSelect)
+      if (grupocliOrderColumn) grupocliQuery = grupocliQuery.order(grupocliOrderColumn)
+    }
+
+    const [cellsRes, clientsRes, localPedRes, empRes, grupocliRes] = await Promise.all([
       cellsQuery,
       clientsQuery,
       localPedQuery,
       employeesQuery,
+      grupocliQuery || Promise.resolve({ data: [], error: null }),
     ])
 
     const cells = (cellsRes.data || []).map(cell => ({
@@ -193,8 +203,18 @@ export async function GET(request) {
       gclcodigo: client.gclcodigo,
     }))
 
-    const groupCodes = [...new Set((clientsRes.data || []).map(row => row.gclcodigo).filter(Boolean))]
-    const clientGroups = groupCodes.map(groupCode => ({ value: groupCode, label: `Grupo ${groupCode}` }))
+    const groupCodeSet = new Set((clientsRes.data || []).map(row => row.gclcodigo).filter(value => value != null && value !== ''))
+    const groupNameMap = new Map(
+      (grupocliRes.data || [])
+        .filter(group => group?.cod_grupo != null)
+        .map(group => [String(group.cod_grupo), normalizeText(group.nome_grupo)])
+    )
+    const clientGroups = [...groupCodeSet]
+      .map(groupCode => ({
+        value: groupCode,
+        label: groupNameMap.get(String(groupCode)) || `Grupo ${groupCode}`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
 
     const stages = (localPedRes.data || []).map(stage => ({
       value: stage.lpcodigo,
