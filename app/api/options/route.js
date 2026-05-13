@@ -99,22 +99,88 @@ async function getTenantSupabase(request, tenantSlug) {
   return createTenantSupabase(supabaseUrl, supabaseServiceRoleKey)
 }
 
+async function execSql(supabase, sql) {
+  const compactSql = sql.replace(/\s+/g, ' ').trim()
+  const { data, error } = await supabase.rpc('exec_sql', { sql: compactSql })
+  if (error) throw new Error(`exec_sql: ${error.message}`)
+  return data || []
+}
+
+async function getTableColumns(supabase, tableName) {
+  const rows = await execSql(
+    supabase,
+    `
+      select column_name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = '${String(tableName || '').replace(/'/g, "''")}'
+      order by ordinal_position
+    `
+  )
+
+  return new Set(
+    rows
+      .map(row => String(row.column_name || '').trim().toLowerCase())
+      .filter(Boolean)
+  )
+}
+
+function pickFirstAvailable(columns, candidates) {
+  for (const candidate of candidates) {
+    if (columns.has(candidate)) return candidate
+  }
+  return null
+}
+
+function buildSelect(columns, candidates) {
+  return candidates.filter(column => columns.has(column)).join(', ')
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const tenantSlug = searchParams.get('tenant') || ''
     const supabase = await getTenantSupabase(request, tenantSlug)
 
-    const [cellsRes, clientsRes, groupsRes, localPedRes, empRes] = await Promise.all([
-      supabase.from('almox').select('alxcodigo, alxdescricao, dptcodigo, alxperda').order('alxordem'),
-      supabase.from('clien').select('clicodigo, clirazsocial, clinomefant, gclcodigo').eq('clicliente', 'S').order('clirazsocial').limit(500),
-      supabase.from('clien').select('gclcodigo').not('gclcodigo', 'is', null),
-      supabase.from('localped').select('lpcodigo, lpdescricao, lpfimprocesso, lpiniprocesso').order('lpordem'),
-      supabase.from('funcio').select('funcodigo, funnome').order('funnome').limit(200),
+    const [almoxColumns, clienColumns, localPedColumns, funcioColumns] = await Promise.all([
+      getTableColumns(supabase, 'almox'),
+      getTableColumns(supabase, 'clien'),
+      getTableColumns(supabase, 'localped'),
+      getTableColumns(supabase, 'funcio'),
+    ])
+
+    const almoxOrderColumn = pickFirstAvailable(almoxColumns, ['alxordem', 'alxcodigo'])
+    const clienLabelOrderColumn = pickFirstAvailable(clienColumns, ['clirazsocial', 'clinomefant', 'clicodigo'])
+    const localPedOrderColumn = pickFirstAvailable(localPedColumns, ['lpordem', 'lpcodigo'])
+    const funcioOrderColumn = pickFirstAvailable(funcioColumns, ['funnome', 'funcodigo'])
+
+    const clienSelect = buildSelect(clienColumns, ['clicodigo', 'clirazsocial', 'clinomefant', 'gclcodigo', 'clicliente'])
+    const almoxSelect = buildSelect(almoxColumns, ['alxcodigo', 'alxdescricao', 'dptcodigo', 'alxperda'])
+    const localPedSelect = buildSelect(localPedColumns, ['lpcodigo', 'lpdescricao', 'lpfimprocesso', 'lpiniprocesso'])
+    const funcioSelect = buildSelect(funcioColumns, ['funcodigo', 'funnome'])
+
+    let cellsQuery = supabase.from('almox').select(almoxSelect)
+    if (almoxOrderColumn) cellsQuery = cellsQuery.order(almoxOrderColumn)
+
+    let clientsQuery = supabase.from('clien').select(clienSelect).limit(500)
+    if (clienColumns.has('clicliente')) clientsQuery = clientsQuery.eq('clicliente', 'S')
+    if (clienLabelOrderColumn) clientsQuery = clientsQuery.order(clienLabelOrderColumn)
+
+    let localPedQuery = supabase.from('localped').select(localPedSelect)
+    if (localPedOrderColumn) localPedQuery = localPedQuery.order(localPedOrderColumn)
+
+    let employeesQuery = supabase.from('funcio').select(funcioSelect).limit(200)
+    if (funcioOrderColumn) employeesQuery = employeesQuery.order(funcioOrderColumn)
+
+    const [cellsRes, clientsRes, localPedRes, empRes] = await Promise.all([
+      cellsQuery,
+      clientsQuery,
+      localPedQuery,
+      employeesQuery,
     ])
 
     const cells = (cellsRes.data || []).map(cell => ({
-      value: cell.dptcodigo,
+      value: cell.dptcodigo ?? cell.alxcodigo,
       label: normalizeText(cell.alxdescricao),
       alxcodigo: cell.alxcodigo,
       alxperda: cell.alxperda,
@@ -127,7 +193,7 @@ export async function GET(request) {
       gclcodigo: client.gclcodigo,
     }))
 
-    const groupCodes = [...new Set((groupsRes.data || []).map(row => row.gclcodigo).filter(Boolean))]
+    const groupCodes = [...new Set((clientsRes.data || []).map(row => row.gclcodigo).filter(Boolean))]
     const clientGroups = groupCodes.map(groupCode => ({ value: groupCode, label: `Grupo ${groupCode}` }))
 
     const stages = (localPedRes.data || []).map(stage => ({
@@ -139,7 +205,7 @@ export async function GET(request) {
 
     const employees = (empRes.data || [])
       .filter(employee => !normalizeText(employee.funnome).includes('INATIVO'))
-      .map(employee => ({ value: employee.funcodigo, label: normalizeText(employee.funnome) }))
+      .map(employee => ({ value: employee.funcodigo, label: normalizeText(employee.funnome || employee.funcodigo) }))
 
     const statuses = [
       { value: 'in_progress', label: 'Em Producao' },
