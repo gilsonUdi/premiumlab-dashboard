@@ -308,6 +308,64 @@ async function fetchOptionalPages(queryFactory, options) {
   return result
 }
 
+async function fetchClientLookup(supabase, clientIds = []) {
+  const ids = [...new Set((clientIds || []).map(asSqlNumber).filter(Number.isFinite))]
+  if (ids.length === 0) return new Map()
+
+  const chunks = chunkArray(ids, 500)
+  const rows = []
+
+  for (const chunk of chunks) {
+    const result = await fetchOptionalPages(
+      () =>
+        supabase
+          .from('clien')
+          .select('clicodigo, clinomefant, clirazsocial')
+          .in('clicodigo', chunk),
+      { maxRows: 2000 }
+    )
+
+    if (result.error) throw new Error(result.error.message || 'Falha ao carregar clientes.')
+    rows.push(...(result.data || []))
+  }
+
+  return new Map(
+    rows.map(row => [
+      String(row.clicodigo),
+      normalizeText(row.clinomefant || row.clirazsocial),
+    ])
+  )
+}
+
+async function fetchSellerLookup(supabase, sellerIds = []) {
+  const ids = [...new Set((sellerIds || []).map(asSqlNumber).filter(Number.isFinite))]
+  if (ids.length === 0) return new Map()
+
+  const chunks = chunkArray(ids, 500)
+  const rows = []
+
+  for (const chunk of chunks) {
+    const result = await fetchOptionalPages(
+      () =>
+        supabase
+          .from('funcio')
+          .select('funcodigo, funnome')
+          .in('funcodigo', chunk),
+      { maxRows: 2000 }
+    )
+
+    if (result.error) throw new Error(result.error.message || 'Falha ao carregar vendedores.')
+    rows.push(...(result.data || []))
+  }
+
+  return new Map(
+    rows.map(row => [
+      String(row.funcodigo),
+      normalizeText(row.funnome),
+    ])
+  )
+}
+
 async function fetchOrderBaseRows(supabase, { dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [] }) {
   const pedidoIds = [...new Set((pedcodigos || []).map(asSqlNumber).filter(Number.isFinite))]
   const pedidoCodes = [...new Set((pedcodigos || []).map(value => String(value || '').trim()).filter(Boolean))]
@@ -919,6 +977,24 @@ export async function GET(request) {
         deliveredDate: parseLocalDateTime(row.saida),
       }
     })
+
+    const clientLookup = await fetchClientLookup(
+      supabase,
+      cachedOrders.map(order => order.clicodigo)
+    )
+    const sellerLookup = await fetchSellerLookup(
+      supabase,
+      cachedOrders.map(order => order.vendedorCodigo)
+    )
+
+    cachedOrders = cachedOrders.map(order => ({
+      ...order,
+      clinome: order.clinome || clientLookup.get(String(order.clicodigo)) || '',
+      vendedorNome:
+        order.vendedorNome ||
+        sellerLookup.get(String(order.vendedorCodigo)) ||
+        '',
+    }))
 
     if (pedcodigoValues.length > 0) {
       const wanted = new Set(pedcodigoValues.map(value => String(value || '').trim()))
