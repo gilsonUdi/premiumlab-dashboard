@@ -4,6 +4,12 @@ import { resolveAuthorizedCompany } from '@/lib/server-auth'
 
 export const dynamic = 'force-dynamic'
 
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+}
+
 function getErrorStatus(error) {
   const message = String(error?.message || '')
   if (message.includes('Nao autorizado')) return 401
@@ -143,9 +149,9 @@ export async function GET(request) {
       { value: 'pending', label: 'Aguardando' },
     ]
 
-    return NextResponse.json({ cells, clients, clientGroups, stages, employees, statuses })
+    return NextResponse.json({ cells, clients, clientGroups, stages, employees, statuses }, { headers: NO_STORE_HEADERS })
   } catch (error) {
     console.error('[options]', error)
-    return NextResponse.json({ error: error.message }, { status: getErrorStatus(error) })
+    return NextResponse.json({ error: error.message }, { status: getErrorStatus(error), headers: NO_STORE_HEADERS })
   }
 }

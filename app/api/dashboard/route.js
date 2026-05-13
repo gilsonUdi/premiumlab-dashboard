@@ -6,6 +6,12 @@ import { resolveAuthorizedCompany } from '@/lib/server-auth'
 
 export const dynamic = 'force-dynamic'
 
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+}
+
 const PAGE_SIZE = 1000
 const MAX_REQUI_ROWS = 20000
 const MAX_SALES_ROWS = 20000
@@ -1132,19 +1138,22 @@ export async function GET(request) {
       concluidos: completed,
     }
 
-    return NextResponse.json({
-      kpis,
-      pontualidade,
-      perdas,
-      orders,
-      products: products.slice(0, 200),
-      traceability: pedcodigoValues.length > 0 ? traceability : traceability.slice(0, 150),
-      customers: customers.slice(0, 100),
-      sellerRanking,
-    })
+    return NextResponse.json(
+      {
+        kpis,
+        pontualidade,
+        perdas,
+        orders,
+        products: products.slice(0, 200),
+        traceability: pedcodigoValues.length > 0 ? traceability : traceability.slice(0, 150),
+        customers: customers.slice(0, 100),
+        sellerRanking,
+      },
+      { headers: NO_STORE_HEADERS }
+    )
   } catch (error) {
     console.error('[dashboard]', error)
-    return NextResponse.json({ error: error.message }, { status: getErrorStatus(error) })
+    return NextResponse.json({ error: error.message }, { status: getErrorStatus(error), headers: NO_STORE_HEADERS })
   }
 }
 

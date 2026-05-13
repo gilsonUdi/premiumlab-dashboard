@@ -165,6 +165,7 @@ export default function ProductionDashboard({
 
         const response = await fetch(`/api/options?${params}`, {
           headers: await getAuthorizedHeaders(),
+          cache: 'no-store',
         })
         const payload = await response.json()
         if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar opcoes.')
@@ -199,6 +200,7 @@ export default function ProductionDashboard({
     try {
       const response = await fetch(`/api/dashboard?${params}`, {
         headers: await getAuthorizedHeaders(),
+        cache: 'no-store',
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar dashboard.')
