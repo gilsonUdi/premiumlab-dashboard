@@ -82,7 +82,7 @@ function RouteSteps({ steps }) {
       className="grid gap-1.5"
       style={{
         gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-        minWidth: 216,
+        minWidth: 176,
       }}
     >
       {steps.map((step, index) => {
@@ -90,7 +90,7 @@ function RouteSteps({ steps }) {
         return (
           <span
             key={`${step.label}-${step.ordem}-${index}`}
-            className="rounded px-1.5 py-1 text-center text-[10px] font-semibold"
+            className="rounded px-1 py-1 text-center text-[10px] font-semibold"
             style={{
               ...tone,
               lineHeight: 1.1,
@@ -192,13 +192,13 @@ export default function HistoricoPedidos({
                     whiteSpace: 'nowrap',
                     width:
                       col.key === 'currentCell'
-                        ? 212
+                        ? 248
                         : col.key === 'previsto'
-                          ? 152
+                          ? 176
                         : col.key === 'diasAtraso'
-                          ? 106
+                          ? 96
                           : col.key === 'roteiroResumo'
-                            ? 228
+                            ? 188
                             : undefined,
                   }}
                   onClick={() => toggleSort(col.key)}
@@ -268,7 +268,7 @@ export default function HistoricoPedidos({
                       {fmtDt(row.saida)}
                     </td>
                   ) : null}
-                  <td className="px-4 py-2.5" style={{ width: 228 }}>
+                  <td className="px-4 py-2.5" style={{ width: 188 }}>
                     <RouteSteps steps={row.roteiro} />
                   </td>
                 </tr>
