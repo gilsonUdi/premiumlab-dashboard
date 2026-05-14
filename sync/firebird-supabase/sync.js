@@ -882,8 +882,18 @@ async function insertPgRowsInBatches(client, tableName, columns, rows, mapRowToV
 }
 
 async function execSupabaseSql(supabase, sql) {
+  const normalizedSql = sql.replace(/\s+/g, " ").trim();
+
+  if (getSupabaseDatabaseUrl()) {
+    try {
+      return await pgPoolQuery(normalizedSql);
+    } catch (error) {
+      throw new Error(`Supabase SQL: ${error.message}`);
+    }
+  }
+
   const { data, error } = await supabase.rpc("exec_sql", {
-    sql: sql.replace(/\s+/g, " ").trim(),
+    sql: normalizedSql,
   });
 
   if (error) {
