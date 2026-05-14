@@ -101,6 +101,17 @@ function normalizeName(name) {
   return String(name || "").trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_");
 }
 
+function quoteIdentifier(name) {
+  return `"${String(name || "").replace(/"/g, "\"\"")}"`;
+}
+
+function quoteQualifiedName(name) {
+  return String(name || "")
+    .split(".")
+    .map((part) => quoteIdentifier(part))
+    .join(".");
+}
+
 function formatDatePart(value) {
   return value instanceof Date ? value.toISOString().slice(0, 10) : null;
 }
@@ -863,14 +874,74 @@ async function insertPgRowsInBatches(client, tableName, columns, rows, mapRowToV
       return `(${placeholders.join(",")})`;
     });
 
-    await client.query(
-      `
-        insert into ${tableName} (${columns.join(", ")})
-        values ${groups.join(", ")}
-      `,
-      values
-    );
+      await client.query(
+        `
+          insert into ${tableName} (${columns.join(", ")})
+          values ${groups.join(", ")}
+        `,
+        values
+      );
+    }
   }
+
+async function writePgBatch(tableName, rows, primaryKeys, mode = "insert-only") {
+  if (!rows.length) return;
+
+  const batchRows =
+    primaryKeys.length > 0 ? dedupeRowsByPrimaryKeys(rows, primaryKeys) : rows;
+
+  const columnSet = new Set();
+  for (const row of batchRows) {
+    for (const key of Object.keys(row || {})) {
+      columnSet.add(key);
+    }
+  }
+
+  const columns = Array.from(columnSet);
+  if (columns.length === 0) return;
+
+  const quotedTable = quoteQualifiedName(tableName);
+  const quotedColumns = columns.map((column) => quoteIdentifier(column));
+  const updateColumns = columns.filter((column) => !primaryKeys.includes(column));
+
+  await withPgTransaction(async (client) => {
+    for (let start = 0; start < batchRows.length; start += 250) {
+      const chunk = batchRows.slice(start, start + 250);
+      const values = [];
+
+      const groups = chunk.map((row, rowIndex) => {
+        const mapped = columns.map((column) => row?.[column] ?? null);
+        values.push(...mapped);
+        const placeholders = mapped.map((_, colIndex) => `$${rowIndex * columns.length + colIndex + 1}`);
+        return `(${placeholders.join(", ")})`;
+      });
+
+      let sql = `
+        insert into ${quotedTable} (${quotedColumns.join(", ")})
+        values ${groups.join(", ")}
+      `;
+
+      if (primaryKeys.length > 0) {
+        const quotedPrimaryKeys = primaryKeys.map((column) => quoteIdentifier(column));
+
+        if (mode === "upsert" && updateColumns.length > 0) {
+          sql += `
+            on conflict (${quotedPrimaryKeys.join(", ")})
+            do update set ${updateColumns
+              .map((column) => `${quoteIdentifier(column)} = excluded.${quoteIdentifier(column)}`)
+              .join(", ")}
+          `;
+        } else {
+          sql += `
+            on conflict (${quotedPrimaryKeys.join(", ")})
+            do nothing
+          `;
+        }
+      }
+
+      await client.query(sql, values);
+    }
+  });
 }
 
 async function execSupabaseSql(supabase, sql) {
@@ -1674,6 +1745,11 @@ async function deleteSupabaseInChunks(supabase, tableName, whereClause, batchSiz
 
 async function writeBatch(supabase, tableName, rows, primaryKeys, mode = "insert-only") {
   if (rows.length === 0) return;
+
+  if (getSupabaseDatabaseUrl()) {
+    return writePgBatch(tableName, rows, primaryKeys, mode);
+  }
+
   const batchRows =
     primaryKeys.length > 0 ? dedupeRowsByPrimaryKeys(rows, primaryKeys) : rows;
 
