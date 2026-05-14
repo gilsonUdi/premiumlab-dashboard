@@ -306,6 +306,9 @@ const AUTO_MANUAL_TABLES = ["ROTULOSCLIEN", "GRUPOCLI"];
 
 const TABLE_COLUMN_OMISSIONS = {
   REQUI: new Set(["reqdtreceb"]),
+  ENDCLI: new Set(["baicodigo"]),
+  LOCALPED: new Set(["lpimpsac"]),
+  PEDFINALIDADE: new Set(["fiscodigo1", "fiscodigo1s"]),
 };
 
 function normalizeValue(value, targetColumn) {
@@ -328,11 +331,14 @@ function normalizeValue(value, targetColumn) {
 
 function sanitizeRowForTable(tableName, row) {
   const omissions = TABLE_COLUMN_OMISSIONS[String(tableName || "").trim().toUpperCase()];
-  if (!omissions || omissions.size === 0) return row;
+  const upperTableName = String(tableName || "").trim().toUpperCase();
+  const isPedfinalidade = upperTableName === "PEDFINALIDADE";
+  if ((!omissions || omissions.size === 0) && !isPedfinalidade) return row;
 
   const sanitized = {};
   for (const [key, value] of Object.entries(row)) {
     const normalizedKey = normalizeName(key);
+    if (isPedfinalidade && normalizedKey.startsWith("fiscodigo")) continue;
     if (omissions.has(normalizedKey)) continue;
     sanitized[key] = value;
   }
