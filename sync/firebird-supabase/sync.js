@@ -306,9 +306,9 @@ const AUTO_MANUAL_TABLES = ["ROTULOSCLIEN", "GRUPOCLI"];
 
 const TABLE_COLUMN_OMISSIONS = {
   REQUI: new Set(["reqdtreceb"]),
-  ENDCLI: new Set(["baicodigo"]),
+  ENDCLI: new Set(["baicodigo", "discodigo"]),
   LOCALPED: new Set(["lpimpsac"]),
-  PEDFINALIDADE: new Set(["fiscodigo1", "fiscodigo1s"]),
+  PEDFINALIDADE: new Set(["fiscodigo1", "fiscodigo1s", "idadepac"]),
 };
 
 function normalizeValue(value, targetColumn) {
@@ -1910,6 +1910,7 @@ async function syncTable(db, supabase, tableName, options) {
   if (upperTableName === "ENDCLI") {
     await ensureEndCliTable(supabase);
   }
+  const targetColumns = await getTargetColumns(supabase, normalizedTable);
   const heavyTable = options.heavyTables.has(tableName.toUpperCase());
   const fetchBatch = heavyTable ? options.heavyFetchBatch : options.fetchBatch;
   const insertBatch = heavyTable ? options.heavyInsertBatch : options.insertBatch;
@@ -1949,7 +1950,7 @@ async function syncTable(db, supabase, tableName, options) {
       if (rows.length === 0) break;
 
       for (const row of rows) {
-        const normalized = normalizeRow(sanitizeRowForTable(tableName, row));
+        const normalized = normalizeRow(sanitizeRowForTable(tableName, row), targetColumns);
         if (Object.keys(normalized).length === 0) continue;
         pendingRows.push(normalized);
         totalRows += 1;
