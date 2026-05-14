@@ -191,8 +191,10 @@ export default function HistoricoPedidos({
                     color: sort.col === col.key ? '#3b9fd4' : '#7ba3cc',
                     whiteSpace: 'nowrap',
                     width:
-                      col.key === 'previsto'
-                        ? 132
+                      col.key === 'currentCell'
+                        ? 212
+                        : col.key === 'previsto'
+                          ? 152
                         : col.key === 'diasAtraso'
                           ? 106
                           : col.key === 'roteiroResumo'
