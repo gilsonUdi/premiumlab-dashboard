@@ -81,8 +81,8 @@ function RouteSteps({ steps }) {
     <div
       className="grid gap-1.5"
       style={{
-        gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
-        minWidth: 384,
+        gridTemplateColumns: 'repeat(8, minmax(0, 1fr))',
+        minWidth: 0,
       }}
     >
       {steps.map((step, index) => {
@@ -90,7 +90,7 @@ function RouteSteps({ steps }) {
         return (
           <span
             key={`${step.label}-${step.ordem}-${index}`}
-            className="rounded px-1 py-1 text-center text-[10px] font-semibold"
+            className="rounded px-1 py-[3px] text-center text-[9px] font-semibold"
             style={{
               ...tone,
               lineHeight: 1.1,
