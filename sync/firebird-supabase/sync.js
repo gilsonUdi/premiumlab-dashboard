@@ -2078,6 +2078,7 @@ async function runOnce() {
     database: cleanEnvValue(process.env.FIREBIRD_DATABASE),
     user: cleanEnvValue(process.env.FIREBIRD_USER || "SYSDBA"),
     password: cleanEnvValue(process.env.FIREBIRD_PASSWORD),
+    charset: cleanEnvValue(process.env.FIREBIRD_CHARSET || "WIN1252"),
     lowercase_keys: false,
   };
 
