@@ -368,15 +368,7 @@ async function getTargetColumns(supabase, tableName) {
     order by ordinal_position
   `;
 
-  const { data, error } = await supabase.rpc("exec_sql", {
-    sql: sql.replace(/\s+/g, " ").trim(),
-  });
-
-  if (error) {
-    throw new Error(`Supabase ${tableName} schema: ${error.message}`);
-  }
-
-  const rows = data || [];
+  const rows = await execSupabaseSql(supabase, sql);
   if (rows.length === 0) {
     throw new Error(`Supabase ${tableName} schema: tabela sem colunas visiveis`);
   }
