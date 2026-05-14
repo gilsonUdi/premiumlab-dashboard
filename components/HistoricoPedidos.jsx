@@ -82,7 +82,7 @@ function RouteSteps({ steps }) {
       className="grid gap-1.5"
       style={{
         gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-        minWidth: 252,
+        minWidth: 216,
       }}
     >
       {steps.map((step, index) => {
@@ -90,7 +90,7 @@ function RouteSteps({ steps }) {
         return (
           <span
             key={`${step.label}-${step.ordem}-${index}`}
-            className="rounded px-2 py-1 text-center text-[11px] font-semibold"
+            className="rounded px-1.5 py-1 text-center text-[10px] font-semibold"
             style={{
               ...tone,
               lineHeight: 1.1,
@@ -187,7 +187,18 @@ export default function HistoricoPedidos({
                 <th
                   key={col.key}
                   className="col-sortable px-4 py-3 text-left font-medium"
-                  style={{ color: sort.col === col.key ? '#3b9fd4' : '#7ba3cc', whiteSpace: 'nowrap' }}
+                  style={{
+                    color: sort.col === col.key ? '#3b9fd4' : '#7ba3cc',
+                    whiteSpace: 'nowrap',
+                    width:
+                      col.key === 'previsto'
+                        ? 132
+                        : col.key === 'diasAtraso'
+                          ? 106
+                          : col.key === 'roteiroResumo'
+                            ? 228
+                            : undefined,
+                  }}
                   onClick={() => toggleSort(col.key)}
                 >
                   <span className="flex items-center gap-1">
@@ -246,7 +257,7 @@ export default function HistoricoPedidos({
                     {fmtDt(row.previsto)}
                   </td>
                   {showDelayDays ? (
-                    <td className="px-4 py-2.5 font-mono" style={{ color: '#e2e8f0' }}>
+                    <td className="px-4 py-2.5 font-mono" style={{ color: '#e2e8f0', whiteSpace: 'nowrap' }}>
                       {fmtDelayDays(row.delayRank, row.status)}
                     </td>
                   ) : null}
@@ -255,7 +266,7 @@ export default function HistoricoPedidos({
                       {fmtDt(row.saida)}
                     </td>
                   ) : null}
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-2.5" style={{ width: 228 }}>
                     <RouteSteps steps={row.roteiro} />
                   </td>
                 </tr>
