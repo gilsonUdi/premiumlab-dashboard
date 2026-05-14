@@ -4,14 +4,6 @@ import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-const STATUS_MAP = {
-  completed: { label: 'Concluido', cls: 'badge-success' },
-  delayed_completed: { label: 'Entregue (atraso)', cls: 'badge-warning' },
-  delayed: { label: 'Em Producao (atraso)', cls: 'badge-danger' },
-  in_progress: { label: 'Em Producao', cls: 'badge-blue' },
-  pending: { label: 'Aguardando', cls: 'badge-gray' },
-}
-
 const STATUS_SORT_WEIGHT = {
   delayed: 4,
   in_progress: 3,
@@ -51,24 +43,6 @@ const ROUTE_STEP_STYLES = {
     border: '1px solid rgba(226, 232, 240, 0.18)',
     color: '#e2e8f0',
   },
-}
-
-function StatusBadge({ status }) {
-  const item = STATUS_MAP[status] || { label: status, cls: 'badge-gray' }
-  const dotColors = {
-    'badge-success': '#22c55e',
-    'badge-warning': '#fbbf24',
-    'badge-danger': '#f87171',
-    'badge-blue': '#60a5fa',
-    'badge-gray': '#94a3b8',
-  }
-
-  return (
-    <span className={`badge ${item.cls}`}>
-      <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: dotColors[item.cls] || '#94a3b8' }} />
-      {item.label}
-    </span>
-  )
 }
 
 function SortIcon({ col, sort }) {
@@ -179,8 +153,6 @@ export default function HistoricoPedidos({
     { key: 'previsto', label: 'Dt. Prevista' },
     ...(showDelayDays ? [{ key: 'diasAtraso', label: 'Dias em Atraso' }] : []),
     ...(!hideDeliveredColumn ? [{ key: 'saida', label: 'Dt. Saida' }] : []),
-    { key: 'quantidade', label: 'Qtd.' },
-    { key: 'status', label: 'Status' },
     { key: 'roteiroResumo', label: 'Roteiro' },
   ]
 
@@ -232,7 +204,7 @@ export default function HistoricoPedidos({
                 <tr key={index} style={{ borderTop: '1px solid #0d1f38' }}>
                   {cols.map(col => (
                     <td key={col.key} className="px-4 py-3">
-                      <div className="skeleton h-4 w-full" style={{ maxWidth: col.key === 'status' ? 100 : 90 }} />
+                      <div className="skeleton h-4 w-full" style={{ maxWidth: 90 }} />
                     </td>
                   ))}
                 </tr>
@@ -283,12 +255,6 @@ export default function HistoricoPedidos({
                       {fmtDt(row.saida)}
                     </td>
                   ) : null}
-                  <td onClick={event => filterBy(event, 'orders.quantidade', row.quantidade)} className="px-4 py-2.5 text-right" style={{ color: '#e2e8f0' }}>
-                    {row.quantidade}
-                  </td>
-                  <td onClick={event => filterBy(event, 'orders.status', row.status)} className="px-4 py-2.5">
-                    <StatusBadge status={row.status} />
-                  </td>
                   <td className="px-4 py-2.5">
                     <RouteSteps steps={row.roteiro} />
                   </td>
