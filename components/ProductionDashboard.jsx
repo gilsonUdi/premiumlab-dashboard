@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import { format, startOfMonth } from 'date-fns'
+import { format, subDays } from 'date-fns'
 import { ArrowLeft, Building2, Download, RefreshCw, X } from 'lucide-react'
 import Filters from '@/components/Filters'
 import KPICards, { CompactPpsKpis } from '@/components/KPICards'
@@ -17,7 +17,7 @@ const PontualidadeChart = dynamic(() => import('@/components/PontualidadeChart')
 const PerdasChart = dynamic(() => import('@/components/PerdasChart'), { ssr: false })
 
 const defaultFilters = () => ({
-  dateStart: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+  dateStart: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
   dateEnd: format(new Date(), 'yyyy-MM-dd'),
   clicodigo: [],
   clinome: [],
