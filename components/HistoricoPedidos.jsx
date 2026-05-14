@@ -82,7 +82,7 @@ function RouteSteps({ steps }) {
       className="grid gap-1.5"
       style={{
         gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-        minWidth: 208,
+        minWidth: 292,
       }}
     >
       {steps.map((step, index) => {
@@ -192,13 +192,13 @@ export default function HistoricoPedidos({
                     whiteSpace: 'nowrap',
                     width:
                       col.key === 'currentCell'
-                        ? 216
+                        ? 184
                         : col.key === 'previsto'
-                          ? 152
+                          ? 144
                         : col.key === 'diasAtraso'
-                          ? 88
+                          ? 84
                           : col.key === 'roteiroResumo'
-                            ? 236
+                            ? 332
                             : undefined,
                   }}
                   onClick={() => toggleSort(col.key)}
