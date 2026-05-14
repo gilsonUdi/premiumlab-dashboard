@@ -1147,6 +1147,25 @@ async function ensureZonaTable(supabase) {
   await sleep(1200);
 }
 
+async function ensureDeptoTable(supabase) {
+  const ddl = `
+    create table if not exists public.depto (
+      dptcodigo bigint primary key,
+      dptnome text
+    )
+  `;
+
+  const alterStatements = [
+    "alter table public.depto add column if not exists dptnome text",
+  ];
+
+  await execSupabaseSql(supabase, ddl);
+  for (const statement of alterStatements) {
+    await execSupabaseSql(supabase, statement);
+  }
+  await sleep(1200);
+}
+
 async function ensureEndCliTable(supabase) {
   const ddl = `
     create table if not exists public.endcli (
@@ -1984,6 +2003,9 @@ async function syncTable(db, supabase, tableName, options) {
   const upperTableName = String(tableName || "").toUpperCase();
   if (upperTableName === "ZONA") {
     await ensureZonaTable(supabase);
+  }
+  if (upperTableName === "DEPTO") {
+    await ensureDeptoTable(supabase);
   }
   if (upperTableName === "ENDCLI") {
     await ensureEndCliTable(supabase);
