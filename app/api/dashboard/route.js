@@ -782,7 +782,7 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
-    `ped.pedsitped <> 'C'`,
+    `ped.pedsitped in ('A', 'B', 'F')`,
     ...EXCLUDED_CLIENT_CODES.map(code => `ped.clicodigo <> ${code}`),
     ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
   ]
@@ -807,29 +807,32 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
   return `
     select
       coalesce(sum(case when vendas.finalidade in (${lossCodesSql}) then vendas.qtde_produtos else 0 end), 0) as qtd_perdas,
-      coalesce(sum(case when vendas.lanca_financeiro = 'S' then vendas.qtde_produtos else 0 end), 0) as qtd_lanca_financeiro,
-      coalesce(sum(case when vendas.finalidade in (${lossCodesSql}) then vendas.qtde_produtos else 0 end), 0)
-        + coalesce(sum(case when vendas.lanca_financeiro = 'S' then vendas.qtde_produtos else 0 end), 0) as qtd_perda_produz
+      coalesce(sum(vendas.qtde_produtos), 0) as qtd_lanca_financeiro,
+      coalesce(sum(vendas.qtde_produtos), 0) as qtd_perda_produz
     from (
       select
         ped.pdfcodigo::text as finalidade,
-        prd.pdpqtdade::numeric as qtde_produtos,
-        coalesce(prd.pdplcfinan, '')::text as lanca_financeiro
+        prd.pdpqtdade::numeric as qtde_produtos
       from pedid ped
       join pdprd prd on ped.id_pedido = prd.id_pedido
+      left join tbfis tbf on tbf.fiscodigo = prd.fiscodigo
       left join clien cli on ped.clicodigo = cli.clicodigo
       where ${clauses.join('\n        and ')}
+        and coalesce(prd.pdplcfinan, '') = 'S'
+        and coalesce(tbf.fistpnatop, '') <> 'D'
 
       union all
 
       select
         ped.pdfcodigo::text as finalidade,
-        pds.pdsqtdade::numeric as qtde_produtos,
-        coalesce(pds.pdslcfinan, '')::text as lanca_financeiro
+        pds.pdsqtdade::numeric as qtde_produtos
       from pedid ped
       join pdser pds on ped.id_pedido = pds.id_pedido
+      left join tbfis tbf on tbf.fiscodigo = pds.fiscodigo
       left join clien cli on ped.clicodigo = cli.clicodigo
       where ${clauses.join('\n        and ')}
+        and coalesce(pds.pdslcfinan, '') = 'S'
+        and coalesce(tbf.fistpnatop, '') <> 'D'
     ) vendas
   `
 }
