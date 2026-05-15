@@ -59,19 +59,10 @@ function fmtDt(value) {
   }
 }
 
-function fmtDelayDays(delayRank, status) {
-  if (!['delayed', 'delayed_completed'].includes(status)) return '-'
-
+function fmtDelayDays(delayRank) {
   const minutes = Number(delayRank || 0)
-  if (minutes <= 0) return '-'
-
-  const days = minutes / 1440
-  const text = days.toLocaleString('pt-BR', {
-    minimumFractionDigits: days >= 10 ? 0 : 1,
-    maximumFractionDigits: 1,
-  })
-
-  return `${text} dia${days >= 2 ? 's' : ''}`
+  if (minutes < 0) return '-'
+  return String(Math.floor(minutes / 1440))
 }
 
 function RouteSteps({ steps }) {
@@ -151,7 +142,7 @@ export default function HistoricoPedidos({
     { key: 'currentCell', label: 'Celula' },
     { key: 'caixa', label: 'Caixa' },
     { key: 'previsto', label: 'Dt. Prevista' },
-    ...(showDelayDays ? [{ key: 'diasAtraso', label: 'Dias em Atraso' }] : []),
+    ...(showDelayDays ? [{ key: 'diasAtraso', label: 'Dias no Laboratorio' }] : []),
     ...(!hideDeliveredColumn ? [{ key: 'saida', label: 'Dt. Saida' }] : []),
     { key: 'roteiroResumo', label: 'Roteiro' },
   ]
@@ -266,7 +257,7 @@ export default function HistoricoPedidos({
                   </td>
                   {showDelayDays ? (
                     <td className="px-4 py-2.5 font-mono" style={{ color: '#e2e8f0', whiteSpace: 'nowrap' }}>
-                      {fmtDelayDays(row.delayRank, row.status)}
+                      {fmtDelayDays(row.delayRank)}
                     </td>
                   ) : null}
                   {!hideDeliveredColumn ? (

@@ -328,9 +328,9 @@ function resolveRowTone(status, expected, delivered, now) {
   return 'success'
 }
 
-function buildDelayRank(expected, delivered, now) {
-  if (!expected) return Number.MIN_SAFE_INTEGER
-  return differenceInMinutes(delivered || now, expected)
+function buildDelayRank(emitted, delivered, now) {
+  if (!emitted) return Number.MIN_SAFE_INTEGER
+  return differenceInMinutes(delivered || now, emitted)
 }
 
 function buildStatusPriority(status) {
@@ -1241,7 +1241,7 @@ export async function GET(request) {
           normalizedRoute.length > 0
             ? normalizedRoute.map(step => step.label).join(' | ')
             : String(row.roteiro_resumo || '').trim(),
-        delayRank: Number(row.delay_rank) || 0,
+        delayRank: buildDelayRank(parseLocalDateTime(row.emissao), parseLocalDateTime(row.saida), now),
         statusPriority: Number(row.status_priority) || 0,
         rowTone: String(row.row_tone || '').trim() || 'success',
         clicodigo: row.clicodigo,
