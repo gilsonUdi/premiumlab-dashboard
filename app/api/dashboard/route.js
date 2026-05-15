@@ -14,8 +14,9 @@ const NO_STORE_HEADERS = {
 }
 
 const PAGE_SIZE = 1000
-const MAX_REQUI_ROWS = 20000
-const MAX_SALES_ROWS = 20000
+const DASHBOARD_MAX_ROWS = Math.max(Number(process.env.DASHBOARD_MAX_ROWS || 100000), PAGE_SIZE)
+const MAX_REQUI_ROWS = DASHBOARD_MAX_ROWS
+const MAX_SALES_ROWS = DASHBOARD_MAX_ROWS
 const PRODUCTION_TIME_ZONE = 'America/Sao_Paulo'
 const EXPECTED_TIME_SQL = `(date_trunc('hour', ped.pedhrentre::time) - interval '3 hours')::time`
 const ACTUAL_TIME_SQL = `(ped.pedhrsaida::time - interval '3 hours')::time`
