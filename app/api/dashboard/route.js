@@ -636,27 +636,15 @@ async function fetchLossMetricsFallback(
   }
 
   for (const chunk of orderChunks) {
-    const [productsResult, servicesResult] = await Promise.all([
-      fetchOptionalPages(
-        () => supabase.from('pdprd').select('id_pedido,pdpqtdade,pdplcfinan').in('id_pedido', chunk),
-        { maxRows: 200000 }
-      ),
-      fetchOptionalPages(
-        () => supabase.from('pdser').select('id_pedido,pdsqtdade,pdslcfinan').in('id_pedido', chunk),
-        { maxRows: 200000 }
-      ),
-    ])
+    const productsResult = await fetchOptionalPages(
+      () => supabase.from('pdprd').select('id_pedido,pdpqtdade,pdplcfinan').in('id_pedido', chunk),
+      { maxRows: 200000 }
+    )
 
     accumulateItems((productsResult.data || []).map(row => ({
       id_pedido: row.id_pedido,
       quantidade: row.pdpqtdade,
       lanca_financeiro: row.pdplcfinan,
-    })))
-
-    accumulateItems((servicesResult.data || []).map(row => ({
-      id_pedido: row.id_pedido,
-      quantidade: row.pdsqtdade,
-      lanca_financeiro: row.pdslcfinan,
     })))
   }
 
@@ -874,7 +862,7 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
-    `ped.pedsitped in ('A', 'B', 'F')`,
+    `ped.pedsitped in ('A', 'F')`,
     ...EXCLUDED_CLIENT_CODES.map(code => `ped.clicodigo <> ${code}`),
     ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
   ]
@@ -916,17 +904,6 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
         prd.pdpqtdade::numeric as qtde_produtos
       from pedid ped
       join pdprd prd on ped.id_pedido = prd.id_pedido
-      left join clien cli on ped.clicodigo = cli.clicodigo
-      where ${clauses.join('\n        and ')}
-        ${excludedFinalityClause}
-
-      union all
-
-      select
-        ped.pdfcodigo::text as finalidade,
-        pds.pdsqtdade::numeric as qtde_produtos
-      from pedid ped
-      join pdser pds on ped.id_pedido = pds.id_pedido
       left join clien cli on ped.clicodigo = cli.clicodigo
       where ${clauses.join('\n        and ')}
         ${excludedFinalityClause}
