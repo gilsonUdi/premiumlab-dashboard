@@ -778,7 +778,7 @@ function resolveLossFinalityCodes(finalityData) {
   return codes.length > 0 ? [...new Set(codes)] : ['2']
 }
 
-function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], lossFinalityCodes = ['2'] }) {
+function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], lossFinalityCodes = ['2'], includeOperationTypeFilter = false }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
@@ -804,6 +804,18 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
     ? normalizedLossCodes.map(code => `'${code.replace(/'/g, "''")}'`).join(', ')
     : `'2'`
 
+  const productOperationJoin = includeOperationTypeFilter
+    ? `left join tbfis tbf on tbf.fiscodigo = prd.fiscodigo`
+    : ''
+
+  const serviceOperationJoin = includeOperationTypeFilter
+    ? `left join tbfis tbf on tbf.fiscodigo = pds.fiscodigo`
+    : ''
+
+  const operationWhereClause = includeOperationTypeFilter
+    ? `and coalesce(tbf.fistpnatop, '') <> 'D'`
+    : ''
+
   return `
     select
       coalesce(sum(case when vendas.finalidade in (${lossCodesSql}) then vendas.qtde_produtos else 0 end), 0) as qtd_perdas,
@@ -816,10 +828,10 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
         coalesce(prd.pdplcfinan, '')::text as lanca_financeiro
       from pedid ped
       join pdprd prd on ped.id_pedido = prd.id_pedido
-      left join tbfis tbf on tbf.fiscodigo = prd.fiscodigo
+      ${productOperationJoin}
       left join clien cli on ped.clicodigo = cli.clicodigo
       where ${clauses.join('\n        and ')}
-        and coalesce(tbf.fistpnatop, '') <> 'D'
+        ${operationWhereClause}
 
       union all
 
@@ -829,12 +841,25 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
         coalesce(pds.pdslcfinan, '')::text as lanca_financeiro
       from pedid ped
       join pdser pds on ped.id_pedido = pds.id_pedido
-      left join tbfis tbf on tbf.fiscodigo = pds.fiscodigo
+      ${serviceOperationJoin}
       left join clien cli on ped.clicodigo = cli.clicodigo
       where ${clauses.join('\n        and ')}
-        and coalesce(tbf.fistpnatop, '') <> 'D'
+        ${operationWhereClause}
     ) vendas
   `
+}
+
+async function tableExists(supabase, tableName, sampleColumn = '*') {
+  try {
+    const { error } = await supabase
+      .from(tableName)
+      .select(sampleColumn, { head: true, count: 'exact' })
+      .limit(1)
+
+    return !error
+  } catch {
+    return false
+  }
 }
 
 function buildProductDetailsSql(orderIds, kind = 'products') {
@@ -1070,12 +1095,13 @@ export async function GET(request) {
     const shouldLoadProductDetails = pedcodigoValues.length > 0
     const groupCodeFilterSet = new Set(gclcodigoValues.map(Number).filter(Number.isFinite))
 
-    const [finalityRes, dashboardCacheRes] = await Promise.all([
+    const [finalityRes, dashboardCacheRes, hasTbfis] = await Promise.all([
       fetchOptionalPages(() => supabase.from('pedfinalidade').select('pdfcodigo, pdfdescricao').order('pdfcodigo'), { maxRows: 200 }),
       fetchDashboardCacheRows(
         supabase,
         { dateStart, dateEnd, pedcodigos: pedcodigoValues, clicodigos: clientCodeFilters, gclcodigos: gclcodigoValues }
       ),
+      tableExists(supabase, 'tbfis', 'fiscodigo'),
     ])
 
     for (const [name, res] of Object.entries({ pedfinalidade: finalityRes, pedido_dashboard_cache: dashboardCacheRes })) {
@@ -1093,7 +1119,15 @@ export async function GET(request) {
     try {
       lossMetricsRows = await execOptionalSql(
         supabase,
-        buildLossMetricsSql({ dateStart, dateEnd, pedcodigos: pedcodigoValues, clicodigos: clientCodeFilters, gclcodigos: gclcodigoValues, lossFinalityCodes })
+        buildLossMetricsSql({
+          dateStart,
+          dateEnd,
+          pedcodigos: pedcodigoValues,
+          clicodigos: clientCodeFilters,
+          gclcodigos: gclcodigoValues,
+          lossFinalityCodes,
+          includeOperationTypeFilter: hasTbfis,
+        })
       )
     } catch (error) {
       console.error('[dashboard][loss-metrics]', error)
