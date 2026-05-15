@@ -584,6 +584,79 @@ async function fetchDashboardCacheRows(supabase, { dateStart, dateEnd, clicodigo
   }
 }
 
+async function fetchLossMetricsFallback(supabase, orderIds, lossFinalityCodes = ['2']) {
+  const ids = [...new Set((orderIds || []).map(asSqlNumber).filter(Number.isFinite))]
+  if (ids.length === 0) {
+    return { qtd_perdas: 0, qtd_lanca_financeiro: 0, qtd_perda_produz: 0 }
+  }
+
+  const lossCodeSet = new Set(
+    (lossFinalityCodes || [])
+      .map(code => String(code || '').trim())
+      .filter(Boolean)
+  )
+
+  const orderChunks = chunkArray(ids, 500)
+  const finalityByOrderId = new Map()
+
+  for (const chunk of orderChunks) {
+    const result = await fetchOptionalPages(
+      () => supabase.from('pedid').select('id_pedido,pdfcodigo').in('id_pedido', chunk),
+      { maxRows: chunk.length }
+    )
+
+    for (const row of result.data || []) {
+      finalityByOrderId.set(String(row.id_pedido), String(row.pdfcodigo || '').trim())
+    }
+  }
+
+  let qtdPerdas = 0
+  let qtdLancaFinanceiro = 0
+
+  const accumulateItems = rows => {
+    for (const row of rows || []) {
+      const orderId = String(row.id_pedido)
+      const finalityCode = finalityByOrderId.get(orderId) || ''
+      const quantity = Number(row.quantidade) || 0
+      const financiallyLaunched = String(row.lanca_financeiro || '').trim().toUpperCase() === 'S'
+
+      if (lossCodeSet.has(finalityCode)) qtdPerdas += quantity
+      if (financiallyLaunched) qtdLancaFinanceiro += quantity
+    }
+  }
+
+  for (const chunk of orderChunks) {
+    const [productsResult, servicesResult] = await Promise.all([
+      fetchOptionalPages(
+        () => supabase.from('pdprd').select('id_pedido,pdpqtdade,pdplcfinan').in('id_pedido', chunk),
+        { maxRows: 200000 }
+      ),
+      fetchOptionalPages(
+        () => supabase.from('pdser').select('id_pedido,pdsqtdade,pdslcfinan').in('id_pedido', chunk),
+        { maxRows: 200000 }
+      ),
+    ])
+
+    accumulateItems((productsResult.data || []).map(row => ({
+      id_pedido: row.id_pedido,
+      quantidade: row.pdpqtdade,
+      lanca_financeiro: row.pdplcfinan,
+    })))
+
+    accumulateItems((servicesResult.data || []).map(row => ({
+      id_pedido: row.id_pedido,
+      quantidade: row.pdsqtdade,
+      lanca_financeiro: row.pdslcfinan,
+    })))
+  }
+
+  return {
+    qtd_perdas: qtdPerdas,
+    qtd_lanca_financeiro: qtdLancaFinanceiro,
+    qtd_perda_produz: qtdLancaFinanceiro,
+  }
+}
+
 function asSqlDate(value, fallback) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? value : fallback
 }
@@ -1132,6 +1205,20 @@ export async function GET(request) {
     } catch (error) {
       console.error('[dashboard][loss-metrics]', error)
       lossMetricsRows = []
+    }
+
+    if (!Array.isArray(lossMetricsRows) || lossMetricsRows.length === 0) {
+      try {
+        const fallbackMetrics = await fetchLossMetricsFallback(
+          supabase,
+          (dashboardCacheRes.data || []).map(row => row.id_pedido),
+          lossFinalityCodes
+        )
+        lossMetricsRows = [fallbackMetrics]
+      } catch (error) {
+        console.error('[dashboard][loss-metrics-fallback]', error)
+        lossMetricsRows = []
+      }
     }
 
     let cachedOrders = (dashboardCacheRes.data || []).map(row => {
