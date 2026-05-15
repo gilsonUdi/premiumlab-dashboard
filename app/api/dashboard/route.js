@@ -584,7 +584,12 @@ async function fetchDashboardCacheRows(supabase, { dateStart, dateEnd, clicodigo
   }
 }
 
-async function fetchLossMetricsFallback(supabase, orderIds, lossFinalityCodes = ['2']) {
+async function fetchLossMetricsFallback(
+  supabase,
+  orderIds,
+  lossFinalityCodes = ['2'],
+  excludedFinalityCodes = []
+) {
   const ids = [...new Set((orderIds || []).map(asSqlNumber).filter(Number.isFinite))]
   if (ids.length === 0) {
     return { qtd_perdas: 0, qtd_lanca_financeiro: 0, qtd_perda_produz: 0 }
@@ -592,6 +597,11 @@ async function fetchLossMetricsFallback(supabase, orderIds, lossFinalityCodes = 
 
   const lossCodeSet = new Set(
     (lossFinalityCodes || [])
+      .map(code => String(code || '').trim())
+      .filter(Boolean)
+  )
+  const excludedCodeSet = new Set(
+    (excludedFinalityCodes || [])
       .map(code => String(code || '').trim())
       .filter(Boolean)
   )
@@ -611,17 +621,17 @@ async function fetchLossMetricsFallback(supabase, orderIds, lossFinalityCodes = 
   }
 
   let qtdPerdas = 0
-  let qtdLancaFinanceiro = 0
+  let qtdBaseValida = 0
 
   const accumulateItems = rows => {
     for (const row of rows || []) {
       const orderId = String(row.id_pedido)
       const finalityCode = finalityByOrderId.get(orderId) || ''
       const quantity = Number(row.quantidade) || 0
-      const financiallyLaunched = String(row.lanca_financeiro || '').trim().toUpperCase() === 'S'
+      if (!quantity || excludedCodeSet.has(finalityCode)) continue
 
       if (lossCodeSet.has(finalityCode)) qtdPerdas += quantity
-      if (financiallyLaunched) qtdLancaFinanceiro += quantity
+      qtdBaseValida += quantity
     }
   }
 
@@ -652,8 +662,8 @@ async function fetchLossMetricsFallback(supabase, orderIds, lossFinalityCodes = 
 
   return {
     qtd_perdas: qtdPerdas,
-    qtd_lanca_financeiro: qtdLancaFinanceiro,
-    qtd_perda_produz: qtdLancaFinanceiro,
+    qtd_lanca_financeiro: Math.max(0, qtdBaseValida - qtdPerdas),
+    qtd_perda_produz: qtdBaseValida,
   }
 }
 
@@ -851,7 +861,16 @@ function resolveLossFinalityCodes(finalityData) {
   return codes.length > 0 ? [...new Set(codes)] : ['2']
 }
 
-function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], lossFinalityCodes = ['2'], includeOperationTypeFilter = false }) {
+function resolveExcludedLossFinalityCodes(finalityData) {
+  return [...new Set(
+    (finalityData || [])
+      .filter(item => normalizeText(item.pdfdescricao).trim().toUpperCase() === 'PACOTE VENDA FUTURA')
+      .map(item => String(item.pdfcodigo || '').trim())
+      .filter(Boolean)
+  )]
+}
+
+function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], lossFinalityCodes = ['2'], excludedFinalityCodes = [], includeOperationTypeFilter = false }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
@@ -877,47 +896,40 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
     ? normalizedLossCodes.map(code => `'${code.replace(/'/g, "''")}'`).join(', ')
     : `'2'`
 
-  const productOperationJoin = includeOperationTypeFilter
-    ? `left join tbfis tbf on tbf.fiscodigo = prd.fiscodigo`
-    : ''
-
-  const serviceOperationJoin = includeOperationTypeFilter
-    ? `left join tbfis tbf on tbf.fiscodigo = pds.fiscodigo`
-    : ''
-
-  const operationWhereClause = includeOperationTypeFilter
-    ? `and coalesce(tbf.fistpnatop, '') <> 'D'`
+  const normalizedExcludedCodes = [...new Set(
+    (excludedFinalityCodes || [])
+      .map(code => String(code || '').trim())
+      .filter(Boolean)
+  )]
+  const excludedFinalityClause = normalizedExcludedCodes.length > 0
+    ? `and coalesce(ped.pdfcodigo::text, '') not in (${normalizedExcludedCodes.map(code => `'${code.replace(/'/g, "''")}'`).join(', ')})`
     : ''
 
   return `
     select
       coalesce(sum(case when vendas.finalidade in (${lossCodesSql}) then vendas.qtde_produtos else 0 end), 0) as qtd_perdas,
-      coalesce(sum(case when vendas.lanca_financeiro = 'S' then vendas.qtde_produtos else 0 end), 0) as qtd_lanca_financeiro,
-      coalesce(sum(case when vendas.lanca_financeiro = 'S' then vendas.qtde_produtos else 0 end), 0) as qtd_perda_produz
+      coalesce(sum(case when vendas.finalidade not in (${lossCodesSql}) then vendas.qtde_produtos else 0 end), 0) as qtd_lanca_financeiro,
+      coalesce(sum(vendas.qtde_produtos), 0) as qtd_perda_produz
     from (
       select
         ped.pdfcodigo::text as finalidade,
-        prd.pdpqtdade::numeric as qtde_produtos,
-        coalesce(prd.pdplcfinan, '')::text as lanca_financeiro
+        prd.pdpqtdade::numeric as qtde_produtos
       from pedid ped
       join pdprd prd on ped.id_pedido = prd.id_pedido
-      ${productOperationJoin}
       left join clien cli on ped.clicodigo = cli.clicodigo
       where ${clauses.join('\n        and ')}
-        ${operationWhereClause}
+        ${excludedFinalityClause}
 
       union all
 
       select
         ped.pdfcodigo::text as finalidade,
-        pds.pdsqtdade::numeric as qtde_produtos,
-        coalesce(pds.pdslcfinan, '')::text as lanca_financeiro
+        pds.pdsqtdade::numeric as qtde_produtos
       from pedid ped
       join pdser pds on ped.id_pedido = pds.id_pedido
-      ${serviceOperationJoin}
       left join clien cli on ped.clicodigo = cli.clicodigo
       where ${clauses.join('\n        and ')}
-        ${operationWhereClause}
+        ${excludedFinalityClause}
     ) vendas
   `
 }
@@ -1187,6 +1199,7 @@ export async function GET(request) {
 
     const finalityData = finalityRes.data || []
     const lossFinalityCodes = resolveLossFinalityCodes(finalityData)
+    const excludedLossFinalityCodes = resolveExcludedLossFinalityCodes(finalityData)
 
     let lossMetricsRows = []
     try {
@@ -1199,6 +1212,7 @@ export async function GET(request) {
           clicodigos: clientCodeFilters,
           gclcodigos: gclcodigoValues,
           lossFinalityCodes,
+          excludedFinalityCodes: excludedLossFinalityCodes,
           includeOperationTypeFilter: hasTbfis,
         })
       )
@@ -1212,7 +1226,8 @@ export async function GET(request) {
         const fallbackMetrics = await fetchLossMetricsFallback(
           supabase,
           (dashboardCacheRes.data || []).map(row => row.id_pedido),
-          lossFinalityCodes
+          lossFinalityCodes,
+          excludedLossFinalityCodes
         )
         lossMetricsRows = [fallbackMetrics]
       } catch (error) {
@@ -1609,8 +1624,8 @@ export async function GET(request) {
     const pontualidade = Object.values(weekMap).slice(-8)
     const lossMetrics = lossMetricsRows?.[0] || {}
     const lossQuantity = Number(lossMetrics.qtd_perdas) || 0
-    const financiallyLaunchedQuantity = Number(lossMetrics.qtd_lanca_financeiro) || 0
-    const totalQuantity = Number(lossMetrics.qtd_perda_produz) || (lossQuantity + financiallyLaunchedQuantity)
+    const baseWithoutLossQuantity = Number(lossMetrics.qtd_lanca_financeiro) || 0
+    const totalQuantity = Number(lossMetrics.qtd_perda_produz) || (lossQuantity + baseWithoutLossQuantity)
 
     if (cachedOrders.length === 0 && totalQuantity > 0) {
       throw new Error('pedido_dashboard_cache ainda nao foi populada para este periodo. A base de perdas respondeu, mas o cache principal do dashboard ainda nao foi preenchido.')
@@ -1620,7 +1635,7 @@ export async function GET(request) {
       total: totalQuantity,
       withLoss: lossQuantity,
       percentage: totalQuantity > 0 ? Number(((lossQuantity / totalQuantity) * 100).toFixed(2)) : 0,
-      semPerda: financiallyLaunchedQuantity,
+      semPerda: Math.max(0, totalQuantity - lossQuantity),
     }
 
     const totalOrders = orders.length
