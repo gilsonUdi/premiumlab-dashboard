@@ -185,17 +185,17 @@ export default function HistoricoPedidos({
                     whiteSpace: 'nowrap',
                     width:
                       col.key === 'emissao'
-                        ? 150
+                        ? 136
                         : col.key === 'caixa'
                           ? 72
                         : col.key === 'pedidoId'
                           ? 104
                           : col.key === 'clinome'
-                            ? 232
+                            ? 196
                           : col.key === 'currentCell'
-                            ? 176
+                            ? 164
                             : col.key === 'previsto'
-                                ? 144
+                                ? 132
                                 : col.key === 'diasAtraso'
                                   ? 84
                                   : col.key === 'roteiroResumo'
@@ -239,7 +239,11 @@ export default function HistoricoPedidos({
                     ...(ROW_STYLES[row.rowTone] || {}),
                   }}
                 >
-                  <td onClick={event => filterBy(event, 'orders.emissao', row.emissao)} className="px-4 py-2.5 font-mono" style={{ color: '#d7e9ff' }}>
+                  <td
+                    onClick={event => filterBy(event, 'orders.emissao', row.emissao)}
+                    className="px-4 py-2.5 font-mono"
+                    style={{ color: '#d7e9ff', fontSize: largerText ? '13px' : undefined }}
+                  >
                     {fmtDt(row.emissao)}
                   </td>
                   <td className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>
@@ -256,7 +260,7 @@ export default function HistoricoPedidos({
                   <td
                     onClick={event => filterBy(event, 'clicodigo', row.clicodigo)}
                     className="px-4 py-2.5"
-                    style={{ color: '#e2e8f0', maxWidth: 232, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    style={{ color: '#e2e8f0', maxWidth: 196, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                     title={row.clicodigo != null || row.clinome ? `${row.clicodigo ?? '-'} - ${row.clinome || '-'}` : '-'}
                   >
                     {row.clicodigo != null || row.clinome ? `${row.clicodigo ?? '-'} - ${row.clinome || '-'}` : '-'}
@@ -264,7 +268,11 @@ export default function HistoricoPedidos({
                   <td onClick={event => filterBy(event, 'orders.currentCell', row.currentCell)} className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>
                     {row.currentCell || '-'}
                   </td>
-                  <td onClick={event => filterBy(event, 'orders.previsto', row.previsto)} className="px-4 py-2.5 font-mono" style={{ color: '#d7e9ff' }}>
+                  <td
+                    onClick={event => filterBy(event, 'orders.previsto', row.previsto)}
+                    className="px-4 py-2.5 font-mono"
+                    style={{ color: '#d7e9ff', fontSize: largerText ? '13px' : undefined }}
+                  >
                     {fmtDt(row.previsto)}
                   </td>
                   {showDelayDays ? (
@@ -273,7 +281,11 @@ export default function HistoricoPedidos({
                     </td>
                   ) : null}
                   {!hideDeliveredColumn ? (
-                    <td onClick={event => filterBy(event, 'orders.saida', row.saida)} className="px-4 py-2.5 font-mono" style={{ color: '#d7e9ff' }}>
+                    <td
+                      onClick={event => filterBy(event, 'orders.saida', row.saida)}
+                      className="px-4 py-2.5 font-mono"
+                      style={{ color: '#d7e9ff', fontSize: largerText ? '13px' : undefined }}
+                    >
                       {fmtDt(row.saida)}
                     </td>
                   ) : null}
