@@ -1706,6 +1706,13 @@ export async function GET(request) {
     const baseWithoutLossQuantity = Number(lossMetrics.qtd_lanca_financeiro) || 0
     const totalQuantity = Number(lossMetrics.qtd_perda_produz) || (lossQuantity + baseWithoutLossQuantity)
 
+    if (!lossMetricsError && cachedOrders.length > 0 && totalQuantity === 0) {
+      lossMetricsError = {
+        code: 'LOSS_EMPTY_BASE',
+        message: `A base de perdas retornou zero pecas validas apesar de existirem ${cachedOrders.length} pedidos no periodo. Verifique PDPRD, PRODU e os codigos de perda configurados (${lossFinalityCodes.join(', ') || 'nenhum'}).`,
+      }
+    }
+
     if (cachedOrders.length === 0 && totalQuantity > 0) {
       throw new Error('pedido_dashboard_cache ainda nao foi populada para este periodo. A base de perdas respondeu, mas o cache principal do dashboard ainda nao foi preenchido.')
     }
