@@ -999,7 +999,7 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
         prd.pdpqtdade::numeric as qtde_produtos
       from pedid ped
       join pdprd prd on ped.id_pedido = prd.id_pedido
-      join produ pro on prd.procodigo = pro.procodigo
+      join produ pro on trim(prd.procodigo::text) = trim(pro.procodigo::text)
       left join clien cli on ped.clicodigo = cli.clicodigo
       where ${clauses.join('\n        and ')}
     ) base
