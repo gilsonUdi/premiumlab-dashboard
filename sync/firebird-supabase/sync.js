@@ -1166,6 +1166,48 @@ async function ensureDeptoTable(supabase) {
   await sleep(1200);
 }
 
+async function ensureProduTable(supabase) {
+  const ddl = `
+    create table if not exists public.produ (
+      procodigo text primary key,
+      prodescricao text,
+      gr1codigo bigint,
+      marcodigo bigint
+    )
+  `;
+
+  const alterStatements = [
+    "alter table public.produ add column if not exists prodescricao text",
+    "alter table public.produ add column if not exists gr1codigo bigint",
+    "alter table public.produ add column if not exists marcodigo bigint",
+  ];
+
+  await execSupabaseSql(supabase, ddl);
+  for (const statement of alterStatements) {
+    await execSupabaseSql(supabase, statement);
+  }
+  await sleep(1200);
+}
+
+async function ensureGrupo1Table(supabase) {
+  const ddl = `
+    create table if not exists public.grupo1 (
+      gr1codigo bigint primary key,
+      gr1descricao text
+    )
+  `;
+
+  const alterStatements = [
+    "alter table public.grupo1 add column if not exists gr1descricao text",
+  ];
+
+  await execSupabaseSql(supabase, ddl);
+  for (const statement of alterStatements) {
+    await execSupabaseSql(supabase, statement);
+  }
+  await sleep(1200);
+}
+
 async function ensureEndCliTable(supabase) {
   const ddl = `
     create table if not exists public.endcli (
@@ -2006,6 +2048,12 @@ async function syncTable(db, supabase, tableName, options) {
   }
   if (upperTableName === "DEPTO") {
     await ensureDeptoTable(supabase);
+  }
+  if (upperTableName === "PRODU") {
+    await ensureProduTable(supabase);
+  }
+  if (upperTableName === "GRUPO1") {
+    await ensureGrupo1Table(supabase);
   }
   if (upperTableName === "ENDCLI") {
     await ensureEndCliTable(supabase);
