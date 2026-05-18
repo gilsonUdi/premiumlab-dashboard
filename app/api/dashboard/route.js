@@ -669,6 +669,17 @@ async function fetchLossMetricsFallback(
       quantidade: row.pdpqtdade,
       lanca_financeiro: row.pdplcfinan,
     })))
+
+    const servicesResult = await fetchOptionalPages(
+      () => supabase.from('pdser').select('id_pedido,pdsqtdade,pdslcfinan').in('id_pedido', chunk),
+      { maxRows: 200000 }
+    )
+
+    accumulateItems((servicesResult.data || []).map(row => ({
+      id_pedido: row.id_pedido,
+      quantidade: row.pdsqtdade,
+      lanca_financeiro: row.pdslcfinan,
+    })))
   }
 
   return {
@@ -869,25 +880,18 @@ function resolveLossFinalityCodes(finalityData) {
     .map(item => String(item.pdfcodigo || '').trim())
     .filter(Boolean)
 
-  return codes.length > 0 ? [...new Set(codes)] : ['4']
+  return codes.length > 0 ? [...new Set(codes)] : ['4', '2']
 }
 
 function resolveExcludedLossFinalityCodes(finalityData) {
-  const codes = [...new Set(
-    (finalityData || [])
-      .filter(item => normalizeText(item.pdfdescricao).trim().toUpperCase() === 'PACOTE VENDA FUTURA')
-      .map(item => String(item.pdfcodigo || '').trim())
-      .filter(Boolean)
-  )]
-
-  return codes.length > 0 ? codes : ['34']
+  return []
 }
 
 function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], lossFinalityCodes = ['2'], excludedFinalityCodes = [], includeOperationTypeFilter = false }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
-    `ped.pedsitped in ('A', 'F')`,
+    `ped.pedsitped <> 'C'`,
     ...EXCLUDED_CLIENT_CODES.map(code => `ped.clicodigo <> ${code}`),
     ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
   ]
@@ -909,19 +913,10 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
     ? normalizedLossCodes.map(code => `'${code.replace(/'/g, "''")}'`).join(', ')
     : `'2'`
 
-  const normalizedExcludedCodes = [...new Set(
-    (excludedFinalityCodes || [])
-      .map(code => String(code || '').trim())
-      .filter(Boolean)
-  )]
-  const excludedFinalityClause = normalizedExcludedCodes.length > 0
-    ? `and coalesce(ped.pdfcodigo::text, '') not in (${normalizedExcludedCodes.map(code => `'${code.replace(/'/g, "''")}'`).join(', ')})`
-    : ''
-
   return `
     select
       coalesce(sum(case when vendas.finalidade in (${lossCodesSql}) then vendas.qtde_produtos else 0 end), 0) as qtd_perdas,
-      coalesce(sum(case when vendas.finalidade not in (${lossCodesSql}) then vendas.qtde_produtos else 0 end), 0) as qtd_lanca_financeiro,
+      coalesce(sum(vendas.qtde_produtos), 0) as qtd_lanca_financeiro,
       coalesce(sum(vendas.qtde_produtos), 0) as qtd_perda_produz
     from (
       select
@@ -931,7 +926,15 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
       join pdprd prd on ped.id_pedido = prd.id_pedido
       left join clien cli on ped.clicodigo = cli.clicodigo
       where ${clauses.join('\n        and ')}
-        ${excludedFinalityClause}
+      union all
+
+      select
+        ped.pdfcodigo::text as finalidade,
+        pds.pdsqtdade::numeric as qtde_produtos
+      from pedid ped
+      join pdser pds on ped.id_pedido = pds.id_pedido
+      left join clien cli on ped.clicodigo = cli.clicodigo
+      where ${clauses.join('\n        and ')}
     ) vendas
   `
 }
