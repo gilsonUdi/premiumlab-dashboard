@@ -38,18 +38,22 @@ SUPABASE_DATABASE_URL=postgresql://postgres.<project-ref>:SENHA@aws-1-sa-east-1.
 Evite usar o host direto `db.<project-ref>.supabase.co:5432` nesta rotina.
 Na pratica, o Session Pooler se mostrou muito mais estavel para o rebuild dos caches.
 
-## Atualizacao automatica a cada 10 minutos
+## Atualizacao automatica
 
-O fluxo automatico fica configurado para:
+O fluxo automatico agora fica dividido em duas tarefas:
 
-- rodar a cada 10 minutos;
-- sincronizar apenas as tabelas com coluna de data;
-- incluir `PDPRD` e `PDSER` por vinculo com pedidos recentes;
-- incluir `JBXROTEIRO` por vinculo com a `ACOPED`;
-- recalcular `pedido_roteiro_cache` no fim da sincronizacao para a coluna de roteiro do dashboard;
-- trazer os ultimos 3 meses dessas tabelas;
-- atualizar `JBXROTEIRO` por vinculo com a `ACOPED` usando a mesma janela de 3 meses;
-- atualizar por upsert as tabelas mutaveis recentes para refletir mudancas operacionais.
+- **Incremental**
+  - roda a cada 15 minutos;
+  - sincroniza apenas as tabelas com coluna de data;
+  - inclui `PDPRD` e `PDSER` por vinculo com pedidos recentes;
+  - inclui `JBXROTEIRO` por vinculo com a `ACOPED`;
+  - trabalha com janela de 7 dias;
+  - atualiza por upsert as tabelas mutaveis recentes para refletir mudancas operacionais.
+
+- **Semanal**
+  - roda a cada 7 dias;
+  - sincroniza a janela completa dos ultimos 90 dias;
+  - recalcula `pedido_roteiro_cache` e `pedido_dashboard_cache` no fim da sincronizacao.
 
 Para criar a tarefa do usuario no Agendador do Windows:
 
@@ -63,9 +67,9 @@ Se a politica do Windows bloquear tarefas agendadas, use `run-watch.bat` e deixe
 
 ```env
 SYNC_INCREMENTAL=true
-SYNC_RECENT_DAYS=90
+SYNC_RECENT_DAYS=7
 SYNC_DATE_TABLES_ONLY=true
-SYNC_INTERVAL_SECONDS=600
+SYNC_INTERVAL_SECONDS=900
 ```
 
 As tabelas monitoradas por data ficam em `SYNC_DATE_COLUMNS`.
@@ -77,7 +81,7 @@ No caso da `JBXROTEIRO`, a automacao usa:
 
 - `ID_PEDIDO` como chave de relacao;
 - `ACOPED.APDATA` como relogio de recencia;
-- janela propria de 90 dias, alinhada com o restante do automatico.
+- janela propria de 7 dias no incremental, alinhada com o restante da rotina curta.
 
 ## Carga completa inicial
 
@@ -91,7 +95,10 @@ Remove-Item Env:\SYNC_RECENT_DAYS
 Remove-Item Env:\SYNC_DATE_TABLES_ONLY
 ```
 
-Depois disso, deixe o automatico seguir so com a janela movel de 3 meses.
+Depois disso, deixe o automatico seguir com:
+
+- a rotina incremental de 7 dias a cada 15 minutos;
+- a rotina semanal completa de 90 dias.
 
 ## Refresh corretivo so da janela recente
 
@@ -142,7 +149,7 @@ Nesse caso, o sync:
 ## Sincronizar a tabela derivada CLIENCRM
 
 A `CLIENCRM` e uma tabela derivada montada por uma consulta agregada no Firebird.
-Ela nao entra no automatico de 10 em 10 minutos.
+Ela nao entra na rotina automatica.
 
 Para atualizar so ela:
 
