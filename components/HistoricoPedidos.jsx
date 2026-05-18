@@ -196,6 +196,8 @@ export default function HistoricoPedidos({
                             ? 164
                             : col.key === 'previsto'
                                 ? 132
+                                : col.key === 'saida'
+                                  ? 142
                                 : col.key === 'diasAtraso'
                                   ? 84
                                   : col.key === 'roteiroResumo'
