@@ -1,6 +1,13 @@
 'use client'
 import { Package, TrendingUp, AlertTriangle, CheckCircle2, Activity, Truck } from 'lucide-react'
 
+function formatPercentage(value) {
+  return `${new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0))}%`
+}
+
 function KPICard({ icon: Icon, label, value, sub, color, loading }) {
   return (
     <div className="card p-4 flex gap-4 items-start" style={{ borderColor: `${color}33` }}>
@@ -26,13 +33,13 @@ export default function KPICards({ data, loading }) {
   return (
     <div className="grid grid-cols-2 gap-3 mb-4 md:grid-cols-4 xl:grid-cols-8">
       <KPICard icon={Package} label="Total de Pedidos" value={d.totalOrders ?? '-'} sub="no periodo" color="#3b82f6" loading={loading} />
-      <KPICard icon={TrendingUp} label="Pontualidade" value={d.pontualidade != null ? `${d.pontualidade}%` : '-'} sub="no prazo" color="#22c55e" loading={loading} />
+      <KPICard icon={TrendingUp} label="Pontualidade" value={d.pontualidade != null ? formatPercentage(d.pontualidade) : '-'} sub="no prazo" color="#22c55e" loading={loading} />
       <KPICard icon={Activity} label="Em Producao" value={d.emProducao ?? '-'} sub="pedidos ativos" color="#06b6d4" loading={loading} />
       <KPICard icon={AlertTriangle} label="Em Producao (atraso)" value={d.emProducaoAtraso ?? '-'} sub="ainda em aberto" color="#f59e0b" loading={loading} />
       <KPICard icon={CheckCircle2} label="Concluidos" value={d.concluidos ?? '-'} sub="no periodo" color="#a78bfa" loading={loading} />
       <KPICard icon={CheckCircle2} label="Entregue no Prazo" value={d.entregueNoPrazo ?? '-'} sub="entregues no prazo" color="#22c55e" loading={loading} />
       <KPICard icon={Truck} label="Entregue (atraso)" value={d.entregueAtraso ?? d.atrasados ?? '-'} sub="entregues fora do prazo" color="#fb7185" loading={loading} />
-      <KPICard icon={TrendingUp} label="% Perdas" value={d.perdas != null ? `${d.perdas}%` : '-'} sub="em quantidade" color="#ef4444" loading={loading} />
+      <KPICard icon={TrendingUp} label="% Perdas" value={d.perdas != null ? formatPercentage(d.perdas) : '-'} sub="em quantidade" color="#ef4444" loading={loading} />
     </div>
   )
 }
@@ -45,7 +52,7 @@ export function CompactPpsKpis({ data, loading }) {
   return (
     <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-6 xl:grid-cols-7">
       <KPICard icon={Package} label="Total" value={d.totalOrders ?? '-'} sub="pedidos" color="#3b82f6" loading={loading} />
-      <KPICard icon={TrendingUp} label="Pontualidade" value={d.pontualidade != null ? `${d.pontualidade}%` : '-'} sub="no prazo" color="#22c55e" loading={loading} />
+      <KPICard icon={TrendingUp} label="Pontualidade" value={d.pontualidade != null ? formatPercentage(d.pontualidade) : '-'} sub="no prazo" color="#22c55e" loading={loading} />
       <KPICard icon={Activity} label="Em Producao" value={d.emProducao ?? '-'} sub="ativos" color="#06b6d4" loading={loading} />
       <KPICard icon={AlertTriangle} label="Prod. atraso" value={d.emProducaoAtraso ?? '-'} sub="em aberto" color="#f59e0b" loading={loading} />
       <KPICard icon={CheckCircle2} label="Entregue no Prazo" value={d.entregueNoPrazo ?? '-'} sub="no prazo" color="#22c55e" loading={loading} />
@@ -61,13 +68,13 @@ export function CompactPpsKpis({ data, loading }) {
             }}
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#081423] text-[10px] font-bold text-[#e2e8f0]">
-              {d.perdas ?? 0}%
+              {formatPercentage(d.perdas ?? 0)}
             </div>
           </div>
         )}
         <div>
           <p className="text-xs font-medium text-[#7ba3cc]">% Perdas</p>
-          <p className="text-2xl font-bold text-[#e2e8f0]">{loading ? '-' : `${d.perdas ?? 0}%`}</p>
+          <p className="text-2xl font-bold text-[#e2e8f0]">{loading ? '-' : formatPercentage(d.perdas ?? 0)}</p>
           <p className="text-xs text-[#4a6b8a]">em quantidade</p>
         </div>
       </div>

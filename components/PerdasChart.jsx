@@ -3,6 +3,13 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 
 const COLORS = ['#22c55e', '#ef4444']
 
+function formatPercentage(value) {
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0))
+}
+
 const CustomTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null
   return (
@@ -26,6 +33,7 @@ const renderLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) =>
 }
 
 export default function PerdasChart({ data, loading }) {
+  const displayTotal = Number(data?.total || 0)
   const chartData = data
     ? [
         { name: 'Sem Perda', value: data.semPerda || 0 },
@@ -74,7 +82,7 @@ export default function PerdasChart({ data, loading }) {
             <div>
               <p className="mb-1 text-xs" style={{ color: '#7ba3cc' }}>% de Perdas</p>
               <p className="text-3xl font-bold" style={{ color: data.percentage > 10 ? '#ef4444' : data.percentage > 5 ? '#f59e0b' : '#22c55e' }}>
-                {data.percentage}%
+                {formatPercentage(data.percentage)}%
               </p>
             </div>
             <div className="flex flex-col gap-2">
@@ -82,12 +90,14 @@ export default function PerdasChart({ data, loading }) {
                 <div key={item.name} className="flex items-center gap-2">
                   <span className="h-3 w-3 flex-shrink-0 rounded-full" style={{ background: COLORS[index] }} />
                   <span className="text-xs" style={{ color: '#7ba3cc' }}>{item.name}</span>
-                  <span className="ml-auto text-xs font-medium" style={{ color: '#e2e8f0' }}>{item.value}</span>
+                  <span className="ml-auto text-xs font-medium" style={{ color: '#e2e8f0' }}>
+                    {item.name === 'Sem Perda' ? displayTotal : item.value}
+                  </span>
                 </div>
               ))}
               <div className="mt-1 flex items-center gap-2 pt-2" style={{ borderTop: '1px solid #1a3355' }}>
                 <span className="text-xs" style={{ color: '#4a6b8a' }}>Total</span>
-                <span className="ml-auto text-xs font-bold" style={{ color: '#e2e8f0' }}>{data.total}</span>
+                <span className="ml-auto text-xs font-bold" style={{ color: '#e2e8f0' }}>{displayTotal}</span>
               </div>
             </div>
           </div>
