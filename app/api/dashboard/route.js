@@ -56,6 +56,44 @@ function sanitizeErrorMessage(error) {
   return withoutTags.length > 220 ? `${withoutTags.slice(0, 217)}...` : withoutTags
 }
 
+function buildLossError(stage, error) {
+  const rawMessage = String(error?.message || error || '').trim()
+  const sanitizedMessage = sanitizeErrorMessage(error)
+
+  if (!rawMessage) {
+    return {
+      code: `LOSS_${stage}_FAILED`,
+      message: 'Falha ao calcular perdas.',
+    }
+  }
+
+  if (/timeout|timed out|statement timeout/i.test(rawMessage)) {
+    return {
+      code: `LOSS_${stage}_TIMEOUT`,
+      message: 'A consulta de perdas excedeu o tempo limite.',
+    }
+  }
+
+  if (/exec_sql/i.test(rawMessage)) {
+    return {
+      code: `LOSS_${stage}_EXEC_SQL`,
+      message: sanitizedMessage,
+    }
+  }
+
+  if (/relation|does not exist|Could not find the table|column/i.test(rawMessage)) {
+    return {
+      code: `LOSS_${stage}_MISSING_SOURCE`,
+      message: sanitizedMessage,
+    }
+  }
+
+  return {
+    code: `LOSS_${stage}_FAILED`,
+    message: sanitizedMessage,
+  }
+}
+
 function combineDateTime(dateValue, timeValue) {
   const datePart = extractDatePart(dateValue)
   if (!datePart) return null
@@ -1238,17 +1276,43 @@ export async function GET(request) {
     }
 
     let lossMetricsRows = []
+    let lossMetricsError = null
     try {
-      const fallbackMetrics = await fetchLossMetricsFallback(
+      const sqlRows = await execSql(
         supabase,
-        (dashboardCacheRes.data || []).map(row => row.id_pedido),
-        lossFinalityCodes,
-        excludedLossFinalityCodes
+        buildLossMetricsSql({
+          dateStart,
+          dateEnd,
+          pedcodigos: pedcodigoValues,
+          clicodigos: clientCodeFilters,
+          gclcodigos: gclcodigoValues,
+          lossFinalityCodes,
+          excludedFinalityCodes: excludedLossFinalityCodes,
+        })
       )
-      lossMetricsRows = [fallbackMetrics]
-    } catch (error) {
-      console.error('[dashboard][loss-metrics-fallback]', error)
-      lossMetricsRows = []
+
+      if (Array.isArray(sqlRows) && sqlRows.length > 0) {
+        lossMetricsRows = sqlRows
+      } else {
+        throw new Error('A SQL de perdas nao retornou nenhuma linha agregada.')
+      }
+    } catch (sqlError) {
+      console.error('[dashboard][loss-metrics-sql]', sqlError)
+      lossMetricsError = buildLossError('SQL', sqlError)
+
+      try {
+        const fallbackMetrics = await fetchLossMetricsFallback(
+          supabase,
+          (dashboardCacheRes.data || []).map(row => row.id_pedido),
+          lossFinalityCodes,
+          excludedLossFinalityCodes
+        )
+        lossMetricsRows = [fallbackMetrics]
+      } catch (fallbackError) {
+        console.error('[dashboard][loss-metrics-fallback]', fallbackError)
+        lossMetricsRows = []
+        lossMetricsError = buildLossError('FALLBACK', fallbackError)
+      }
     }
 
     let cachedOrders = (dashboardCacheRes.data || []).map(row => {
@@ -1651,6 +1715,8 @@ export async function GET(request) {
       withLoss: lossQuantity,
       percentage: totalQuantity > 0 ? Number(((lossQuantity / totalQuantity) * 100).toFixed(2)) : 0,
       semPerda: Math.max(0, totalQuantity - lossQuantity),
+      errorCode: lossMetricsError?.code || '',
+      errorMessage: lossMetricsError?.message || '',
     }
 
     const totalOrders = orders.length
