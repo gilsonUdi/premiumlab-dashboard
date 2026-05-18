@@ -68,6 +68,7 @@ const emptyForm = {
   powerBiReportId: '',
   powerBiDatasetId: '',
   powerBiReports: [],
+  lossFinalityCodesText: '',
   tools: ['dashboard'],
   isPremiumLab: false,
 }
@@ -357,6 +358,10 @@ export default function AdminPage() {
         id: form.id || slug,
         slug,
         tools: ['dashboard'],
+        lossFinalityCodes: String(form.lossFinalityCodesText || '')
+          .split(',')
+          .map(code => String(code || '').trim())
+          .filter(Boolean),
         powerBiReports: normalizedReports,
         powerBiEnabled: form.powerBiEnabled && normalizedReports.length > 0,
         powerBiLabel: primaryReport?.label || '',
@@ -396,6 +401,7 @@ export default function AdminPage() {
       powerBiReportId: company.powerBiReportId || '',
       powerBiDatasetId: company.powerBiDatasetId || '',
       powerBiReports: getPowerBiReportCatalog(company),
+      lossFinalityCodesText: Array.isArray(company.lossFinalityCodes) ? company.lossFinalityCodes.join(', ') : '',
       tools: company.tools || ['dashboard'],
       isPremiumLab: company.isPremiumLab,
     })
@@ -1061,6 +1067,19 @@ export default function AdminPage() {
                             onChange={event => setForm(previous => ({ ...previous, supabaseServiceRoleKey: event.target.value }))}
                             placeholder={form.id ? 'Preencha so se quiser trocar a chave' : 'Cole a service_role_key do tenant'}
                           />
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <label className="portal-label">Codigos de perda</label>
+                          <input
+                            className="portal-input"
+                            value={form.lossFinalityCodesText}
+                            onChange={event => setForm(previous => ({ ...previous, lossFinalityCodesText: event.target.value }))}
+                            placeholder="Ex.: 2, 4, 30"
+                          />
+                          <p className="text-xs text-[#8d867c]">
+                            Informe os codigos da PEDFINALIDADE que representam perda nesta empresa, separados por virgula.
+                          </p>
                         </div>
                       </>
                     ) : (

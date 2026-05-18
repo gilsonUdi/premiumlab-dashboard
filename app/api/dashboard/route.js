@@ -630,26 +630,37 @@ async function fetchLossMetricsFallback(
   )
 
   const orderChunks = chunkArray(ids, 500)
-  const finalityByOrderId = new Map()
+  const validOrderMetaById = new Map()
 
   for (const chunk of orderChunks) {
     const result = await fetchOptionalPages(
-      () => supabase.from('pedid').select('id_pedido,pdfcodigo').in('id_pedido', chunk),
+      () => supabase.from('pedid').select('id_pedido,pdfcodigo,pedsitped').in('id_pedido', chunk),
       { maxRows: chunk.length }
     )
 
     for (const row of result.data || []) {
-      finalityByOrderId.set(String(row.id_pedido), String(row.pdfcodigo || '').trim())
+      const status = String(row.pedsitped || '').trim().toUpperCase()
+      if (status === 'C') continue
+
+      validOrderMetaById.set(String(row.id_pedido), {
+        finalityCode: String(row.pdfcodigo || '').trim(),
+      })
     }
   }
 
   let qtdPerdas = 0
   let qtdBaseValida = 0
 
-  const accumulateItems = rows => {
+  const accumulateItems = (rows, validProductCodeSet) => {
     for (const row of rows || []) {
       const orderId = String(row.id_pedido)
-      const finalityCode = finalityByOrderId.get(orderId) || ''
+      const orderMeta = validOrderMetaById.get(orderId)
+      if (!orderMeta) continue
+
+      const productCode = String(row.procodigo || '').trim()
+      if (!productCode || !validProductCodeSet.has(productCode)) continue
+
+      const finalityCode = orderMeta.finalityCode || ''
       const quantity = Number(row.quantidade) || 0
       if (!quantity || excludedCodeSet.has(finalityCode)) continue
 
@@ -660,26 +671,34 @@ async function fetchLossMetricsFallback(
 
   for (const chunk of orderChunks) {
     const productsResult = await fetchOptionalPages(
-      () => supabase.from('pdprd').select('id_pedido,pdpqtdade,pdplcfinan').in('id_pedido', chunk),
+      () => supabase.from('pdprd').select('id_pedido,procodigo,pdpqtdade').in('id_pedido', chunk),
       { maxRows: 200000 }
     )
+
+    const productCodes = [...new Set(
+      (productsResult.data || [])
+        .map(row => String(row.procodigo || '').trim())
+        .filter(Boolean)
+    )]
+
+    const validProductCodeSet = new Set()
+    for (const productChunk of chunkArray(productCodes, 500)) {
+      const produResult = await fetchOptionalPages(
+        () => supabase.from('produ').select('procodigo').in('procodigo', productChunk),
+        { maxRows: productChunk.length }
+      )
+
+      for (const row of produResult.data || []) {
+        const productCode = String(row.procodigo || '').trim()
+        if (productCode) validProductCodeSet.add(productCode)
+      }
+    }
 
     accumulateItems((productsResult.data || []).map(row => ({
       id_pedido: row.id_pedido,
+      procodigo: row.procodigo,
       quantidade: row.pdpqtdade,
-      lanca_financeiro: row.pdplcfinan,
-    })))
-
-    const servicesResult = await fetchOptionalPages(
-      () => supabase.from('pdser').select('id_pedido,pdsqtdade,pdslcfinan').in('id_pedido', chunk),
-      { maxRows: 200000 }
-    )
-
-    accumulateItems((servicesResult.data || []).map(row => ({
-      id_pedido: row.id_pedido,
-      quantidade: row.pdsqtdade,
-      lanca_financeiro: row.pdslcfinan,
-    })))
+    })), validProductCodeSet)
   }
 
   return {
@@ -874,7 +893,25 @@ function buildOrderQuantitiesSql(orderIds, kind = 'products') {
   `
 }
 
-function resolveLossFinalityCodes(finalityData) {
+function normalizeLossFinalityCodes(value) {
+  if (Array.isArray(value)) {
+    return [...new Set(
+      value.map(code => String(code || '').trim()).filter(Boolean)
+    )]
+  }
+
+  return [...new Set(
+    String(value || '')
+      .split(',')
+      .map(code => String(code || '').trim())
+      .filter(Boolean)
+  )]
+}
+
+function resolveLossFinalityCodes(company, finalityData) {
+  const configuredCodes = normalizeLossFinalityCodes(company?.lossFinalityCodes)
+  if (configuredCodes.length > 0) return configuredCodes
+
   const codes = (finalityData || [])
     .filter(item => normalizeText(item.pdfdescricao).trim().toUpperCase() === 'PERDA')
     .map(item => String(item.pdfcodigo || '').trim())
@@ -915,27 +952,19 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
 
   return `
     select
-      coalesce(sum(case when vendas.finalidade in (${lossCodesSql}) then vendas.qtde_produtos else 0 end), 0) as qtd_perdas,
-      coalesce(sum(vendas.qtde_produtos), 0) as qtd_lanca_financeiro,
-      coalesce(sum(vendas.qtde_produtos), 0) as qtd_perda_produz
+      coalesce(sum(case when base.finalidade in (${lossCodesSql}) then base.qtde_produtos else 0 end), 0) as qtd_perdas,
+      greatest(coalesce(sum(base.qtde_produtos), 0) - coalesce(sum(case when base.finalidade in (${lossCodesSql}) then base.qtde_produtos else 0 end), 0), 0) as qtd_lanca_financeiro,
+      coalesce(sum(base.qtde_produtos), 0) as qtd_perda_produz
     from (
       select
         ped.pdfcodigo::text as finalidade,
         prd.pdpqtdade::numeric as qtde_produtos
       from pedid ped
       join pdprd prd on ped.id_pedido = prd.id_pedido
+      join produ pro on prd.procodigo = pro.procodigo
       left join clien cli on ped.clicodigo = cli.clicodigo
       where ${clauses.join('\n        and ')}
-      union all
-
-      select
-        ped.pdfcodigo::text as finalidade,
-        pds.pdsqtdade::numeric as qtde_produtos
-      from pedid ped
-      join pdser pds on ped.id_pedido = pds.id_pedido
-      left join clien cli on ped.clicodigo = cli.clicodigo
-      where ${clauses.join('\n        and ')}
-    ) vendas
+    ) base
   `
 }
 
@@ -1202,7 +1231,7 @@ export async function GET(request) {
     }
 
     const finalityData = finalityRes.error ? [] : (finalityRes.data || [])
-    const lossFinalityCodes = resolveLossFinalityCodes(finalityData)
+    const lossFinalityCodes = resolveLossFinalityCodes(company, finalityData)
     const excludedLossFinalityCodes = resolveExcludedLossFinalityCodes(finalityData)
     if (finalityRes.error) {
       console.warn('[dashboard][pedfinalidade]', sanitizeErrorMessage(finalityRes.error))

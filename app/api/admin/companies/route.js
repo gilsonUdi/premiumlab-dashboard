@@ -37,6 +37,12 @@ function slugifyCompanyName(value) {
 function normalizeCompanyPayload(payload = {}) {
   const slug = slugifyCompanyName(payload.slug || payload.name || payload.id)
   const portalSettings = normalizeCompanyPortalSettings(payload)
+  const lossFinalityCodes = Array.isArray(payload.lossFinalityCodes)
+    ? payload.lossFinalityCodes
+    : String(payload.lossFinalityCodes || '')
+        .split(',')
+        .map(code => String(code || '').trim())
+        .filter(Boolean)
 
   return {
     id: payload.id || slug,
@@ -59,6 +65,7 @@ function normalizeCompanyPayload(payload = {}) {
     powerBiReportId: portalSettings.powerBiReportId,
     powerBiDatasetId: portalSettings.powerBiDatasetId,
     powerBiReports: portalSettings.powerBiReports,
+    lossFinalityCodes: [...new Set(lossFinalityCodes)],
     createdAt: payload.createdAt || new Date().toISOString(),
   }
 }
@@ -146,6 +153,7 @@ export async function POST(request) {
         powerBiReportId: company.powerBiReportId,
         powerBiDatasetId: company.powerBiDatasetId,
         powerBiReports: company.powerBiReports,
+        lossFinalityCodes: company.lossFinalityCodes,
         authUid: authUser.uid,
         hasServiceRoleKey: Boolean(supabaseServiceRoleKey),
         createdAt: existingCompany?.createdAt || company.createdAt,
