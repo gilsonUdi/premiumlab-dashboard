@@ -11,12 +11,12 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 $incrementalAction = New-ScheduledTaskAction `
   -Execute "powershell.exe" `
-  -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$incrementalScript`"" `
+  -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$incrementalScript`"" `
   -WorkingDirectory $ProjectDir
 
 $weeklyAction = New-ScheduledTaskAction `
   -Execute "powershell.exe" `
-  -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$weeklyScript`"" `
+  -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$weeklyScript`"" `
   -WorkingDirectory $ProjectDir
 
 $incrementalTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
