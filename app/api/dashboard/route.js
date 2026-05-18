@@ -33,6 +33,29 @@ function getErrorStatus(error) {
   return 500
 }
 
+function sanitizeErrorMessage(error) {
+  const raw = String(error?.message || error || '').trim()
+  if (!raw) return 'Falha ao carregar dados do dashboard.'
+
+  const withoutTags = raw
+    .replace(/<!DOCTYPE[\s\S]*?>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (/cloudflare|connection timed out|error code 52\d|doctype html/i.test(raw)) {
+    return 'O provedor de dados demorou para responder. Tente atualizar em instantes.'
+  }
+
+  if (!withoutTags) {
+    return 'Falha ao carregar dados do dashboard.'
+  }
+
+  return withoutTags.length > 220 ? `${withoutTags.slice(0, 217)}...` : withoutTags
+}
+
 function combineDateTime(dateValue, timeValue) {
   const datePart = extractDatePart(dateValue)
   if (!datePart) return null
@@ -846,16 +869,18 @@ function resolveLossFinalityCodes(finalityData) {
     .map(item => String(item.pdfcodigo || '').trim())
     .filter(Boolean)
 
-  return codes.length > 0 ? [...new Set(codes)] : ['2']
+  return codes.length > 0 ? [...new Set(codes)] : ['4']
 }
 
 function resolveExcludedLossFinalityCodes(finalityData) {
-  return [...new Set(
+  const codes = [...new Set(
     (finalityData || [])
       .filter(item => normalizeText(item.pdfdescricao).trim().toUpperCase() === 'PACOTE VENDA FUTURA')
       .map(item => String(item.pdfcodigo || '').trim())
       .filter(Boolean)
   )]
+
+  return codes.length > 0 ? codes : ['34']
 }
 
 function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], lossFinalityCodes = ['2'], excludedFinalityCodes = [], includeOperationTypeFilter = false }) {
@@ -1157,60 +1182,41 @@ export async function GET(request) {
     const shouldLoadProductDetails = pedcodigoValues.length > 0
     const groupCodeFilterSet = new Set(gclcodigoValues.map(Number).filter(Number.isFinite))
 
-    const [finalityRes, dashboardCacheRes, hasTbfis] = await Promise.all([
+    const [finalityRes, dashboardCacheRes] = await Promise.all([
       fetchOptionalPages(() => supabase.from('pedfinalidade').select('pdfcodigo, pdfdescricao').order('pdfcodigo'), { maxRows: 200 }),
       fetchDashboardCacheRows(
         supabase,
         { dateStart, dateEnd, pedcodigos: pedcodigoValues, clicodigos: clientCodeFilters, gclcodigos: gclcodigoValues }
       ),
-      tableExists(supabase, 'tbfis', 'fiscodigo'),
     ])
 
-    for (const [name, res] of Object.entries({ pedfinalidade: finalityRes, pedido_dashboard_cache: dashboardCacheRes })) {
-      if (res.error) throw new Error(`${name}: ${res.error.message}`)
+    if (dashboardCacheRes.error) {
+      throw new Error(`pedido_dashboard_cache: ${dashboardCacheRes.error.message}`)
     }
 
     if (dashboardCacheRes.missingCacheTable) {
       throw new Error('pedido_dashboard_cache ainda nao foi criada/populada. Rode o sync novamente para inicializar o cache do dashboard.')
     }
 
-    const finalityData = finalityRes.data || []
+    const finalityData = finalityRes.error ? [] : (finalityRes.data || [])
     const lossFinalityCodes = resolveLossFinalityCodes(finalityData)
     const excludedLossFinalityCodes = resolveExcludedLossFinalityCodes(finalityData)
+    if (finalityRes.error) {
+      console.warn('[dashboard][pedfinalidade]', sanitizeErrorMessage(finalityRes.error))
+    }
 
     let lossMetricsRows = []
     try {
-      lossMetricsRows = await execOptionalSql(
+      const fallbackMetrics = await fetchLossMetricsFallback(
         supabase,
-        buildLossMetricsSql({
-          dateStart,
-          dateEnd,
-          pedcodigos: pedcodigoValues,
-          clicodigos: clientCodeFilters,
-          gclcodigos: gclcodigoValues,
-          lossFinalityCodes,
-          excludedFinalityCodes: excludedLossFinalityCodes,
-          includeOperationTypeFilter: hasTbfis,
-        })
+        (dashboardCacheRes.data || []).map(row => row.id_pedido),
+        lossFinalityCodes,
+        excludedLossFinalityCodes
       )
+      lossMetricsRows = [fallbackMetrics]
     } catch (error) {
-      console.error('[dashboard][loss-metrics]', error)
+      console.error('[dashboard][loss-metrics-fallback]', error)
       lossMetricsRows = []
-    }
-
-    if (!Array.isArray(lossMetricsRows) || lossMetricsRows.length === 0) {
-      try {
-        const fallbackMetrics = await fetchLossMetricsFallback(
-          supabase,
-          (dashboardCacheRes.data || []).map(row => row.id_pedido),
-          lossFinalityCodes,
-          excludedLossFinalityCodes
-        )
-        lossMetricsRows = [fallbackMetrics]
-      } catch (error) {
-        console.error('[dashboard][loss-metrics-fallback]', error)
-        lossMetricsRows = []
-      }
     }
 
     let cachedOrders = (dashboardCacheRes.data || []).map(row => {
@@ -1650,7 +1656,7 @@ export async function GET(request) {
     )
   } catch (error) {
     console.error('[dashboard]', error)
-    return NextResponse.json({ error: error.message }, { status: getErrorStatus(error), headers: NO_STORE_HEADERS })
+    return NextResponse.json({ error: sanitizeErrorMessage(error) }, { status: getErrorStatus(error), headers: NO_STORE_HEADERS })
   }
 }
 

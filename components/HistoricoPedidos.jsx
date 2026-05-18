@@ -107,6 +107,7 @@ export default function HistoricoPedidos({
   fillHeight = false,
   hideDeliveredColumn = false,
   showDelayDays = false,
+  largerText = false,
 }) {
   const [sort, setSort] = useState({ col: 'delayRank', dir: 'desc' })
 
@@ -138,9 +139,9 @@ export default function HistoricoPedidos({
 
   const cols = [
     { key: 'emissao', label: 'Data Emissao' },
+    { key: 'caixa', label: 'Caixa' },
     { key: 'pedidoId', label: 'ID Pedido' },
     { key: 'currentCell', label: 'Celula' },
-    { key: 'caixa', label: 'Caixa' },
     { key: 'previsto', label: 'Dt. Prevista' },
     ...(showDelayDays ? [{ key: 'diasAtraso', label: 'Dias no Laboratorio' }] : []),
     ...(!hideDeliveredColumn ? [{ key: 'saida', label: 'Dt. Saida' }] : []),
@@ -171,7 +172,7 @@ export default function HistoricoPedidos({
       </div>
 
       <div className="overflow-auto" style={{ maxHeight: tableHeight }}>
-        <table className="w-full text-xs">
+        <table className={`w-full ${largerText ? 'text-[13px]' : 'text-xs'}`}>
           <thead className="sticky top-0 z-10">
             <tr style={{ background: '#0d1f38' }}>
               {cols.map(col => (
@@ -184,13 +185,13 @@ export default function HistoricoPedidos({
                     width:
                       col.key === 'emissao'
                         ? 150
+                        : col.key === 'caixa'
+                          ? 72
                         : col.key === 'pedidoId'
-                          ? 112
+                          ? 104
                           : col.key === 'currentCell'
                             ? 176
-                            : col.key === 'caixa'
-                              ? 64
-                              : col.key === 'previsto'
+                            : col.key === 'previsto'
                                 ? 144
                                 : col.key === 'diasAtraso'
                                   ? 84
@@ -238,6 +239,9 @@ export default function HistoricoPedidos({
                   <td onClick={event => filterBy(event, 'orders.emissao', row.emissao)} className="px-4 py-2.5 font-mono" style={{ color: '#d7e9ff' }}>
                     {fmtDt(row.emissao)}
                   </td>
+                  <td className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>
+                    {row.caixa || '-'}
+                  </td>
                   <td
                     onClick={event => filterBy(event, 'pedcodigo', row.pedidoId)}
                     className="px-4 py-2.5 font-mono font-medium"
@@ -248,9 +252,6 @@ export default function HistoricoPedidos({
                   </td>
                   <td onClick={event => filterBy(event, 'orders.currentCell', row.currentCell)} className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>
                     {row.currentCell || '-'}
-                  </td>
-                  <td className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>
-                    {row.caixa || '-'}
                   </td>
                   <td onClick={event => filterBy(event, 'orders.previsto', row.previsto)} className="px-4 py-2.5 font-mono" style={{ color: '#d7e9ff' }}>
                     {fmtDt(row.previsto)}
