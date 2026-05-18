@@ -143,7 +143,7 @@ export default function HistoricoPedidos({
     { key: 'pedidoId', label: 'ID Pedido' },
     { key: 'clinome', label: 'Cliente' },
     { key: 'currentCell', label: 'Celula' },
-    { key: 'previsto', label: 'Dt. Prevista' },
+    { key: 'previsto', label: 'Data Prevista' },
     ...(showDelayDays ? [{ key: 'diasAtraso', label: 'DiasLab' }] : []),
     ...(!hideDeliveredColumn ? [{ key: 'saida', label: 'Dt. Saida' }] : []),
     { key: 'roteiroResumo', label: 'Roteiro' },
