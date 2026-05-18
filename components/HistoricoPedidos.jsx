@@ -141,9 +141,10 @@ export default function HistoricoPedidos({
     { key: 'emissao', label: 'Data Emissao' },
     { key: 'caixa', label: 'Caixa' },
     { key: 'pedidoId', label: 'ID Pedido' },
+    { key: 'clinome', label: 'Cliente' },
     { key: 'currentCell', label: 'Celula' },
     { key: 'previsto', label: 'Dt. Prevista' },
-    ...(showDelayDays ? [{ key: 'diasAtraso', label: 'Dias no Laboratorio' }] : []),
+    ...(showDelayDays ? [{ key: 'diasAtraso', label: 'Dias no Lab' }] : []),
     ...(!hideDeliveredColumn ? [{ key: 'saida', label: 'Dt. Saida' }] : []),
     { key: 'roteiroResumo', label: 'Roteiro' },
   ]
@@ -172,7 +173,7 @@ export default function HistoricoPedidos({
       </div>
 
       <div className="overflow-auto" style={{ maxHeight: tableHeight }}>
-        <table className={`w-full ${largerText ? 'text-[13px]' : 'text-xs'}`}>
+        <table className={`w-full ${largerText ? 'text-sm' : 'text-xs'}`}>
           <thead className="sticky top-0 z-10">
             <tr style={{ background: '#0d1f38' }}>
               {cols.map(col => (
@@ -189,6 +190,8 @@ export default function HistoricoPedidos({
                           ? 72
                         : col.key === 'pedidoId'
                           ? 104
+                          : col.key === 'clinome'
+                            ? 232
                           : col.key === 'currentCell'
                             ? 176
                             : col.key === 'previsto'
@@ -249,6 +252,14 @@ export default function HistoricoPedidos({
                     title={`ID_PEDIDO: ${row.pedidoId} | PEDCODIGO: ${row.pedcodigo}`}
                   >
                     {row.pedidoId}
+                  </td>
+                  <td
+                    onClick={event => filterBy(event, 'clicodigo', row.clicodigo)}
+                    className="px-4 py-2.5"
+                    style={{ color: '#e2e8f0', maxWidth: 232, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    title={row.clicodigo != null || row.clinome ? `${row.clicodigo ?? '-'} - ${row.clinome || '-'}` : '-'}
+                  >
+                    {row.clicodigo != null || row.clinome ? `${row.clicodigo ?? '-'} - ${row.clinome || '-'}` : '-'}
                   </td>
                   <td onClick={event => filterBy(event, 'orders.currentCell', row.currentCell)} className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>
                     {row.currentCell || '-'}

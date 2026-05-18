@@ -883,7 +883,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="hidden px-6 py-4 text-[11px] uppercase tracking-[0.2em] text-[#8d867c] lg:grid lg:grid-cols-[2fr_1.2fr_1fr_1fr_140px]">
+              <div className="hidden px-6 py-4 text-[11px] uppercase tracking-[0.2em] text-[#8d867c] lg:grid lg:grid-cols-[2fr_1.2fr_1fr_1fr_240px]">
                 <span>Empresa</span>
                 <span>Slug</span>
                 <span>Status</span>
@@ -900,7 +900,7 @@ export default function AdminPage() {
 
                 {filteredCompanies.map(company => (
                   <div key={company.id} className="rounded-[24px] bg-white/[0.04] px-5 py-5 sm:px-6">
-                    <div className="grid gap-4 lg:grid-cols-[2fr_1.2fr_1fr_1fr_140px] lg:items-center">
+                    <div className="grid gap-4 lg:grid-cols-[2fr_1.2fr_1fr_1fr_240px] lg:items-center">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate text-base font-semibold text-white">{company.name}</p>
@@ -922,6 +922,10 @@ export default function AdminPage() {
                       </div>
 
                       <div className="flex justify-start gap-2 lg:justify-end">
+                        <Link href={`/empresa/${company.slug}`} className="portal-ghost-button">
+                          Portal
+                          <SquareArrowOutUpRight size={15} />
+                        </Link>
                         <button type="button" className="portal-ghost-button" onClick={() => handleEditCompany(company)}>
                           <Pencil size={15} />
                           Editar
