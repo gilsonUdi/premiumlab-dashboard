@@ -346,9 +346,9 @@ function matchesPermissionFilter(rawValue, filter = {}) {
 
   switch (operator) {
     case 'is':
-      return normalizedLeft === normalizedRight
+      return listValues.length > 1 ? listValues.includes(normalizedLeft) : normalizedLeft === normalizedRight
     case 'isNot':
-      return normalizedLeft !== normalizedRight
+      return listValues.length > 1 ? !listValues.includes(normalizedLeft) : normalizedLeft !== normalizedRight
     case 'in':
       return listValues.includes(normalizedLeft)
     case 'contains':
@@ -792,7 +792,8 @@ async function fetchLossMetricsFallback(
   supabase,
   orderIds,
   lossFinalityCodes = ['2'],
-  excludedFinalityCodes = []
+  excludedFinalityCodes = [],
+  productCodeFilters = []
 ) {
   const ids = [...new Set((orderIds || []).map(asSqlNumber).filter(Number.isFinite))]
   if (ids.length === 0) {
@@ -806,6 +807,11 @@ async function fetchLossMetricsFallback(
   )
   const excludedCodeSet = new Set(
     (excludedFinalityCodes || [])
+      .map(code => String(code || '').trim())
+      .filter(Boolean)
+  )
+  const productCodeFilterSet = new Set(
+    (productCodeFilters || [])
       .map(code => String(code || '').trim())
       .filter(Boolean)
   )
@@ -851,6 +857,7 @@ async function fetchLossMetricsFallback(
 
       const productCode = String(row.procodigo || '').trim()
       if (!productCode || !validProductCodeSet.has(productCode)) continue
+      if (productCodeFilterSet.size > 0 && !productCodeFilterSet.has(productCode)) continue
 
       const finalityCode = orderMeta.finalityCode || ''
       const quantity = Number(row.quantidade) || 0
@@ -1348,6 +1355,63 @@ function getFirstExistingColumn(columns, candidates) {
   return candidates.find(column => columns.has(column)) || ''
 }
 
+function quoteSqlIdentifier(value) {
+  return `"${String(value).replace(/"/g, '""')}"`
+}
+
+function sqlLiteral(value) {
+  return `'${String(value ?? '').replace(/'/g, "''")}'`
+}
+
+function parseSqlFilterValues(value) {
+  return String(value || '')
+    .split(',')
+    .map(item => normalizeText(item).trim())
+    .filter(Boolean)
+}
+
+function buildSqlTextExpression(column) {
+  return `lower(trim(coalesce(${quoteSqlIdentifier(column)}::text, '')))`
+}
+
+function buildSqlFilterCondition(filter = {}) {
+  const operator = String(filter.operator || 'is').trim()
+  const values = parseSqlFilterValues(filter.value)
+  if (values.length === 0) return null
+
+  const columnText = buildSqlTextExpression(filter.column)
+  const normalizedValues = values.map(value => normalizePermissionFilterValue(value)).filter(Boolean)
+  if (normalizedValues.length === 0) return null
+  const valuesSql = normalizedValues.map(sqlLiteral).join(', ')
+  const singleValueSql = sqlLiteral(normalizedValues[0])
+
+  switch (operator) {
+    case 'is':
+    case 'in':
+      return `${columnText} in (${valuesSql})`
+    case 'isNot':
+      return `${columnText} not in (${valuesSql})`
+    case 'contains':
+      return `${columnText} like '%' || ${singleValueSql} || '%'`
+    case 'notContains':
+      return `${columnText} not like '%' || ${singleValueSql} || '%'`
+    case 'startsWith':
+      return `${columnText} like ${singleValueSql} || '%'`
+    case 'endsWith':
+      return `${columnText} like '%' || ${singleValueSql}`
+    case 'greaterThan':
+      return `case when ${quoteSqlIdentifier(filter.column)}::text ~ '^-?[0-9]+([.,][0-9]+)?$' then replace(${quoteSqlIdentifier(filter.column)}::text, ',', '.')::numeric > ${Number(values[0].replace(',', '.')) || 0} else ${columnText} > ${singleValueSql} end`
+    case 'greaterThanOrEqual':
+      return `case when ${quoteSqlIdentifier(filter.column)}::text ~ '^-?[0-9]+([.,][0-9]+)?$' then replace(${quoteSqlIdentifier(filter.column)}::text, ',', '.')::numeric >= ${Number(values[0].replace(',', '.')) || 0} else ${columnText} >= ${singleValueSql} end`
+    case 'lessThan':
+      return `case when ${quoteSqlIdentifier(filter.column)}::text ~ '^-?[0-9]+([.,][0-9]+)?$' then replace(${quoteSqlIdentifier(filter.column)}::text, ',', '.')::numeric < ${Number(values[0].replace(',', '.')) || 0} else ${columnText} < ${singleValueSql} end`
+    case 'lessThanOrEqual':
+      return `case when ${quoteSqlIdentifier(filter.column)}::text ~ '^-?[0-9]+([.,][0-9]+)?$' then replace(${quoteSqlIdentifier(filter.column)}::text, ',', '.')::numeric <= ${Number(values[0].replace(',', '.')) || 0} else ${columnText} <= ${singleValueSql} end`
+    default:
+      return `${columnText} in (${valuesSql})`
+  }
+}
+
 function addToOrderMap(map, key, orderId) {
   const normalizedKey = String(key ?? '').trim()
   const normalizedOrderId = String(orderId ?? '').trim()
@@ -1414,16 +1478,15 @@ async function resolveOrderIdsByProductCodes(supabase, currentIds, productCodes)
 
   for (const orderChunk of orderChunks) {
     for (const codeChunk of codeChunks) {
-      const { data, error } = await supabase
-        .from('pdprd')
-        .select('id_pedido, procodigo')
-        .in('id_pedido', orderChunk)
-        .in('procodigo', codeChunk)
-
-      if (error) {
-        console.warn('[dashboard][visual-filter] falha ao vincular produtos a pedidos', error.message)
-        continue
-      }
+      const data = await execOptionalSql(
+        supabase,
+        `
+          select id_pedido, procodigo
+          from pdprd
+          where id_pedido in (${orderChunk.join(', ')})
+            and trim(procodigo::text) in (${codeChunk.map(sqlLiteral).join(', ')})
+        `
+      )
 
       for (const row of data || []) {
         if (row.id_pedido != null) matchingIds.add(String(row.id_pedido))
@@ -1432,6 +1495,47 @@ async function resolveOrderIdsByProductCodes(supabase, currentIds, productCodes)
   }
 
   return intersectSets(currentIds, matchingIds)
+}
+
+async function resolveSupabaseProductCodesForFilters(supabase, filters = []) {
+  const productFilters = filters.filter(filter => filter.source === 'table' && filter.table && filter.column && filter.value)
+  if (productFilters.length === 0) return new Set()
+
+  let productCodes = null
+
+  for (const filter of productFilters) {
+    try {
+      if (!isSafeSqlIdentifier(filter.table) || !isSafeSqlIdentifier(filter.column)) continue
+
+      const columns = await getSupabaseTableColumnSet(supabase, filter.table)
+      if (!columns.has('procodigo') || !columns.has(filter.column)) continue
+
+      const filterCondition = buildSqlFilterCondition(filter)
+      if (!filterCondition) continue
+
+      const rows = await execOptionalSql(
+        supabase,
+        `
+          select distinct ${quoteSqlIdentifier('procodigo')} as procodigo
+          from ${quoteSqlIdentifier(filter.table)}
+          where ${filterCondition}
+          limit 200000
+        `
+      )
+
+      const currentCodes = new Set(
+        (rows || [])
+          .map(row => String(row.procodigo || '').trim())
+          .filter(Boolean)
+      )
+
+      productCodes = productCodes == null ? currentCodes : intersectSets(productCodes, currentCodes)
+    } catch (error) {
+      console.warn('[dashboard][visual-filter] filtro de produtos ignorado', filter.table, filter.column, error?.message || error)
+    }
+  }
+
+  return productCodes || new Set()
 }
 
 async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = [], context = {}) {
@@ -1462,27 +1566,32 @@ async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = 
         continue
       }
 
+      const filterCondition = buildSqlFilterCondition(filter)
+      if (!filterCondition) {
+        console.warn('[dashboard][visual-filter] condicao invalida', filter.table, filter.column)
+        continue
+      }
+
       const matchingOrderIds = new Set()
-      const selectColumns = [...new Set([linkColumn, filter.column])].join(', ')
+      const selectColumns = [...new Set([linkColumn, filter.column])].map(quoteSqlIdentifier).join(', ')
+      const tableSql = quoteSqlIdentifier(filter.table)
 
       if (linkColumn === 'id_pedido') {
         const chunks = chunkArray(ids, 500)
 
         for (const chunk of chunks) {
-          const { data, error } = await supabase
-            .from(filter.table)
-            .select(selectColumns)
-            .in('id_pedido', chunk)
-
-          if (error) {
-            console.warn('[dashboard][visual-filter] falha ao consultar filtro', filter.table, error.message)
-            continue
-          }
+          const data = await execOptionalSql(
+            supabase,
+            `
+              select ${selectColumns}
+              from ${tableSql}
+              where ${quoteSqlIdentifier('id_pedido')} in (${chunk.join(', ')})
+                and (${filterCondition})
+            `
+          )
 
           for (const row of data || []) {
-            if (matchesPermissionFilter(row[filter.column], filter)) {
-              matchingOrderIds.add(String(row.id_pedido))
-            }
+            if (row.id_pedido != null) matchingOrderIds.add(String(row.id_pedido))
           }
         }
 
@@ -1490,17 +1599,17 @@ async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = 
         continue
       }
 
-      const { data, error } = await supabase
-        .from(filter.table)
-        .select(selectColumns)
-        .limit(200000)
+      const data = await execOptionalSql(
+        supabase,
+        `
+          select ${selectColumns}
+          from ${tableSql}
+          where ${filterCondition}
+          limit 200000
+        `
+      )
 
-      if (error) {
-        console.warn('[dashboard][visual-filter] falha ao consultar filtro', filter.table, error.message)
-        continue
-      }
-
-      const matchingRows = (data || []).filter(row => matchesPermissionFilter(row[filter.column], filter))
+      const matchingRows = data || []
       const linkedIds = intersectOrderIdsFromRows(allowedIds, matchingRows, linkColumn, context)
       if (linkColumn === 'procodigo' && linkedIds.size === 0) {
         allowedIds = await resolveOrderIdsByProductCodes(
@@ -2101,8 +2210,14 @@ const getVisualFilters = sectionKey => dashboardVisualFilters?.[sectionKey] || [
     if (perdasVisualFilters.length > 0) {
       try {
         const lossOrderIds = [...await getVisualOrderIds('perdasChart')]
+        const lossProductCodes = [
+          ...await resolveSupabaseProductCodesForFilters(
+            supabase,
+            perdasVisualFilters.filter(filter => filter.source === 'table')
+          ),
+        ]
         visualLossMetricsRows = [
-          await fetchLossMetricsFallback(supabase, lossOrderIds, lossFinalityCodes, excludedLossFinalityCodes),
+          await fetchLossMetricsFallback(supabase, lossOrderIds, lossFinalityCodes, excludedLossFinalityCodes, lossProductCodes),
         ]
         visualLossMetricsError = null
       } catch (fallbackError) {
