@@ -43,11 +43,11 @@ Na pratica, o Session Pooler se mostrou muito mais estavel para o rebuild dos ca
 O fluxo automatico agora fica dividido em duas tarefas:
 
 - **Incremental**
-  - roda a cada 15 minutos;
+  - roda a cada 30 minutos;
   - sincroniza apenas as tabelas com coluna de data;
   - inclui `PDPRD` e `PDSER` por vinculo com pedidos recentes;
   - inclui `JBXROTEIRO` por vinculo com a `ACOPED`;
-  - trabalha com janela de 7 dias;
+  - trabalha com janela de 30 dias;
   - atualiza por upsert as tabelas mutaveis recentes para refletir mudancas operacionais.
 
 - **Semanal**
@@ -67,9 +67,9 @@ Se a politica do Windows bloquear tarefas agendadas, use `run-watch.bat` e deixe
 
 ```env
 SYNC_INCREMENTAL=true
-SYNC_RECENT_DAYS=7
+SYNC_RECENT_DAYS=30
 SYNC_DATE_TABLES_ONLY=true
-SYNC_INTERVAL_SECONDS=900
+SYNC_INTERVAL_SECONDS=1800
 ```
 
 As tabelas monitoradas por data ficam em `SYNC_DATE_COLUMNS`.
@@ -81,7 +81,7 @@ No caso da `JBXROTEIRO`, a automacao usa:
 
 - `ID_PEDIDO` como chave de relacao;
 - `ACOPED.APDATA` como relogio de recencia;
-- janela propria de 7 dias no incremental, alinhada com o restante da rotina curta.
+- janela propria de 30 dias no incremental, alinhada com o restante da rotina curta.
 
 ## Carga completa inicial
 
@@ -97,7 +97,7 @@ Remove-Item Env:\SYNC_DATE_TABLES_ONLY
 
 Depois disso, deixe o automatico seguir com:
 
-- a rotina incremental de 7 dias a cada 15 minutos;
+- a rotina incremental de 30 dias a cada 30 minutos;
 - a rotina semanal completa de 90 dias.
 
 ## Refresh corretivo so da janela recente

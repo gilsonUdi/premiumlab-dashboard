@@ -20,7 +20,7 @@ $weeklyAction = New-ScheduledTaskAction `
   -WorkingDirectory $ProjectDir
 
 $incrementalTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
-  -RepetitionInterval (New-TimeSpan -Minutes 15) `
+  -RepetitionInterval (New-TimeSpan -Minutes 30) `
   -RepetitionDuration (New-TimeSpan -Days 3650)
 
 $weeklyTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5) `
@@ -38,7 +38,7 @@ Register-ScheduledTask `
   -Action $incrementalAction `
   -Trigger $incrementalTrigger `
   -Settings $settings `
-  -Description "Sincroniza Firebird com Supabase a cada 15 minutos (janela de 7 dias)." `
+  -Description "Sincroniza Firebird com Supabase a cada 30 minutos (janela de 30 dias)." `
   -Force | Out-Null
 
 Register-ScheduledTask `
