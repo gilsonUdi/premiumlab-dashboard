@@ -3,6 +3,7 @@ import { addDays, differenceInDays, differenceInMinutes, format, parseISO, start
 import { ptBR } from 'date-fns/locale'
 import {
   getCompanyDashboardVisualFilters,
+  getCompanyOrderCompletionRules,
   getDashboardFilters,
   normalizeUserPermissions,
   PORTAL_PAGE_KEYS,
@@ -295,8 +296,8 @@ function orderIsDelayed(expected, delivered, now) {
 }
 
 function resolveStatus(expected, delivered, now) {
-  if (delivered) return delivered > expected ? 'delayed_completed' : 'completed'
-  return now > expected ? 'delayed' : 'in_progress'
+  if (delivered) return expected && delivered > expected ? 'delayed_completed' : 'completed'
+  return expected && now > expected ? 'delayed' : 'in_progress'
 }
 
 function normalizeFilterValue(value, field) {
@@ -561,6 +562,27 @@ function buildStatusPriority(status) {
   if (status === 'delayed_completed') return 2
   if (status === 'completed') return 1
   return 0
+}
+
+function resolveOrderOperationalState(order, now, completedByRule = false) {
+  const emittedDate = order.emittedDate || parseLocalDateTime(order.emissao)
+  const expectedDate = order.expectedDate || parseLocalDateTime(order.previsto)
+  const deliveredDate = order.deliveredDate || parseLocalDateTime(order.saida)
+  const effectiveCompletionDate = deliveredDate || (completedByRule ? now : null)
+  const status = resolveStatus(expectedDate, effectiveCompletionDate, now)
+
+  return {
+    ...order,
+    status,
+    indice: orderIsDelayed(expectedDate, effectiveCompletionDate, now) ? 0 : 100,
+    delayRank: buildDelayRank(emittedDate, effectiveCompletionDate, now),
+    statusPriority: buildStatusPriority(status),
+    rowTone: resolveRowTone(status, expectedDate, effectiveCompletionDate, now),
+    emittedDate,
+    expectedDate,
+    deliveredDate,
+    completedByRule: Boolean(completedByRule && !deliveredDate),
+  }
 }
 
 function buildRouteStepLabel(alxcodigo, descricao) {
@@ -1787,6 +1809,34 @@ async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = 
   return allowedIds
 }
 
+async function resolveOrderCompletionRuleIds(supabase, rules = [], orders = []) {
+  const validRules = (rules || []).filter(rule => rule.table && rule.column && rule.value)
+  if (validRules.length === 0 || orders.length === 0) return new Set()
+
+  const baseOrderIds = [...new Set(orders.map(order => String(order.pedidoId)).filter(Boolean))]
+  const context = buildSupabaseFilterContext(orders, [])
+  const completedIds = new Set()
+
+  for (const rule of validRules) {
+    const resolvedIds = await resolveSupabaseTableFilterIds(
+      supabase,
+      [{
+        ...rule,
+        source: 'table',
+        operator: 'is',
+      }],
+      baseOrderIds,
+      context
+    )
+
+    for (const orderId of resolvedIds || []) {
+      completedIds.add(String(orderId))
+    }
+  }
+
+  return completedIds
+}
+
 async function getTenantSupabase(request, tenantSlug) {
   const { company, companySecrets } = await resolveAuthorizedCompany(request, tenantSlug)
   const { url: supabaseUrl, serviceRoleKey: supabaseServiceRoleKey } = resolveSupabaseConfig(company, companySecrets)
@@ -1823,6 +1873,7 @@ export async function GET(request) {
 
     const dashboardPermissionFilters = profile.role === 'admin' ? [] : getDashboardFilters(company, permissions, dashboardMode)
     const dashboardVisualFilters = getCompanyDashboardVisualFilters(company, dashboardMode)
+    const orderCompletionRules = getCompanyOrderCompletionRules(company)
 
     const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
     const fallbackEnd = format(new Date(), 'yyyy-MM-dd')
@@ -2005,6 +2056,11 @@ export async function GET(request) {
           ? order.roteiro.map(step => step.label).join(' | ')
           : order.roteiroResumo,
     }))
+
+    const completionRuleIds = await resolveOrderCompletionRuleIds(supabase, orderCompletionRules, cachedOrders)
+    cachedOrders = cachedOrders.map(order =>
+      resolveOrderOperationalState(order, now, completionRuleIds.has(String(order.pedidoId)))
+    )
 
     if (pedcodigoValues.length > 0) {
       const wanted = new Set(pedcodigoValues.map(value => String(value || '').trim()))

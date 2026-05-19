@@ -70,6 +70,7 @@ const emptyForm = {
   powerBiDatasetId: '',
   powerBiReports: [],
   dashboardVisualFilters: buildDefaultDashboardVisualFilters(),
+  orderCompletionRules: [],
   lossFinalityCodesText: '',
   tools: ['dashboard'],
   isPremiumLab: false,
@@ -371,6 +372,7 @@ export default function AdminPage() {
           .map(code => String(code || '').trim())
           .filter(Boolean),
         dashboardVisualFilters: form.dashboardVisualFilters,
+        orderCompletionRules: form.orderCompletionRules,
         powerBiReports: normalizedReports,
         powerBiEnabled: form.powerBiEnabled && normalizedReports.length > 0,
         powerBiLabel: primaryReport?.label || '',
@@ -411,6 +413,7 @@ export default function AdminPage() {
       powerBiDatasetId: company.powerBiDatasetId || '',
       powerBiReports: getPowerBiReportCatalog(company),
       dashboardVisualFilters: company.dashboardVisualFilters || buildDefaultDashboardVisualFilters(),
+      orderCompletionRules: Array.isArray(company.orderCompletionRules) ? company.orderCompletionRules : [],
       lossFinalityCodesText: Array.isArray(company.lossFinalityCodes) ? company.lossFinalityCodes.join(', ') : '',
       tools: company.tools || ['dashboard'],
       isPremiumLab: company.isPremiumLab,
@@ -730,6 +733,49 @@ export default function AdminPage() {
           [sectionKey]: (previous.dashboardVisualFilters?.[mode]?.[sectionKey] || []).filter(filter => filter.id !== filterId),
         },
       },
+    }))
+  }
+
+  const addOrderCompletionRule = () => {
+    setForm(previous => ({
+      ...previous,
+      orderCompletionRules: [
+        ...(previous.orderCompletionRules || []),
+        {
+          id: `order-completion-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          table: '',
+          column: '',
+          value: '',
+        },
+      ],
+    }))
+  }
+
+  const updateOrderCompletionRule = (ruleId, field, value) => {
+    setForm(previous => ({
+      ...previous,
+      orderCompletionRules: (previous.orderCompletionRules || []).map(rule => {
+        if (rule.id !== ruleId) return rule
+        if (field === 'table') {
+          const supabaseTable = (dashboardFilterOptions?.supabaseTables || []).find(table => table.name === value)
+          const shouldKeepColumn = supabaseTable?.columns?.includes(rule.column)
+          return {
+            ...rule,
+            table: value,
+            column: shouldKeepColumn ? rule.column : '',
+            value: '',
+          }
+        }
+
+        return { ...rule, [field]: value }
+      }),
+    }))
+  }
+
+  const removeOrderCompletionRule = ruleId => {
+    setForm(previous => ({
+      ...previous,
+      orderCompletionRules: (previous.orderCompletionRules || []).filter(rule => rule.id !== ruleId),
     }))
   }
 
@@ -1404,6 +1450,88 @@ export default function AdminPage() {
                           <p className="text-xs text-[#8d867c]">
                             Informe os codigos da PEDFINALIDADE que representam perda nesta empresa, separados por virgula.
                           </p>
+                        </div>
+
+                        <div className="space-y-3 md:col-span-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <label className="portal-label">Pedido concluido quando</label>
+                              <p className="mt-1 text-xs text-[#8d867c]">
+                                O pedido tambem sera tratado como concluido quando bater qualquer condicao abaixo.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              className="portal-ghost-button"
+                              onClick={addOrderCompletionRule}
+                            >
+                              <Plus size={14} />
+                              Adicionar
+                            </button>
+                          </div>
+
+                          {(form.orderCompletionRules || []).length > 0 ? (
+                            <div className="space-y-3">
+                              {(form.orderCompletionRules || []).map(rule => {
+                                const supabaseTable = (dashboardFilterOptions?.supabaseTables || []).find(table => table.name === rule.table)
+
+                                return (
+                                  <div key={rule.id} className="rounded-[16px] bg-white/[0.04] p-3">
+                                    <div className="mb-3 flex justify-end">
+                                      <button
+                                        type="button"
+                                        className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
+                                        onClick={() => removeOrderCompletionRule(rule.id)}
+                                      >
+                                        Remover
+                                      </button>
+                                    </div>
+
+                                    <div className="grid gap-3 md:grid-cols-3">
+                                      <select
+                                        className="portal-input"
+                                        value={rule.table || ''}
+                                        onChange={event => updateOrderCompletionRule(rule.id, 'table', event.target.value)}
+                                      >
+                                        <option value="">Selecione a tabela</option>
+                                        {(dashboardFilterOptions?.supabaseTables || []).map(table => (
+                                          <option key={table.name} value={table.name}>
+                                            {table.name}
+                                          </option>
+                                        ))}
+                                      </select>
+
+                                      <select
+                                        className="portal-input"
+                                        value={rule.column || ''}
+                                        onChange={event => updateOrderCompletionRule(rule.id, 'column', event.target.value)}
+                                        disabled={!rule.table}
+                                      >
+                                        <option value="">{rule.table ? 'Selecione a coluna' : 'Escolha a tabela primeiro'}</option>
+                                        {(supabaseTable?.columns || []).map(column => (
+                                          <option key={column} value={column}>
+                                            {column}
+                                          </option>
+                                        ))}
+                                      </select>
+
+                                      <input
+                                        className="portal-input"
+                                        value={rule.value || ''}
+                                        onChange={event => updateOrderCompletionRule(rule.id, 'value', event.target.value)}
+                                        placeholder="Valor ou lista separada por virgula"
+                                        disabled={!rule.table || !rule.column}
+                                      />
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          ) : (
+                            <div className="rounded-[16px] border border-dashed border-white/10 px-4 py-3 text-sm text-[#8d867c]">
+                              Sem condicao adicional. A data de saida continua concluindo o pedido normalmente.
+                            </div>
+                          )}
                         </div>
                       </>
                     ) : (
