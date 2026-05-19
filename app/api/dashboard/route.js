@@ -1322,6 +1322,45 @@ async function execOptionalSqlBatches(supabase, values, sqlBuilder, chunkSize = 
   return rows
 }
 
+// Nível do módulo — adicionar aqui, antes de getTenantSupabase
+async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = []) {
+  const supabaseFilters = filters.filter(f => f.source === 'table' && f.table && f.column && f.value)
+  if (supabaseFilters.length === 0) return null
+
+  const ids = [...new Set(orderIds.map(Number).filter(Number.isFinite))]
+  if (ids.length === 0) return new Set()
+
+  let allowedIds = new Set(orderIds.map(String))
+
+  for (const filter of supabaseFilters) {
+    try {
+      const chunks = chunkArray(ids, 500)
+      const matchingOrderIds = new Set()
+
+      for (const chunk of chunks) {
+        const { data, error } = await supabase
+          .from(filter.table)
+          .select(`id_pedido, ${filter.column}`)
+          .in('id_pedido', chunk)
+
+        if (error || !data) continue
+
+        for (const row of data) {
+          if (matchesPermissionFilter(row[filter.column], filter)) {
+            matchingOrderIds.add(String(row.id_pedido))
+          }
+        }
+      }
+
+      allowedIds = intersectSets(allowedIds, matchingOrderIds)
+    } catch {
+      // ignora silenciosamente tabelas sem coluna id_pedido ou sem acesso
+    }
+  }
+
+  return allowedIds
+}
+
 async function getTenantSupabase(request, tenantSlug) {
   const { company, companySecrets } = await resolveAuthorizedCompany(request, tenantSlug)
   const { url: supabaseUrl, serviceRoleKey: supabaseServiceRoleKey } = resolveSupabaseConfig(company, companySecrets)
@@ -1827,30 +1866,63 @@ export async function GET(request) {
         totalPecas: seller.totalPecas,
       }))
 
-    const getVisualFilters = sectionKey => dashboardVisualFilters?.[sectionKey] || []
-    const getVisualOrderIds = sectionKey =>
-      resolveAllowedOrderIdsFromDashboardFilters(getVisualFilters(sectionKey), finalCachedOrders, products, traceability)
-    const getVisualOrders = sectionKey => {
-      const allowedOrderIds = getVisualOrderIds(sectionKey)
+const getVisualFilters = sectionKey => dashboardVisualFilters?.[sectionKey] || []
+
+    const getVisualOrderIds = async sectionKey => {
+      const sectionFilters = getVisualFilters(sectionKey)
+      const memoryFilters = sectionFilters.filter(f => f.source !== 'table')
+      const supabaseFilterList = sectionFilters.filter(f => f.source === 'table')
+
+      const baseIds = resolveAllowedOrderIdsFromDashboardFilters(
+        memoryFilters, finalCachedOrders, products, traceability
+      )
+
+      if (supabaseFilterList.length === 0) return baseIds
+
+      const supabaseIds = await resolveSupabaseTableFilterIds(
+        supabase, supabaseFilterList, [...baseIds]
+      )
+
+      return supabaseIds ?? baseIds
+    }
+
+    const getVisualOrders = async sectionKey => {
+      const allowedOrderIds = await getVisualOrderIds(sectionKey)
       return orders.filter(row => allowedOrderIds.has(row.pedidoId))
     }
-    const getVisualCachedOrders = sectionKey => {
-      const allowedOrderIds = getVisualOrderIds(sectionKey)
+
+    const getVisualCachedOrders = async sectionKey => {
+      const allowedOrderIds = await getVisualOrderIds(sectionKey)
       return finalCachedOrders.filter(row => allowedOrderIds.has(row.pedidoId))
     }
 
-    const kpiOrders = getVisualOrders('kpis')
-    const pontualidadeOrders = getVisualOrders('pontualidadeChart')
-    const historyOrders = getVisualOrders('history')
-    const productOrderIds = getVisualOrderIds('products')
-    const traceabilityOrderIds = getVisualOrderIds('traceability')
+    const [
+      kpiOrders,
+      pontualidadeOrders,
+      historyOrders,
+      productOrderIds,
+      traceabilityOrderIds,
+      customerVisualIds,
+      sellerVisualIds,
+    ] = await Promise.all([
+      getVisualOrders('kpis'),
+      getVisualOrders('pontualidadeChart'),
+      getVisualOrders('history'),
+      getVisualOrderIds('products'),
+      getVisualOrderIds('traceability'),
+      getVisualOrderIds('customerService'),
+      getVisualOrderIds('sellerRanking'),
+    ])
+
     const visualProducts = products.filter(row => productOrderIds.has(row.pedidoId))
     const visualTraceability = traceability.filter(row => traceabilityOrderIds.has(row.pedidoId))
+
     const visualCustomers = getVisualFilters('customerService').length > 0
-      ? buildCustomerRowsFromOrders(getVisualCachedOrders('customerService'))
+      ? buildCustomerRowsFromOrders(await getVisualCachedOrders('customerService'))
       : customers
+
     const visualSellerRanking = getVisualFilters('sellerRanking').length > 0
-      ? buildSellerRowsFromOrders(getVisualCachedOrders('sellerRanking'))
+      ? buildSellerRowsFromOrders(await getVisualCachedOrders('sellerRanking'))
       : sellerRanking
 
     const weekMap = {}
@@ -1869,7 +1941,7 @@ export async function GET(request) {
 
     if (perdasVisualFilters.length > 0) {
       try {
-        const lossOrderIds = [...getVisualOrderIds('perdasChart')]
+        const lossOrderIds = [...await getVisualOrderIds('perdasChart')]
         visualLossMetricsRows = [
           await fetchLossMetricsFallback(supabase, lossOrderIds, lossFinalityCodes, excludedLossFinalityCodes),
         ]

@@ -142,6 +142,24 @@ export async function GET(request) {
     const tenantSlug = searchParams.get('tenant') || ''
     const supabase = await getTenantSupabase(request, tenantSlug)
 
+    const allTablesRows = await execSql(
+      supabase,
+      `select table_name, column_name
+       from information_schema.columns
+       where table_schema = 'public'
+       order by table_name, ordinal_position`
+    ).catch(() => [])
+
+    const supabaseTablesMap = {}
+    for (const row of allTablesRows) {
+      const tbl = String(row.table_name || '').trim()
+      const col = String(row.column_name || '').trim()
+      if (!tbl || !col) continue
+      if (!supabaseTablesMap[tbl]) supabaseTablesMap[tbl] = []
+      supabaseTablesMap[tbl].push(col)
+    }
+    const supabaseTables = Object.entries(supabaseTablesMap).map(([name, columns]) => ({ name, columns }))
+
     const [almoxColumns, clienColumns, localPedColumns, funcioColumns, grupocliColumns, endcliColumns, zonaColumns] = await Promise.all([
       getTableColumns(supabase, 'almox'),
       getTableColumns(supabase, 'clien'),
@@ -271,7 +289,7 @@ export async function GET(request) {
       { value: 'pending', label: 'Aguardando' },
     ]
 
-    return NextResponse.json({ cells, clients, clientGroups, zones, stages, employees, statuses }, { headers: NO_STORE_HEADERS })
+    return NextResponse.json({ cells, clients, clientGroups, zones, stages, employees, statuses, supabaseTables }, { headers: NO_STORE_HEADERS })
   } catch (error) {
     console.error('[options]', error)
     return NextResponse.json({ error: error.message }, { status: getErrorStatus(error), headers: NO_STORE_HEADERS })

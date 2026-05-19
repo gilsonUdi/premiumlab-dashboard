@@ -695,7 +695,8 @@ export default function AdminPage() {
   }
 
   const updateCompanyVisualFilterTable = (mode, sectionKey, filterId, tableName) => {
-    const table = DASHBOARD_FILTER_TABLES.find(item => item.name === tableName)
+    const supabaseTables = dashboardFilterOptions?.supabaseTables || []
+    const table = supabaseTables.find(item => item.name === tableName)
 
     setForm(previous => ({
       ...previous,
@@ -705,7 +706,7 @@ export default function AdminPage() {
           ...(previous.dashboardVisualFilters?.[mode] || {}),
           [sectionKey]: (previous.dashboardVisualFilters?.[mode]?.[sectionKey] || []).map(filter => {
             if (filter.id !== filterId) return filter
-            const shouldKeepColumn = table?.columns?.some(column => column.name === filter.column)
+            const shouldKeepColumn = table?.columns?.includes(filter.column)
             return {
               ...filter,
               source: 'table',
@@ -1259,9 +1260,9 @@ export default function AdminPage() {
                                                   onChange={event => updateCompanyVisualFilterTable(mode, section.key, filter.id, event.target.value)}
                                                 >
                                                   <option value="">Selecione a tabela</option>
-                                                  {DASHBOARD_FILTER_TABLES.map(table => (
+                                                  {(dashboardFilterOptions?.supabaseTables || []).map(table => (
                                                     <option key={table.name} value={table.name}>
-                                                      {table.label}
+                                                      {table.name}
                                                     </option>
                                                   ))}
                                                 </select>
@@ -1275,11 +1276,12 @@ export default function AdminPage() {
                                                   disabled={!filter.table}
                                                 >
                                                   <option value="">{filter.table ? 'Selecione a coluna' : 'Escolha a tabela primeiro'}</option>
-                                                  {(selectedTable?.columns || []).map(column => (
-                                                    <option key={column.name} value={column.name}>
-                                                      {column.label}
-                                                    </option>
-                                                  ))}
+                                                  {(() => {
+                                                 const supabaseTable = (dashboardFilterOptions?.supabaseTables || []).find(t => t.name === filter.table)
+                                                 return (supabaseTable?.columns || []).map(col => (
+                                                   <option key={col} value={col}>{col}</option>
+                                                  ))
+                                              })()}
                                                 </select>
                                               ) : null}
 
