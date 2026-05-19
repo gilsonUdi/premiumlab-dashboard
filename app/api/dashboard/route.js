@@ -248,6 +248,24 @@ function normalizeOrderCode(value) {
   return text
 }
 
+function normalizeProductCode(value) {
+  if (value == null) return ''
+
+  const text = String(value).trim()
+  if (!text) return ''
+
+  if (/^\d+\.0+$/.test(text)) {
+    return text.replace(/\.0+$/, '')
+  }
+
+  const number = Number(text)
+  if (Number.isFinite(number) && Number.isInteger(number)) {
+    return String(number)
+  }
+
+  return text
+}
+
 function nowInProductionTimeZone() {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: PRODUCTION_TIME_ZONE,
@@ -812,7 +830,7 @@ async function fetchLossMetricsFallback(
   )
   const productCodeFilterSet = new Set(
     (productCodeFilters || [])
-      .map(code => String(code || '').trim())
+      .map(normalizeProductCode)
       .filter(Boolean)
   )
 
@@ -842,7 +860,7 @@ async function fetchLossMetricsFallback(
   )
 
   for (const row of produResult.data || []) {
-    const productCode = String(row.procodigo || '').trim()
+    const productCode = normalizeProductCode(row.procodigo)
     if (productCode) validProductCodeSet.add(productCode)
   }
 
@@ -855,7 +873,7 @@ async function fetchLossMetricsFallback(
       const orderMeta = validOrderMetaById.get(orderId)
       if (!orderMeta) continue
 
-      const productCode = String(row.procodigo || '').trim()
+      const productCode = normalizeProductCode(row.procodigo)
       if (!productCode || !validProductCodeSet.has(productCode)) continue
       if (productCodeFilterSet.size > 0 && !productCodeFilterSet.has(productCode)) continue
 
@@ -1104,7 +1122,7 @@ function resolveExcludedLossFinalityCodes(finalityData) {
   return []
 }
 
-function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], lossFinalityCodes = ['2'], excludedFinalityCodes = [], includeOperationTypeFilter = false }) {
+function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], lossFinalityCodes = ['2'], productCodeFilters = [], excludedFinalityCodes = [], includeOperationTypeFilter = false }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
@@ -1119,6 +1137,16 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
   clauses.push(...buildOrderSearchClauses(pedcodigos))
   if (clienteList.length > 0) clauses.push(`ped.clicodigo in (${clienteList.join(', ')})`)
   if (grupoList.length > 0) clauses.push(`cli.gclcodigo in (${grupoList.join(', ')})`)
+
+  const normalizedProductCodes = [...new Set(
+    (productCodeFilters || [])
+      .map(normalizeProductCode)
+      .filter(Boolean)
+  )]
+
+  if (normalizedProductCodes.length > 0) {
+    clauses.push(`${buildNormalizedProductSqlExpression('prd.procodigo')} in (${normalizedProductCodes.map(sqlLiteral).join(', ')})`)
+  }
 
   const normalizedLossCodes = [...new Set(
     (lossFinalityCodes || [])
@@ -1141,7 +1169,7 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
         prd.pdpqtdade::numeric as qtde_produtos
       from pedid ped
       join pdprd prd on ped.id_pedido = prd.id_pedido
-      join produ pro on trim(prd.procodigo::text) = trim(pro.procodigo::text)
+      join produ pro on ${buildNormalizedProductSqlExpression('prd.procodigo')} = ${buildNormalizedProductSqlExpression('pro.procodigo')}
       left join clien cli on ped.clicodigo = cli.clicodigo
       where ${clauses.join('\n        and ')}
     ) base
@@ -1356,7 +1384,10 @@ function getFirstExistingColumn(columns, candidates) {
 }
 
 function quoteSqlIdentifier(value) {
-  return `"${String(value).replace(/"/g, '""')}"`
+  return String(value)
+    .split('.')
+    .map(part => `"${part.replace(/"/g, '""')}"`)
+    .join('.')
 }
 
 function sqlLiteral(value) {
@@ -1372,6 +1403,10 @@ function parseSqlFilterValues(value) {
 
 function buildSqlTextExpression(column) {
   return `lower(trim(coalesce(${quoteSqlIdentifier(column)}::text, '')))`
+}
+
+function buildNormalizedProductSqlExpression(column) {
+  return `coalesce(nullif(ltrim(regexp_replace(trim(coalesce(${quoteSqlIdentifier(column)}::text, '')), '\\.0+$', ''), '0'), ''), '0')`
 }
 
 function buildSqlFilterCondition(filter = {}) {
@@ -1436,7 +1471,7 @@ function buildSupabaseFilterContext(orders = [], products = []) {
   }
 
   for (const product of products || []) {
-    addToOrderMap(context.orderIdsByProduct, product.procodigo, product.pedidoId)
+    addToOrderMap(context.orderIdsByProduct, normalizeProductCode(product.procodigo), product.pedidoId)
   }
 
   return context
@@ -1460,7 +1495,7 @@ function intersectOrderIdsFromRows(currentIds, rows, linkColumn, context) {
     } else if (linkColumn === 'funcodigo') {
       for (const orderId of context.orderIdsBySeller.get(key) || []) matchingIds.add(orderId)
     } else if (linkColumn === 'procodigo') {
-      for (const orderId of context.orderIdsByProduct.get(key) || []) matchingIds.add(orderId)
+      for (const orderId of context.orderIdsByProduct.get(normalizeProductCode(key)) || []) matchingIds.add(orderId)
     }
   }
 
@@ -1468,7 +1503,7 @@ function intersectOrderIdsFromRows(currentIds, rows, linkColumn, context) {
 }
 
 async function resolveOrderIdsByProductCodes(supabase, currentIds, productCodes) {
-  const codes = [...new Set(productCodes.map(code => String(code || '').trim()).filter(Boolean))]
+  const codes = [...new Set(productCodes.map(normalizeProductCode).filter(Boolean))]
   const numericOrderIds = [...new Set([...currentIds].map(Number).filter(Number.isFinite))]
   if (codes.length === 0 || numericOrderIds.length === 0) return new Set()
 
@@ -1484,7 +1519,7 @@ async function resolveOrderIdsByProductCodes(supabase, currentIds, productCodes)
           select id_pedido, procodigo
           from pdprd
           where id_pedido in (${orderChunk.join(', ')})
-            and trim(procodigo::text) in (${codeChunk.map(sqlLiteral).join(', ')})
+            and ${buildNormalizedProductSqlExpression('procodigo')} in (${codeChunk.map(sqlLiteral).join(', ')})
         `
       )
 
@@ -1516,7 +1551,7 @@ async function resolveSupabaseProductCodesForFilters(supabase, filters = []) {
       const rows = await execOptionalSql(
         supabase,
         `
-          select distinct ${quoteSqlIdentifier('procodigo')} as procodigo
+          select distinct ${buildNormalizedProductSqlExpression('procodigo')} as procodigo
           from ${quoteSqlIdentifier(filter.table)}
           where ${filterCondition}
           limit 200000
@@ -1525,7 +1560,7 @@ async function resolveSupabaseProductCodesForFilters(supabase, filters = []) {
 
       const currentCodes = new Set(
         (rows || [])
-          .map(row => String(row.procodigo || '').trim())
+          .map(row => normalizeProductCode(row.procodigo))
           .filter(Boolean)
       )
 
@@ -2210,15 +2245,33 @@ const getVisualFilters = sectionKey => dashboardVisualFilters?.[sectionKey] || [
     if (perdasVisualFilters.length > 0) {
       try {
         const lossOrderIds = [...await getVisualOrderIds('perdasChart')]
+        const perdasTableFilters = perdasVisualFilters.filter(filter => filter.source === 'table')
         const lossProductCodes = [
           ...await resolveSupabaseProductCodesForFilters(
             supabase,
-            perdasVisualFilters.filter(filter => filter.source === 'table')
+            perdasTableFilters
           ),
         ]
-        visualLossMetricsRows = [
-          await fetchLossMetricsFallback(supabase, lossOrderIds, lossFinalityCodes, excludedLossFinalityCodes, lossProductCodes),
-        ]
+
+        if (perdasVisualFilters.length === 1 && perdasTableFilters.length === 1 && lossProductCodes.length > 0) {
+          visualLossMetricsRows = await execSql(
+            supabase,
+            buildLossMetricsSql({
+              dateStart,
+              dateEnd,
+              pedcodigos: pedcodigoValues,
+              clicodigos: clientCodeFilters,
+              gclcodigos: gclcodigoValues,
+              lossFinalityCodes,
+              excludedFinalityCodes: excludedLossFinalityCodes,
+              productCodeFilters: lossProductCodes,
+            })
+          )
+        } else {
+          visualLossMetricsRows = [
+            await fetchLossMetricsFallback(supabase, lossOrderIds, lossFinalityCodes, excludedLossFinalityCodes, lossProductCodes),
+          ]
+        }
         visualLossMetricsError = null
       } catch (fallbackError) {
         console.error('[dashboard][loss-metrics-visual-fallback]', fallbackError)
