@@ -1176,6 +1176,59 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
   `
 }
 
+function buildLossMetricsByOrderIdsSql({ orderIds = [], lossFinalityCodes = ['2'], productCodeFilters = null }) {
+  const ids = asSqlIdList(orderIds)
+  if (!ids) return null
+
+  const normalizedLossCodes = [...new Set(
+    (lossFinalityCodes || [])
+      .map(code => String(code || '').trim())
+      .filter(Boolean)
+  )]
+  const lossCodesSql = normalizedLossCodes.length > 0
+    ? normalizedLossCodes.map(code => `'${code.replace(/'/g, "''")}'`).join(', ')
+    : `'2'`
+
+  const normalizedProductCodes = productCodeFilters == null
+    ? []
+    : [...new Set(
+        [...productCodeFilters]
+          .map(normalizeProductCode)
+          .filter(Boolean)
+      )]
+
+  if (productCodeFilters != null && normalizedProductCodes.length === 0) {
+    return `
+      select
+        0::numeric as qtd_perdas,
+        0::numeric as qtd_lanca_financeiro,
+        0::numeric as qtd_perda_produz
+    `
+  }
+
+  const productClause = normalizedProductCodes.length > 0
+    ? `and ${buildNormalizedProductSqlExpression('prd.procodigo')} in (${normalizedProductCodes.map(sqlLiteral).join(', ')})`
+    : ''
+
+  return `
+    select
+      coalesce(sum(case when base.finalidade in (${lossCodesSql}) then base.qtde_produtos else 0 end), 0) as qtd_perdas,
+      greatest(coalesce(sum(base.qtde_produtos), 0) - coalesce(sum(case when base.finalidade in (${lossCodesSql}) then base.qtde_produtos else 0 end), 0), 0) as qtd_lanca_financeiro,
+      coalesce(sum(base.qtde_produtos), 0) as qtd_perda_produz
+    from (
+      select
+        ped.pdfcodigo::text as finalidade,
+        prd.pdpqtdade::numeric as qtde_produtos
+      from pedid ped
+      join pdprd prd on ped.id_pedido = prd.id_pedido
+      join produ pro on ${buildNormalizedProductSqlExpression('prd.procodigo')} = ${buildNormalizedProductSqlExpression('pro.procodigo')}
+      where ped.id_pedido in (${ids})
+        and ped.pedsitped <> 'C'
+        ${productClause}
+    ) base
+  `
+}
+
 async function tableExists(supabase, tableName, sampleColumn = '*') {
   try {
     const { error } = await supabase
@@ -1534,9 +1587,10 @@ async function resolveOrderIdsByProductCodes(supabase, currentIds, productCodes)
 
 async function resolveSupabaseProductCodesForFilters(supabase, filters = []) {
   const productFilters = filters.filter(filter => filter.source === 'table' && filter.table && filter.column && filter.value)
-  if (productFilters.length === 0) return new Set()
+  if (productFilters.length === 0) return null
 
   let productCodes = null
+  let appliedProductFilter = false
 
   for (const filter of productFilters) {
     try {
@@ -1544,6 +1598,7 @@ async function resolveSupabaseProductCodesForFilters(supabase, filters = []) {
 
       const columns = await getSupabaseTableColumnSet(supabase, filter.table)
       if (!columns.has('procodigo') || !columns.has(filter.column)) continue
+      appliedProductFilter = true
 
       const filterCondition = buildSqlFilterCondition(filter)
       if (!filterCondition) continue
@@ -1570,7 +1625,7 @@ async function resolveSupabaseProductCodesForFilters(supabase, filters = []) {
     }
   }
 
-  return productCodes || new Set()
+  return appliedProductFilter ? productCodes || new Set() : null
 }
 
 async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = [], context = {}) {
@@ -2246,32 +2301,14 @@ const getVisualFilters = sectionKey => dashboardVisualFilters?.[sectionKey] || [
       try {
         const lossOrderIds = [...await getVisualOrderIds('perdasChart')]
         const perdasTableFilters = perdasVisualFilters.filter(filter => filter.source === 'table')
-        const lossProductCodes = [
-          ...await resolveSupabaseProductCodesForFilters(
-            supabase,
-            perdasTableFilters
-          ),
-        ]
+        const lossProductCodeSet = await resolveSupabaseProductCodesForFilters(supabase, perdasTableFilters)
+        const lossSql = buildLossMetricsByOrderIdsSql({
+          orderIds: lossOrderIds,
+          lossFinalityCodes,
+          productCodeFilters: lossProductCodeSet,
+        })
 
-        if (perdasVisualFilters.length === 1 && perdasTableFilters.length === 1 && lossProductCodes.length > 0) {
-          visualLossMetricsRows = await execSql(
-            supabase,
-            buildLossMetricsSql({
-              dateStart,
-              dateEnd,
-              pedcodigos: pedcodigoValues,
-              clicodigos: clientCodeFilters,
-              gclcodigos: gclcodigoValues,
-              lossFinalityCodes,
-              excludedFinalityCodes: excludedLossFinalityCodes,
-              productCodeFilters: lossProductCodes,
-            })
-          )
-        } else {
-          visualLossMetricsRows = [
-            await fetchLossMetricsFallback(supabase, lossOrderIds, lossFinalityCodes, excludedLossFinalityCodes, lossProductCodes),
-          ]
-        }
+        visualLossMetricsRows = lossSql ? await execSql(supabase, lossSql) : [{ qtd_perdas: 0, qtd_lanca_financeiro: 0, qtd_perda_produz: 0 }]
         visualLossMetricsError = null
       } catch (fallbackError) {
         console.error('[dashboard][loss-metrics-visual-fallback]', fallbackError)
