@@ -1323,7 +1323,118 @@ async function execOptionalSqlBatches(supabase, values, sqlBuilder, chunkSize = 
 }
 
 // Nível do módulo — adicionar aqui, antes de getTenantSupabase
-async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = []) {
+function isSafeSqlIdentifier(value) {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(String(value || '').trim())
+}
+
+async function getSupabaseTableColumnSet(supabase, tableName) {
+  if (!isSafeSqlIdentifier(tableName)) return new Set()
+
+  const rows = await execOptionalSql(
+    supabase,
+    `
+      select column_name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = '${String(tableName).replace(/'/g, "''")}'
+      order by ordinal_position
+    `
+  )
+
+  return new Set(rows.map(row => String(row.column_name || '').trim()).filter(Boolean))
+}
+
+function getFirstExistingColumn(columns, candidates) {
+  return candidates.find(column => columns.has(column)) || ''
+}
+
+function addToOrderMap(map, key, orderId) {
+  const normalizedKey = String(key ?? '').trim()
+  const normalizedOrderId = String(orderId ?? '').trim()
+  if (!normalizedKey || !normalizedOrderId) return
+  if (!map.has(normalizedKey)) map.set(normalizedKey, new Set())
+  map.get(normalizedKey).add(normalizedOrderId)
+}
+
+function buildSupabaseFilterContext(orders = [], products = []) {
+  const context = {
+    orderIdsByPedcodigo: new Map(),
+    orderIdsByClient: new Map(),
+    orderIdsBySeller: new Map(),
+    orderIdsByProduct: new Map(),
+  }
+
+  for (const order of orders || []) {
+    addToOrderMap(context.orderIdsByPedcodigo, normalizeOrderCode(order.pedcodigo), order.pedidoId)
+    addToOrderMap(context.orderIdsByPedcodigo, normalizeOrderCode(order.pedidoId), order.pedidoId)
+    addToOrderMap(context.orderIdsByClient, order.clicodigo, order.pedidoId)
+    addToOrderMap(context.orderIdsBySeller, order.vendedorCodigo, order.pedidoId)
+  }
+
+  for (const product of products || []) {
+    addToOrderMap(context.orderIdsByProduct, product.procodigo, product.pedidoId)
+  }
+
+  return context
+}
+
+function intersectOrderIdsFromRows(currentIds, rows, linkColumn, context) {
+  const matchingIds = new Set()
+
+  for (const row of rows || []) {
+    const rawValue = row?.[linkColumn]
+    if (rawValue == null) continue
+    const key = String(rawValue).trim()
+    if (!key) continue
+
+    if (linkColumn === 'id_pedido') {
+      matchingIds.add(key)
+    } else if (linkColumn === 'pedcodigo') {
+      for (const orderId of context.orderIdsByPedcodigo.get(normalizeOrderCode(key)) || []) matchingIds.add(orderId)
+    } else if (linkColumn === 'clicodigo') {
+      for (const orderId of context.orderIdsByClient.get(key) || []) matchingIds.add(orderId)
+    } else if (linkColumn === 'funcodigo') {
+      for (const orderId of context.orderIdsBySeller.get(key) || []) matchingIds.add(orderId)
+    } else if (linkColumn === 'procodigo') {
+      for (const orderId of context.orderIdsByProduct.get(key) || []) matchingIds.add(orderId)
+    }
+  }
+
+  return intersectSets(currentIds, matchingIds)
+}
+
+async function resolveOrderIdsByProductCodes(supabase, currentIds, productCodes) {
+  const codes = [...new Set(productCodes.map(code => String(code || '').trim()).filter(Boolean))]
+  const numericOrderIds = [...new Set([...currentIds].map(Number).filter(Number.isFinite))]
+  if (codes.length === 0 || numericOrderIds.length === 0) return new Set()
+
+  const matchingIds = new Set()
+  const orderChunks = chunkArray(numericOrderIds, 500)
+  const codeChunks = chunkArray(codes, 500)
+
+  for (const orderChunk of orderChunks) {
+    for (const codeChunk of codeChunks) {
+      const { data, error } = await supabase
+        .from('pdprd')
+        .select('id_pedido, procodigo')
+        .in('id_pedido', orderChunk)
+        .in('procodigo', codeChunk)
+
+      if (error) {
+        console.warn('[dashboard][visual-filter] falha ao vincular produtos a pedidos', error.message)
+        continue
+      }
+
+      for (const row of data || []) {
+        if (row.id_pedido != null) matchingIds.add(String(row.id_pedido))
+      }
+    }
+  }
+
+  return intersectSets(currentIds, matchingIds)
+}
+
+async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = [], context = {}) {
   const supabaseFilters = filters.filter(f => f.source === 'table' && f.table && f.column && f.value)
   if (supabaseFilters.length === 0) return null
 
@@ -1334,27 +1445,74 @@ async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = 
 
   for (const filter of supabaseFilters) {
     try {
-      const chunks = chunkArray(ids, 500)
-      const matchingOrderIds = new Set()
-
-      for (const chunk of chunks) {
-        const { data, error } = await supabase
-          .from(filter.table)
-          .select(`id_pedido, ${filter.column}`)
-          .in('id_pedido', chunk)
-
-        if (error || !data) continue
-
-        for (const row of data) {
-          if (matchesPermissionFilter(row[filter.column], filter)) {
-            matchingOrderIds.add(String(row.id_pedido))
-          }
-        }
+      if (!isSafeSqlIdentifier(filter.table) || !isSafeSqlIdentifier(filter.column)) {
+        console.warn('[dashboard][visual-filter] identificador invalido', filter.table, filter.column)
+        continue
       }
 
-      allowedIds = intersectSets(allowedIds, matchingOrderIds)
-    } catch {
-      // ignora silenciosamente tabelas sem coluna id_pedido ou sem acesso
+      const columns = await getSupabaseTableColumnSet(supabase, filter.table)
+      if (!columns.has(filter.column)) {
+        console.warn('[dashboard][visual-filter] coluna nao encontrada', filter.table, filter.column)
+        continue
+      }
+
+      const linkColumn = getFirstExistingColumn(columns, ['id_pedido', 'pedcodigo', 'clicodigo', 'funcodigo', 'procodigo'])
+      if (!linkColumn) {
+        console.warn('[dashboard][visual-filter] tabela sem coluna de vinculo com pedidos', filter.table)
+        continue
+      }
+
+      const matchingOrderIds = new Set()
+      const selectColumns = [...new Set([linkColumn, filter.column])].join(', ')
+
+      if (linkColumn === 'id_pedido') {
+        const chunks = chunkArray(ids, 500)
+
+        for (const chunk of chunks) {
+          const { data, error } = await supabase
+            .from(filter.table)
+            .select(selectColumns)
+            .in('id_pedido', chunk)
+
+          if (error) {
+            console.warn('[dashboard][visual-filter] falha ao consultar filtro', filter.table, error.message)
+            continue
+          }
+
+          for (const row of data || []) {
+            if (matchesPermissionFilter(row[filter.column], filter)) {
+              matchingOrderIds.add(String(row.id_pedido))
+            }
+          }
+        }
+
+        allowedIds = intersectSets(allowedIds, matchingOrderIds)
+        continue
+      }
+
+      const { data, error } = await supabase
+        .from(filter.table)
+        .select(selectColumns)
+        .limit(200000)
+
+      if (error) {
+        console.warn('[dashboard][visual-filter] falha ao consultar filtro', filter.table, error.message)
+        continue
+      }
+
+      const matchingRows = (data || []).filter(row => matchesPermissionFilter(row[filter.column], filter))
+      const linkedIds = intersectOrderIdsFromRows(allowedIds, matchingRows, linkColumn, context)
+      if (linkColumn === 'procodigo' && linkedIds.size === 0) {
+        allowedIds = await resolveOrderIdsByProductCodes(
+          supabase,
+          allowedIds,
+          matchingRows.map(row => row.procodigo)
+        )
+      } else {
+        allowedIds = linkedIds
+      }
+    } catch (error) {
+      console.warn('[dashboard][visual-filter] filtro ignorado', filter.table, filter.column, error?.message || error)
     }
   }
 
@@ -1872,6 +2030,7 @@ const getVisualFilters = sectionKey => dashboardVisualFilters?.[sectionKey] || [
       const sectionFilters = getVisualFilters(sectionKey)
       const memoryFilters = sectionFilters.filter(f => f.source !== 'table')
       const supabaseFilterList = sectionFilters.filter(f => f.source === 'table')
+      const supabaseFilterContext = buildSupabaseFilterContext(finalCachedOrders, products)
 
       const baseIds = resolveAllowedOrderIdsFromDashboardFilters(
         memoryFilters, finalCachedOrders, products, traceability
@@ -1880,7 +2039,7 @@ const getVisualFilters = sectionKey => dashboardVisualFilters?.[sectionKey] || [
       if (supabaseFilterList.length === 0) return baseIds
 
       const supabaseIds = await resolveSupabaseTableFilterIds(
-        supabase, supabaseFilterList, [...baseIds]
+        supabase, supabaseFilterList, [...baseIds], supabaseFilterContext
       )
 
       return supabaseIds ?? baseIds
@@ -2016,4 +2175,3 @@ const getVisualFilters = sectionKey => dashboardVisualFilters?.[sectionKey] || [
     return NextResponse.json({ error: sanitizeErrorMessage(error) }, { status: getErrorStatus(error), headers: NO_STORE_HEADERS })
   }
 }
-

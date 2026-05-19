@@ -31,7 +31,6 @@ import {
 } from '@/lib/portal-store'
 import {
   DASHBOARD_FILTER_FIELDS,
-  DASHBOARD_FILTER_TABLES,
   DASHBOARD_SECTION_GROUPS,
   buildDefaultDashboardVisualFilters,
   getDashboardFilterDefinition,
@@ -1214,7 +1213,6 @@ export default function AdminPage() {
                                     <div className="mt-3 space-y-3">
                                       {filters.map(filter => {
                                         const source = filter.source || (filter.field ? 'standard' : 'table')
-                                        const selectedTable = DASHBOARD_FILTER_TABLES.find(table => table.name === filter.table)
                                         const filterDefinition = getDashboardFilterDefinition(filter.field)
                                         const fieldOptions = getDashboardFieldOptions(filter.field)
 
