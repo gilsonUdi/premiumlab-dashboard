@@ -1962,7 +1962,7 @@ async function syncManualTable(db, supabase, tableName, definition, options) {
   return normalizedRows.length;
 }
 
-async function refreshRecentWindow(supabase, tables, days, refreshLinkedTables = {}) {
+async function refreshRecentWindow(supabase, tables, days, refreshLinkedTables = {}, upsertTables = new Set()) {
   const envRecentDays = Number(process.env.SYNC_RECENT_DAYS || 0);
   const effectiveDays = days && days > 0 ? days : envRecentDays;
 
@@ -2008,9 +2008,9 @@ async function refreshRecentWindow(supabase, tables, days, refreshLinkedTables =
     },
   ];
 
-  const activeSteps = steps.filter((step) => step.enabled);
+  const activeSteps = steps.filter((step) => step.enabled && !upsertTables.has(step.table));
   const refreshLinkedSteps = Object.entries(refreshLinkedTables)
-    .filter(([table]) => wanted.has(table))
+    .filter(([table]) => wanted.has(table) && !upsertTables.has(String(table || "").trim().toUpperCase()))
     .map(([table, filter]) => ({
       table,
       days: filter.days || days,
@@ -2028,6 +2028,8 @@ async function refreshRecentWindow(supabase, tables, days, refreshLinkedTables =
     for (const step of activeSteps) {
       await deleteSupabaseInChunks(supabase, step.table, step.where);
     }
+  } else {
+    log("Refresh  : limpeza previa ignorada para tabelas em modo upsert");
   }
 
   for (const step of refreshLinkedSteps) {
@@ -2265,7 +2267,7 @@ async function runOnce() {
     }
 
     if (!dryRun && refreshRecentDays && refreshRecentDays > 0) {
-      await refreshRecentWindow(supabase, tables, refreshRecentDays, refreshLinkedTables);
+      await refreshRecentWindow(supabase, tables, refreshRecentDays, refreshLinkedTables, upsertTables);
     }
 
     const effectiveFilters = applyRefreshWindowToFilters(dateFilters, linkedDateFilters, refreshRecentDays, tables);
