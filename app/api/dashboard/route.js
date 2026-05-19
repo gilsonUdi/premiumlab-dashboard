@@ -669,6 +669,7 @@ async function fetchLossMetricsFallback(
 
   const orderChunks = chunkArray(ids, 500)
   const validOrderMetaById = new Map()
+  const validProductCodeSet = new Set()
 
   for (const chunk of orderChunks) {
     const result = await fetchOptionalPages(
@@ -684,6 +685,16 @@ async function fetchLossMetricsFallback(
         finalityCode: String(row.pdfcodigo || '').trim(),
       })
     }
+  }
+
+  const produResult = await fetchOptionalPages(
+    () => supabase.from('produ').select('procodigo'),
+    { maxRows: 500000 }
+  )
+
+  for (const row of produResult.data || []) {
+    const productCode = String(row.procodigo || '').trim()
+    if (productCode) validProductCodeSet.add(productCode)
   }
 
   let qtdPerdas = 0
@@ -712,25 +723,6 @@ async function fetchLossMetricsFallback(
       () => supabase.from('pdprd').select('id_pedido,procodigo,pdpqtdade').in('id_pedido', chunk),
       { maxRows: 200000 }
     )
-
-    const productCodes = [...new Set(
-      (productsResult.data || [])
-        .map(row => String(row.procodigo || '').trim())
-        .filter(Boolean)
-    )]
-
-    const validProductCodeSet = new Set()
-    for (const productChunk of chunkArray(productCodes, 500)) {
-      const produResult = await fetchOptionalPages(
-        () => supabase.from('produ').select('procodigo').in('procodigo', productChunk),
-        { maxRows: productChunk.length }
-      )
-
-      for (const row of produResult.data || []) {
-        const productCode = String(row.procodigo || '').trim()
-        if (productCode) validProductCodeSet.add(productCode)
-      }
-    }
 
     accumulateItems((productsResult.data || []).map(row => ({
       id_pedido: row.id_pedido,
