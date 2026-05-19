@@ -1462,6 +1462,10 @@ function buildNormalizedProductSqlExpression(column) {
   return `coalesce(nullif(ltrim(regexp_replace(trim(coalesce(${quoteSqlIdentifier(column)}::text, '')), '\\.0+$', ''), '0'), ''), '0')`
 }
 
+function buildNormalizedCodeSqlExpression(column) {
+  return `lower(coalesce(nullif(ltrim(regexp_replace(trim(coalesce(${quoteSqlIdentifier(column)}::text, '')), '\\.0+$', ''), '0'), ''), '0'))`
+}
+
 function buildSqlFilterCondition(filter = {}) {
   const operator = String(filter.operator || 'is').trim()
   const values = parseSqlFilterValues(filter.value)
@@ -1585,6 +1589,37 @@ async function resolveOrderIdsByProductCodes(supabase, currentIds, productCodes)
   return intersectSets(currentIds, matchingIds)
 }
 
+async function resolveProductCodesByGroupCodes(supabase, groupCodes = []) {
+  const codes = [...new Set(
+    (groupCodes || [])
+      .map(normalizePermissionFilterValue)
+      .filter(Boolean)
+  )]
+
+  if (codes.length === 0) return new Set()
+
+  const productCodes = new Set()
+  const chunks = chunkArray(codes, 500)
+
+  for (const chunk of chunks) {
+    const rows = await execOptionalSql(
+      supabase,
+      `
+        select distinct ${buildNormalizedProductSqlExpression('procodigo')} as procodigo
+        from produ
+        where ${buildNormalizedCodeSqlExpression('gr1codigo')} in (${chunk.map(sqlLiteral).join(', ')})
+      `
+    )
+
+    for (const row of rows || []) {
+      const productCode = normalizeProductCode(row.procodigo)
+      if (productCode) productCodes.add(productCode)
+    }
+  }
+
+  return productCodes
+}
+
 async function resolveSupabaseProductCodesForFilters(supabase, filters = []) {
   const productFilters = filters.filter(filter => filter.source === 'table' && filter.table && filter.column && filter.value)
   if (productFilters.length === 0) return null
@@ -1597,11 +1632,35 @@ async function resolveSupabaseProductCodesForFilters(supabase, filters = []) {
       if (!isSafeSqlIdentifier(filter.table) || !isSafeSqlIdentifier(filter.column)) continue
 
       const columns = await getSupabaseTableColumnSet(supabase, filter.table)
-      if (!columns.has('procodigo') || !columns.has(filter.column)) continue
+      if (!columns.has(filter.column)) continue
+
+      const hasProductLink = columns.has('procodigo')
+      const hasGroupLink = columns.has('gr1codigo')
+      if (!hasProductLink && !hasGroupLink) continue
       appliedProductFilter = true
 
       const filterCondition = buildSqlFilterCondition(filter)
       if (!filterCondition) continue
+
+      if (hasGroupLink && !hasProductLink) {
+        const rows = await execOptionalSql(
+          supabase,
+          `
+            select distinct ${buildNormalizedCodeSqlExpression('gr1codigo')} as gr1codigo
+            from ${quoteSqlIdentifier(filter.table)}
+            where ${filterCondition}
+            limit 200000
+          `
+        )
+
+        const currentCodes = await resolveProductCodesByGroupCodes(
+          supabase,
+          (rows || []).map(row => row.gr1codigo)
+        )
+
+        productCodes = productCodes == null ? currentCodes : intersectSets(productCodes, currentCodes)
+        continue
+      }
 
       const rows = await execOptionalSql(
         supabase,
@@ -1650,7 +1709,7 @@ async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = 
         continue
       }
 
-      const linkColumn = getFirstExistingColumn(columns, ['id_pedido', 'pedcodigo', 'clicodigo', 'funcodigo', 'procodigo'])
+      const linkColumn = getFirstExistingColumn(columns, ['id_pedido', 'pedcodigo', 'clicodigo', 'funcodigo', 'procodigo', 'gr1codigo'])
       if (!linkColumn) {
         console.warn('[dashboard][visual-filter] tabela sem coluna de vinculo com pedidos', filter.table)
         continue
@@ -1700,6 +1759,16 @@ async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = 
       )
 
       const matchingRows = data || []
+      if (linkColumn === 'gr1codigo') {
+        const productCodes = await resolveProductCodesByGroupCodes(
+          supabase,
+          matchingRows.map(row => row.gr1codigo)
+        )
+
+        allowedIds = await resolveOrderIdsByProductCodes(supabase, allowedIds, [...productCodes])
+        continue
+      }
+
       const linkedIds = intersectOrderIdsFromRows(allowedIds, matchingRows, linkColumn, context)
       if (linkColumn === 'procodigo' && linkedIds.size === 0) {
         allowedIds = await resolveOrderIdsByProductCodes(
@@ -2223,7 +2292,7 @@ export async function GET(request) {
         totalPecas: seller.totalPecas,
       }))
 
-const getVisualFilters = sectionKey => dashboardVisualFilters?.[sectionKey] || []
+    const getVisualFilters = sectionKey => dashboardVisualFilters?.[sectionKey] || []
 
     const getVisualOrderIds = async sectionKey => {
       const sectionFilters = getVisualFilters(sectionKey)
@@ -2260,16 +2329,12 @@ const getVisualFilters = sectionKey => dashboardVisualFilters?.[sectionKey] || [
       historyOrders,
       productOrderIds,
       traceabilityOrderIds,
-      customerVisualIds,
-      sellerVisualIds,
     ] = await Promise.all([
       getVisualOrders('kpis'),
       getVisualOrders('pontualidadeChart'),
       getVisualOrders('history'),
       getVisualOrderIds('products'),
       getVisualOrderIds('traceability'),
-      getVisualOrderIds('customerService'),
-      getVisualOrderIds('sellerRanking'),
     ])
 
     const visualProducts = products.filter(row => productOrderIds.has(row.pedidoId))
