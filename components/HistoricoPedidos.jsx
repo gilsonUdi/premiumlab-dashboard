@@ -144,7 +144,7 @@ export default function HistoricoPedidos({
     { key: 'clinome', label: 'Cliente' },
     { key: 'currentCell', label: 'Celula' },
     { key: 'previsto', label: 'Data Prevista' },
-    ...(showDelayDays ? [{ key: 'diasAtraso', label: 'DiasLab' }] : []),
+    ...(showDelayDays ? [{ key: 'diasAtraso', label: 'Dias no Lab' }] : []),
     ...(!hideDeliveredColumn ? [{ key: 'saida', label: 'Dt. Saida' }] : []),
     { key: 'roteiroResumo', label: 'Roteiro' },
   ]
