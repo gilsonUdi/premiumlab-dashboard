@@ -65,6 +65,7 @@ function normalizeCompanyPayload(payload = {}) {
     powerBiReportId: portalSettings.powerBiReportId,
     powerBiDatasetId: portalSettings.powerBiDatasetId,
     powerBiReports: portalSettings.powerBiReports,
+    dashboardVisualFilters: portalSettings.dashboardVisualFilters,
     lossFinalityCodes: [...new Set(lossFinalityCodes)],
     createdAt: payload.createdAt || new Date().toISOString(),
   }
@@ -153,6 +154,7 @@ export async function POST(request) {
         powerBiReportId: company.powerBiReportId,
         powerBiDatasetId: company.powerBiDatasetId,
         powerBiReports: company.powerBiReports,
+        dashboardVisualFilters: company.dashboardVisualFilters,
         lossFinalityCodes: company.lossFinalityCodes,
         authUid: authUser.uid,
         hasServiceRoleKey: Boolean(supabaseServiceRoleKey),

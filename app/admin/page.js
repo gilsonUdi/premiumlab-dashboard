@@ -31,7 +31,9 @@ import {
 } from '@/lib/portal-store'
 import {
   DASHBOARD_FILTER_FIELDS,
+  DASHBOARD_FILTER_TABLES,
   DASHBOARD_SECTION_GROUPS,
+  buildDefaultDashboardVisualFilters,
   getDashboardFilterDefinition,
   normalizeUserPermissions,
   PORTAL_PAGE_KEYS,
@@ -68,6 +70,7 @@ const emptyForm = {
   powerBiReportId: '',
   powerBiDatasetId: '',
   powerBiReports: [],
+  dashboardVisualFilters: buildDefaultDashboardVisualFilters(),
   lossFinalityCodesText: '',
   tools: ['dashboard'],
   isPremiumLab: false,
@@ -227,6 +230,12 @@ export default function AdminPage() {
     [form.id, state?.companies]
   )
 
+  const dashboardOptionsCompany = isUserModalOpen
+    ? managingCompany
+    : isCompanyModalOpen && form.supabaseEnabled
+      ? editingCompany
+      : null
+
   useEffect(() => {
     let active = true
 
@@ -277,7 +286,7 @@ export default function AdminPage() {
     let active = true
 
     async function loadDashboardFilterOptions() {
-      if (!isUserModalOpen || !managingCompany || !managingCompany.supabaseEnabled) {
+      if (!dashboardOptionsCompany || !dashboardOptionsCompany.supabaseEnabled) {
         if (active) {
           setDashboardFilterOptions(null)
           setDashboardFilterOptionsError('')
@@ -290,7 +299,7 @@ export default function AdminPage() {
         setDashboardFilterOptionsLoading(true)
         setDashboardFilterOptionsError('')
         const token = await getPortalAccessToken()
-        const response = await fetch(`/api/options?tenant=${encodeURIComponent(managingCompany.slug)}`, {
+        const response = await fetch(`/api/options?tenant=${encodeURIComponent(dashboardOptionsCompany.slug)}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -317,7 +326,7 @@ export default function AdminPage() {
     return () => {
       active = false
     }
-  }, [isUserModalOpen, managingCompany])
+  }, [dashboardOptionsCompany])
 
   const handleLogout = async () => {
     await clearPortalSession()
@@ -362,6 +371,7 @@ export default function AdminPage() {
           .split(',')
           .map(code => String(code || '').trim())
           .filter(Boolean),
+        dashboardVisualFilters: form.dashboardVisualFilters,
         powerBiReports: normalizedReports,
         powerBiEnabled: form.powerBiEnabled && normalizedReports.length > 0,
         powerBiLabel: primaryReport?.label || '',
@@ -401,6 +411,7 @@ export default function AdminPage() {
       powerBiReportId: company.powerBiReportId || '',
       powerBiDatasetId: company.powerBiDatasetId || '',
       powerBiReports: getPowerBiReportCatalog(company),
+      dashboardVisualFilters: company.dashboardVisualFilters || buildDefaultDashboardVisualFilters(),
       lossFinalityCodesText: Array.isArray(company.lossFinalityCodes) ? company.lossFinalityCodes.join(', ') : '',
       tools: company.tools || ['dashboard'],
       isPremiumLab: company.isPremiumLab,
@@ -594,6 +605,133 @@ export default function AdminPage() {
       }
       return true
     })
+
+  const addCompanyVisualFilter = (mode, sectionKey) => {
+    setForm(previous => ({
+      ...previous,
+      dashboardVisualFilters: {
+        ...previous.dashboardVisualFilters,
+        [mode]: {
+          ...(previous.dashboardVisualFilters?.[mode] || {}),
+          [sectionKey]: [
+            ...(previous.dashboardVisualFilters?.[mode]?.[sectionKey] || []),
+            {
+              id: `visual-filter-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              source: 'standard',
+              field: '',
+              table: '',
+              column: '',
+              operator: 'is',
+              value: '',
+            },
+          ],
+        },
+      },
+    }))
+  }
+
+  const updateCompanyVisualFilter = (mode, sectionKey, filterId, field, value) => {
+    setForm(previous => ({
+      ...previous,
+      dashboardVisualFilters: {
+        ...previous.dashboardVisualFilters,
+        [mode]: {
+          ...(previous.dashboardVisualFilters?.[mode] || {}),
+          [sectionKey]: (previous.dashboardVisualFilters?.[mode]?.[sectionKey] || []).map(filter =>
+            filter.id === filterId ? { ...filter, [field]: value } : filter
+          ),
+        },
+      },
+    }))
+  }
+
+  const updateCompanyVisualFilterSource = (mode, sectionKey, filterId, source) => {
+    setForm(previous => ({
+      ...previous,
+      dashboardVisualFilters: {
+        ...previous.dashboardVisualFilters,
+        [mode]: {
+          ...(previous.dashboardVisualFilters?.[mode] || {}),
+          [sectionKey]: (previous.dashboardVisualFilters?.[mode]?.[sectionKey] || []).map(filter =>
+            filter.id === filterId
+              ? {
+                  ...filter,
+                  source,
+                  field: '',
+                  table: '',
+                  column: '',
+                  value: '',
+                }
+              : filter
+          ),
+        },
+      },
+    }))
+  }
+
+  const updateCompanyVisualFilterField = (mode, sectionKey, filterId, fieldName) => {
+    const definition = getDashboardFilterDefinition(fieldName)
+
+    setForm(previous => ({
+      ...previous,
+      dashboardVisualFilters: {
+        ...previous.dashboardVisualFilters,
+        [mode]: {
+          ...(previous.dashboardVisualFilters?.[mode] || {}),
+          [sectionKey]: (previous.dashboardVisualFilters?.[mode]?.[sectionKey] || []).map(filter => {
+            if (filter.id !== filterId) return filter
+            return {
+              ...filter,
+              source: 'standard',
+              field: definition?.name || '',
+              table: definition?.table || '',
+              column: definition?.column || '',
+              value: '',
+            }
+          }),
+        },
+      },
+    }))
+  }
+
+  const updateCompanyVisualFilterTable = (mode, sectionKey, filterId, tableName) => {
+    const table = DASHBOARD_FILTER_TABLES.find(item => item.name === tableName)
+
+    setForm(previous => ({
+      ...previous,
+      dashboardVisualFilters: {
+        ...previous.dashboardVisualFilters,
+        [mode]: {
+          ...(previous.dashboardVisualFilters?.[mode] || {}),
+          [sectionKey]: (previous.dashboardVisualFilters?.[mode]?.[sectionKey] || []).map(filter => {
+            if (filter.id !== filterId) return filter
+            const shouldKeepColumn = table?.columns?.some(column => column.name === filter.column)
+            return {
+              ...filter,
+              source: 'table',
+              field: '',
+              table: tableName,
+              column: shouldKeepColumn ? filter.column : '',
+              value: '',
+            }
+          }),
+        },
+      },
+    }))
+  }
+
+  const removeCompanyVisualFilter = (mode, sectionKey, filterId) => {
+    setForm(previous => ({
+      ...previous,
+      dashboardVisualFilters: {
+        ...previous.dashboardVisualFilters,
+        [mode]: {
+          ...(previous.dashboardVisualFilters?.[mode] || {}),
+          [sectionKey]: (previous.dashboardVisualFilters?.[mode]?.[sectionKey] || []).filter(filter => filter.id !== filterId),
+        },
+      },
+    }))
+  }
 
   const removeUserDashboardFilter = (mode, filterId) => {
     setUserForm(previous => ({
@@ -1019,6 +1157,188 @@ export default function AdminPage() {
                   />
                 </div>
                 </div>
+
+                {form.supabaseEnabled ? (
+                  <details className="rounded-[24px] bg-white/[0.05] p-4">
+                    <summary className="cursor-pointer list-none">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="text-sm font-semibold text-white">Filtros por visual</h4>
+                          <p className="mt-1 text-sm text-[#b7b0a6]">
+                            Aplique filtros fixos em graficos ou tabelas especificas do PPS e da Analise de Dados.
+                          </p>
+                        </div>
+                        <span className="portal-pill">Retraivel</span>
+                      </div>
+                    </summary>
+
+                    <div className="mt-4 space-y-4">
+                      {dashboardFilterOptionsLoading ? (
+                        <p className="text-sm text-[#b7b0a6]">Carregando valores dos filtros padrao...</p>
+                      ) : null}
+                      {dashboardFilterOptionsError ? (
+                        <p className="text-sm text-amber-200">{dashboardFilterOptionsError}</p>
+                      ) : null}
+
+                      {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode, sections]) => (
+                        <div key={mode} className="rounded-[20px] bg-white/[0.04] p-4">
+                          <h5 className="text-sm font-semibold text-white">
+                            {mode === 'pps' ? 'PPS' : 'Analise de Dados'}
+                          </h5>
+
+                          <div className="mt-4 space-y-3">
+                            {sections.map(section => {
+                              const filters = form.dashboardVisualFilters?.[mode]?.[section.key] || []
+
+                              return (
+                                <div key={section.key} className="rounded-[18px] bg-[#141216] p-3">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-semibold text-white">{section.label}</p>
+                                      <p className="mt-1 text-xs text-[#8d867c]">
+                                        {filters.length === 0 ? 'Sem filtro exclusivo para este visual.' : `${filters.length} filtro(s) aplicado(s).`}
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="portal-ghost-button"
+                                      onClick={() => addCompanyVisualFilter(mode, section.key)}
+                                    >
+                                      <Plus size={14} />
+                                      Adicionar
+                                    </button>
+                                  </div>
+
+                                  {filters.length > 0 ? (
+                                    <div className="mt-3 space-y-3">
+                                      {filters.map(filter => {
+                                        const source = filter.source || (filter.field ? 'standard' : 'table')
+                                        const selectedTable = DASHBOARD_FILTER_TABLES.find(table => table.name === filter.table)
+                                        const filterDefinition = getDashboardFilterDefinition(filter.field)
+                                        const fieldOptions = getDashboardFieldOptions(filter.field)
+
+                                        return (
+                                          <div key={filter.id} className="rounded-[16px] bg-white/[0.04] p-3">
+                                            <div className="mb-3 flex justify-end">
+                                              <button
+                                                type="button"
+                                                className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
+                                                onClick={() => removeCompanyVisualFilter(mode, section.key, filter.id)}
+                                              >
+                                                Remover
+                                              </button>
+                                            </div>
+
+                                            <div className="grid gap-3 md:grid-cols-2">
+                                              <select
+                                                className="portal-input"
+                                                value={source}
+                                                onChange={event => updateCompanyVisualFilterSource(mode, section.key, filter.id, event.target.value)}
+                                              >
+                                                <option value="standard">Filtro padrao do site</option>
+                                                <option value="table">Tabela e coluna</option>
+                                              </select>
+
+                                              {source === 'standard' ? (
+                                                <select
+                                                  className="portal-input"
+                                                  value={filter.field || ''}
+                                                  onChange={event => updateCompanyVisualFilterField(mode, section.key, filter.id, event.target.value)}
+                                                >
+                                                  <option value="">Selecione o filtro</option>
+                                                  {getAvailableDashboardFields().map(field => (
+                                                    <option key={field.name} value={field.name}>
+                                                      {field.label}
+                                                    </option>
+                                                  ))}
+                                                </select>
+                                              ) : (
+                                                <select
+                                                  className="portal-input"
+                                                  value={filter.table || ''}
+                                                  onChange={event => updateCompanyVisualFilterTable(mode, section.key, filter.id, event.target.value)}
+                                                >
+                                                  <option value="">Selecione a tabela</option>
+                                                  {DASHBOARD_FILTER_TABLES.map(table => (
+                                                    <option key={table.name} value={table.name}>
+                                                      {table.label}
+                                                    </option>
+                                                  ))}
+                                                </select>
+                                              )}
+
+                                              {source === 'table' ? (
+                                                <select
+                                                  className="portal-input"
+                                                  value={filter.column || ''}
+                                                  onChange={event => updateCompanyVisualFilter(mode, section.key, filter.id, 'column', event.target.value)}
+                                                  disabled={!filter.table}
+                                                >
+                                                  <option value="">{filter.table ? 'Selecione a coluna' : 'Escolha a tabela primeiro'}</option>
+                                                  {(selectedTable?.columns || []).map(column => (
+                                                    <option key={column.name} value={column.name}>
+                                                      {column.label}
+                                                    </option>
+                                                  ))}
+                                                </select>
+                                              ) : null}
+
+                                              <select
+                                                className="portal-input"
+                                                value={filter.operator}
+                                                onChange={event => updateCompanyVisualFilter(mode, section.key, filter.id, 'operator', event.target.value)}
+                                              >
+                                                {POWER_BI_FILTER_OPERATORS.map(option => (
+                                                  <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                  </option>
+                                                ))}
+                                              </select>
+
+                                              {source === 'standard' && filterDefinition?.inputType === 'select' ? (
+                                                <select
+                                                  className="portal-input"
+                                                  value={filter.value}
+                                                  onChange={event => updateCompanyVisualFilter(mode, section.key, filter.id, 'value', event.target.value)}
+                                                  disabled={!filter.field || fieldOptions.length === 0}
+                                                >
+                                                  <option value="">
+                                                    {!filter.field
+                                                      ? 'Escolha o filtro primeiro'
+                                                      : fieldOptions.length === 0
+                                                        ? 'Sem opcoes disponiveis'
+                                                        : 'Selecione um valor'}
+                                                  </option>
+                                                  {fieldOptions.map(option => (
+                                                    <option key={option.value} value={option.value}>
+                                                      {option.label}
+                                                    </option>
+                                                  ))}
+                                                </select>
+                                              ) : (
+                                                <input
+                                                  className="portal-input"
+                                                  value={filter.value}
+                                                  onChange={event => updateCompanyVisualFilter(mode, section.key, filter.id, 'value', event.target.value)}
+                                                  placeholder="Valor ou lista separada por virgula"
+                                                  disabled={source === 'standard' ? !filter.field : !filter.table || !filter.column}
+                                                />
+                                              )}
+                                            </div>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
 
                 <div className="rounded-[24px] bg-white/[0.05] p-4">
                   <div className="flex items-start justify-between gap-3">

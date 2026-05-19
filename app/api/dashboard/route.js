@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
 import { addDays, differenceInDays, differenceInMinutes, format, parseISO, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { getDashboardFilters, normalizeUserPermissions, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
+import {
+  getCompanyDashboardVisualFilters,
+  getDashboardFilters,
+  normalizeUserPermissions,
+  PORTAL_PAGE_KEYS,
+} from '@/lib/portal-config'
 import { createTenantSupabase } from '@/lib/supabase'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
 
@@ -373,6 +378,144 @@ function intersectSets(left, right) {
     if (right.has(value)) result.add(value)
   }
   return result
+}
+
+function buildCustomerRowsFromOrders(sourceOrders = []) {
+  const customerMap = {}
+
+  for (const order of sourceOrders) {
+    if (!customerMap[order.clicodigo]) {
+      customerMap[order.clicodigo] = {
+        clicodigo: order.clicodigo,
+        clinome: order.clinome || `Cliente ${order.clicodigo}`,
+        total: 0,
+        onTime: 0,
+        daysTotal: 0,
+        daysCount: 0,
+        gclcodigo: order.gclcodigo,
+        zocodigo: order.zocodigo,
+      }
+    }
+
+    const customer = customerMap[order.clicodigo]
+    customer.total += 1
+    customer.onTime += order.indice >= 100 ? 1 : 0
+    if (order.emittedDate && order.deliveredDate) {
+      customer.daysTotal += Math.max(0, differenceInDays(order.deliveredDate, order.emittedDate))
+      customer.daysCount += 1
+    }
+  }
+
+  return Object.values(customerMap)
+    .map(customer => ({
+      clicodigo: customer.clicodigo,
+      clinome: customer.clinome,
+      indice: customer.total > 0 ? Math.round((customer.onTime / customer.total) * 100) : 0,
+      mediaDias: customer.daysCount > 0 ? Number((customer.daysTotal / customer.daysCount).toFixed(1)) : 0,
+      gclcodigo: customer.gclcodigo,
+      zocodigo: customer.zocodigo,
+    }))
+    .sort((a, b) => b.indice - a.indice)
+}
+
+function buildSellerRowsFromOrders(sourceOrders = []) {
+  const sellerMap = {}
+
+  for (const order of sourceOrders) {
+    const sellerCode = String(order.vendedorCodigo || '')
+    const sellerName = normalizeText(order.vendedorNome)
+
+    if (!sellerMap[sellerCode]) {
+      sellerMap[sellerCode] = {
+        vendedorCodigo: sellerCode,
+        vendedorNome: sellerName || 'Nao informado',
+        totalVendas: 0,
+        totalPecas: 0,
+      }
+    }
+
+    sellerMap[sellerCode].totalVendas += 1
+    sellerMap[sellerCode].totalPecas += Number(order.quantidade) || 0
+  }
+
+  return Object.values(sellerMap)
+    .sort((a, b) => {
+      if (b.totalVendas !== a.totalVendas) return b.totalVendas - a.totalVendas
+      if (b.totalPecas !== a.totalPecas) return b.totalPecas - a.totalPecas
+      return a.vendedorNome.localeCompare(b.vendedorNome)
+    })
+    .map((seller, index) => ({
+      posicao: index + 1,
+      vendedorCodigo: seller.vendedorCodigo,
+      vendedorNome: seller.vendedorNome,
+      totalVendas: seller.totalVendas,
+      totalPecas: seller.totalPecas,
+    }))
+}
+
+function buildDashboardFilterContext(orders = [], products = [], traceability = []) {
+  const ordersByCustomer = new Map()
+  const ordersBySeller = new Map()
+
+  for (const order of orders) {
+    const orderId = order.pedidoId
+    const customerKey = String(order.clicodigo || '')
+    const sellerKey = String(order.vendedorCodigo || '')
+
+    if (!ordersByCustomer.has(customerKey)) ordersByCustomer.set(customerKey, new Set())
+    ordersByCustomer.get(customerKey).add(orderId)
+
+    if (!ordersBySeller.has(sellerKey)) ordersBySeller.set(sellerKey, new Set())
+    ordersBySeller.get(sellerKey).add(orderId)
+  }
+
+  return {
+    tableSources: {
+      orders,
+      products,
+      traceability,
+      customers: buildCustomerRowsFromOrders(orders),
+      sellers: buildSellerRowsFromOrders(orders),
+    },
+    ordersByCustomer,
+    ordersBySeller,
+  }
+}
+
+function resolveAllowedOrderIdsFromDashboardFilters(filters = [], orders = [], products = [], traceability = []) {
+  const normalizedFilters = Array.isArray(filters) ? filters.filter(filter => filter?.table && filter?.column && filter?.value) : []
+  let allowedOrderIds = new Set(orders.map(row => row.pedidoId))
+  if (normalizedFilters.length === 0) return allowedOrderIds
+
+  const { tableSources, ordersByCustomer, ordersBySeller } = buildDashboardFilterContext(orders, products, traceability)
+
+  for (const filter of normalizedFilters) {
+    const sourceRows = tableSources[filter.table]
+    if (!Array.isArray(sourceRows) || sourceRows.length === 0) continue
+
+    const matchingOrderIds = new Set()
+
+    if (filter.table === 'customers') {
+      for (const row of sourceRows) {
+        if (!matchesPermissionFilter(row[filter.column], filter)) continue
+        for (const orderId of ordersByCustomer.get(String(row.clicodigo || '')) || []) matchingOrderIds.add(orderId)
+      }
+    } else if (filter.table === 'sellers') {
+      for (const row of sourceRows) {
+        if (!matchesPermissionFilter(row[filter.column], filter)) continue
+        for (const orderId of ordersBySeller.get(String(row.vendedorCodigo || '')) || []) matchingOrderIds.add(orderId)
+      }
+    } else {
+      for (const row of sourceRows) {
+        if (!matchesPermissionFilter(row[filter.column], filter)) continue
+        if (row.pedidoId != null) matchingOrderIds.add(String(row.pedidoId))
+      }
+    }
+
+    allowedOrderIds = intersectSets(allowedOrderIds, matchingOrderIds)
+  }
+
+  return allowedOrderIds
 }
 
 function minutesUntil(dateValue, now) {
@@ -1214,6 +1357,7 @@ export async function GET(request) {
     }
 
     const dashboardPermissionFilters = profile.role === 'admin' ? [] : getDashboardFilters(company, permissions, dashboardMode)
+    const dashboardVisualFilters = getCompanyDashboardVisualFilters(company, dashboardMode)
 
     const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
     const fallbackEnd = format(new Date(), 'yyyy-MM-dd')
@@ -1683,8 +1827,34 @@ export async function GET(request) {
         totalPecas: seller.totalPecas,
       }))
 
+    const getVisualFilters = sectionKey => dashboardVisualFilters?.[sectionKey] || []
+    const getVisualOrderIds = sectionKey =>
+      resolveAllowedOrderIdsFromDashboardFilters(getVisualFilters(sectionKey), finalCachedOrders, products, traceability)
+    const getVisualOrders = sectionKey => {
+      const allowedOrderIds = getVisualOrderIds(sectionKey)
+      return orders.filter(row => allowedOrderIds.has(row.pedidoId))
+    }
+    const getVisualCachedOrders = sectionKey => {
+      const allowedOrderIds = getVisualOrderIds(sectionKey)
+      return finalCachedOrders.filter(row => allowedOrderIds.has(row.pedidoId))
+    }
+
+    const kpiOrders = getVisualOrders('kpis')
+    const pontualidadeOrders = getVisualOrders('pontualidadeChart')
+    const historyOrders = getVisualOrders('history')
+    const productOrderIds = getVisualOrderIds('products')
+    const traceabilityOrderIds = getVisualOrderIds('traceability')
+    const visualProducts = products.filter(row => productOrderIds.has(row.pedidoId))
+    const visualTraceability = traceability.filter(row => traceabilityOrderIds.has(row.pedidoId))
+    const visualCustomers = getVisualFilters('customerService').length > 0
+      ? buildCustomerRowsFromOrders(getVisualCachedOrders('customerService'))
+      : customers
+    const visualSellerRanking = getVisualFilters('sellerRanking').length > 0
+      ? buildSellerRowsFromOrders(getVisualCachedOrders('sellerRanking'))
+      : sellerRanking
+
     const weekMap = {}
-    for (const order of orders) {
+    for (const order of pontualidadeOrders) {
       const week = format(startOfWeek(parseISO(order.emissao), { locale: ptBR }), 'dd/MM', { locale: ptBR })
       if (!weekMap[week]) weekMap[week] = { period: week, noPrazo: 0, atrasado: 0, producao: 0 }
       if (order.status === 'completed') weekMap[week].noPrazo += 1
@@ -1693,13 +1863,31 @@ export async function GET(request) {
     }
 
     const pontualidade = Object.values(weekMap).slice(-8)
-    const lossMetrics = lossMetricsRows?.[0] || {}
+    let visualLossMetricsRows = lossMetricsRows
+    let visualLossMetricsError = lossMetricsError
+    const perdasVisualFilters = getVisualFilters('perdasChart')
+
+    if (perdasVisualFilters.length > 0) {
+      try {
+        const lossOrderIds = [...getVisualOrderIds('perdasChart')]
+        visualLossMetricsRows = [
+          await fetchLossMetricsFallback(supabase, lossOrderIds, lossFinalityCodes, excludedLossFinalityCodes),
+        ]
+        visualLossMetricsError = null
+      } catch (fallbackError) {
+        console.error('[dashboard][loss-metrics-visual-fallback]', fallbackError)
+        visualLossMetricsRows = []
+        visualLossMetricsError = buildLossError('VISUAL_FILTER', fallbackError)
+      }
+    }
+
+    const lossMetrics = visualLossMetricsRows?.[0] || {}
     const lossQuantity = Number(lossMetrics.qtd_perdas) || 0
     const baseWithoutLossQuantity = Number(lossMetrics.qtd_lanca_financeiro) || 0
     const totalQuantity = Number(lossMetrics.qtd_perda_produz) || (lossQuantity + baseWithoutLossQuantity)
 
-    if (!lossMetricsError && cachedOrders.length > 0 && totalQuantity === 0) {
-      lossMetricsError = {
+    if (!visualLossMetricsError && cachedOrders.length > 0 && totalQuantity === 0) {
+      visualLossMetricsError = {
         code: 'LOSS_EMPTY_BASE',
         message: `A base de perdas retornou zero pecas validas apesar de existirem ${cachedOrders.length} pedidos no periodo. Verifique PDPRD, PRODU e os codigos de perda configurados (${lossFinalityCodes.join(', ') || 'nenhum'}).`,
       }
@@ -1714,17 +1902,17 @@ export async function GET(request) {
       withLoss: lossQuantity,
       percentage: totalQuantity > 0 ? Number(((lossQuantity / totalQuantity) * 100).toFixed(2)) : 0,
       semPerda: Math.max(0, totalQuantity - lossQuantity),
-      errorCode: lossMetricsError?.code || '',
-      errorMessage: lossMetricsError?.message || '',
+      errorCode: visualLossMetricsError?.code || '',
+      errorMessage: visualLossMetricsError?.message || '',
     }
 
-    const totalOrders = orders.length
-    const completed = orders.filter(row => row.status === 'completed' || row.status === 'delayed_completed').length
-    const deliveredOnTime = orders.filter(row => row.status === 'completed').length
-    const onTime = orders.filter(row => row.status === 'completed' || row.status === 'in_progress').length
-    const inProduction = orders.filter(row => row.status === 'in_progress').length
-    const inProductionDelayed = orders.filter(row => row.status === 'delayed').length
-    const deliveredDelayed = orders.filter(row => row.status === 'delayed_completed').length
+    const totalOrders = kpiOrders.length
+    const completed = kpiOrders.filter(row => row.status === 'completed' || row.status === 'delayed_completed').length
+    const deliveredOnTime = kpiOrders.filter(row => row.status === 'completed').length
+    const onTime = kpiOrders.filter(row => row.status === 'completed' || row.status === 'in_progress').length
+    const inProduction = kpiOrders.filter(row => row.status === 'in_progress').length
+    const inProductionDelayed = kpiOrders.filter(row => row.status === 'delayed').length
+    const deliveredDelayed = kpiOrders.filter(row => row.status === 'delayed_completed').length
 
     const kpis = {
       totalOrders,
@@ -1743,11 +1931,11 @@ export async function GET(request) {
         kpis,
         pontualidade,
         perdas,
-        orders,
-        products: products.slice(0, 200),
-        traceability: pedcodigoValues.length > 0 ? traceability : traceability.slice(0, 150),
-        customers: customers.slice(0, 100),
-        sellerRanking,
+        orders: historyOrders,
+        products: visualProducts.slice(0, 200),
+        traceability: pedcodigoValues.length > 0 ? visualTraceability : visualTraceability.slice(0, 150),
+        customers: visualCustomers.slice(0, 100),
+        sellerRanking: visualSellerRanking,
       },
       { headers: NO_STORE_HEADERS }
     )
