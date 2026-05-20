@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Building2,
+  Copy,
   LogOut,
   Pencil,
   Plus,
@@ -481,6 +482,18 @@ export default function AdminPage() {
     if (!managingCompany) return
     setEditingUserId(user.uid)
     setUserForm(cloneUserForm(user, managingCompany))
+  }
+
+  const copyUserConfiguration = user => {
+    if (!managingCompany) return
+    const copiedPermissions = normalizeUserPermissions(user.permissions, managingCompany)
+
+    setUserForm(previous => ({
+      ...previous,
+      permissions: JSON.parse(JSON.stringify(copiedPermissions)),
+    }))
+    setMessage(`Configuracao copiada de ${user.name || user.email}.`)
+    window.setTimeout(() => setMessage(''), 2500)
   }
 
   const updateUserFormField = (field, value) => {
@@ -1989,7 +2002,11 @@ export default function AdminPage() {
                           </div>
                           <p className="mt-1 text-sm text-[#b7b0a6]">{user.email}</p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button type="button" className="portal-ghost-button" onClick={() => copyUserConfiguration(user)}>
+                            <Copy size={14} />
+                            Copiar config.
+                          </button>
                           <button type="button" className="portal-ghost-button" onClick={() => startEditUser(user)}>
                             <Pencil size={14} />
                             Editar
