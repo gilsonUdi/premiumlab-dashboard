@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { PowerBIEmbed } from 'powerbi-client-react'
 import { models } from 'powerbi-client'
-import { ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { ChevronRight, Maximize2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { getPortalAccessToken } from '@/lib/portal-store'
 
 export default function PowerBiEmbeddedView({ company, reportKey }) {
@@ -14,6 +14,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [activePageName, setActivePageName] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const reportRef = useRef(null)
+  const embedShellRef = useRef(null)
 
   useEffect(() => {
     let active = true
@@ -91,6 +92,18 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     }
   }
 
+  const enterFullscreen = async () => {
+    try {
+      if (embedShellRef.current?.requestFullscreen) {
+        await embedShellRef.current.requestFullscreen()
+        return
+      }
+      if (reportRef.current?.fullscreen) await reportRef.current.fullscreen()
+    } catch (fullscreenError) {
+      console.error(fullscreenError)
+    }
+  }
+
   const sidebarPages = config?.pages || []
 
   return (
@@ -103,9 +116,9 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         <span aria-hidden="true">{'\u2190'}</span>
       </Link>
 
-      <section className={`grid h-screen grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[88px_minmax(0,1fr)]' : 'lg:grid-cols-[290px_minmax(0,1fr)]'}`}>
+      <section className={`grid h-screen grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[290px_minmax(0,1fr)]'}`}>
         <aside className="hidden bg-[#141216] pt-24 lg:flex lg:min-h-0 lg:flex-col">
-          <div className={`${sidebarCollapsed ? 'px-3 pb-4' : 'px-6 pb-5'}`}>
+          <div className={`${sidebarCollapsed ? 'px-2 pb-4' : 'px-6 pb-5'}`}>
             <div className={`flex items-start ${sidebarCollapsed ? 'justify-center' : 'justify-between gap-3'}`}>
               {sidebarCollapsed ? null : (
                 <h1 className="text-2xl font-semibold text-white">{config?.reportName || company.powerBiLabel || company.name}</h1>
@@ -113,7 +126,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
               <button
                 type="button"
                 aria-label={sidebarCollapsed ? 'Expandir paginas' : 'Recolher paginas'}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/[0.05] text-[#d9d1c7] transition hover:bg-white/[0.1]"
+                className={`${sidebarCollapsed ? 'h-10 w-10' : 'h-11 w-11'} inline-flex items-center justify-center rounded-full bg-white/[0.05] text-[#d9d1c7] transition hover:bg-white/[0.1]`}
                 onClick={() => setSidebarCollapsed(previous => !previous)}
               >
                 {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
@@ -121,7 +134,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
             </div>
           </div>
 
-          <div className={`min-h-0 flex-1 overflow-y-auto ${sidebarCollapsed ? 'px-3 pb-6' : 'px-4 pb-6'}`}>
+          <div className={`min-h-0 flex-1 overflow-y-auto ${sidebarCollapsed ? 'px-2 pb-6' : 'px-4 pb-6'}`}>
             {loading ? (
               <div className="rounded-[22px] bg-white/[0.05] px-4 py-4 text-sm text-[#d8d2c8]">Carregando paginas...</div>
             ) : error ? (
@@ -140,7 +153,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       type="button"
                       onClick={() => handleSelectPage(page.name)}
                       title={page.displayName || page.name}
-                      className={`flex w-full items-center ${sidebarCollapsed ? 'justify-center px-2 py-3' : 'justify-between px-4 py-3'} rounded-[18px] text-left text-sm transition ${
+                      className={`flex w-full items-center ${sidebarCollapsed ? 'justify-center px-1 py-3' : 'justify-between px-4 py-3'} rounded-[18px] text-left text-sm transition ${
                         isActive
                           ? 'bg-[#e3ad5a] text-[#17120c] shadow-[0_12px_30px_rgba(227,173,90,0.24)]'
                           : 'bg-white/[0.04] text-[#ddd5c8] hover:bg-white/[0.08]'
@@ -180,10 +193,18 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                 </div>
               </div>
             ) : embedConfig ? (
-              <div className="relative h-full w-full overflow-hidden">
+              <div ref={embedShellRef} className="relative h-full w-full overflow-hidden">
                 <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-11 bg-[#141216]">
-                  <div className="flex h-full items-center px-4 sm:px-5">
+                  <div className="flex h-full items-center justify-between gap-3 px-4 sm:px-5">
                     <span className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#e3ad5a]">GSControladoria</span>
+                    <button
+                      type="button"
+                      className="pointer-events-auto inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-[#efe9df] transition hover:border-white/20 hover:bg-white/[0.1]"
+                      onClick={enterFullscreen}
+                    >
+                      <Maximize2 size={14} />
+                      Tela cheia
+                    </button>
                   </div>
                 </div>
                 <PowerBIEmbed
