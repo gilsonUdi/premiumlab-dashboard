@@ -1198,7 +1198,7 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
   `
 }
 
-function buildLossMetricsByOrderIdsSql({ orderIds = [], lossFinalityCodes = ['2'], productCodeFilters = null }) {
+function buildLossMetricsByOrderIdsSql({ orderIds = [], lossFinalityCodes = ['2'], productCodeFilters = null, productGroupFilters = null }) {
   const ids = asSqlIdList(orderIds)
   if (!ids) return null
 
@@ -1211,6 +1211,8 @@ function buildLossMetricsByOrderIdsSql({ orderIds = [], lossFinalityCodes = ['2'
     ? normalizedLossCodes.map(code => `'${code.replace(/'/g, "''")}'`).join(', ')
     : `'2'`
 
+  const hasProductCodeFilter = productCodeFilters != null
+  const hasProductGroupFilter = productGroupFilters != null
   const normalizedProductCodes = productCodeFilters == null
     ? []
     : [...new Set(
@@ -1218,8 +1220,19 @@ function buildLossMetricsByOrderIdsSql({ orderIds = [], lossFinalityCodes = ['2'
           .map(normalizeProductCode)
           .filter(Boolean)
       )]
+  const normalizedProductGroups = productGroupFilters == null
+    ? []
+    : [...new Set(
+        [...productGroupFilters]
+          .map(normalizePermissionFilterValue)
+          .filter(Boolean)
+      )]
 
-  if (productCodeFilters != null && normalizedProductCodes.length === 0) {
+  if (
+    (hasProductCodeFilter || hasProductGroupFilter) &&
+    normalizedProductCodes.length === 0 &&
+    normalizedProductGroups.length === 0
+  ) {
     return `
       select
         0::numeric as qtd_perdas,
@@ -1230,6 +1243,9 @@ function buildLossMetricsByOrderIdsSql({ orderIds = [], lossFinalityCodes = ['2'
 
   const productClause = normalizedProductCodes.length > 0
     ? `and ${buildNormalizedProductSqlExpression('prd.procodigo')} in (${normalizedProductCodes.map(sqlLiteral).join(', ')})`
+    : ''
+  const productGroupClause = normalizedProductGroups.length > 0
+    ? `and ${buildNormalizedCodeSqlExpression('pro.gr1codigo')} in (${normalizedProductGroups.map(sqlLiteral).join(', ')})`
     : ''
 
   return `
@@ -1247,6 +1263,7 @@ function buildLossMetricsByOrderIdsSql({ orderIds = [], lossFinalityCodes = ['2'
       where ped.id_pedido in (${ids})
         and ped.pedsitped <> 'C'
         ${productClause}
+        ${productGroupClause}
     ) base
   `
 }
@@ -1611,42 +1628,43 @@ async function resolveOrderIdsByProductCodes(supabase, currentIds, productCodes)
   return intersectSets(currentIds, matchingIds)
 }
 
-async function resolveProductCodesByGroupCodes(supabase, groupCodes = []) {
-  const codes = [...new Set(
-    (groupCodes || [])
-      .map(normalizePermissionFilterValue)
-      .filter(Boolean)
-  )]
+async function resolveOrderIdsByGroupCodes(supabase, currentIds, groupCodes) {
+  const codes = [...new Set((groupCodes || []).map(normalizePermissionFilterValue).filter(Boolean))]
+  const numericOrderIds = [...new Set([...currentIds].map(Number).filter(Number.isFinite))]
+  if (codes.length === 0 || numericOrderIds.length === 0) return new Set()
 
-  if (codes.length === 0) return new Set()
+  const matchingIds = new Set()
+  const orderChunks = chunkArray(numericOrderIds, 500)
+  const codeChunks = chunkArray(codes, 500)
 
-  const productCodes = new Set()
-  const chunks = chunkArray(codes, 500)
+  for (const orderChunk of orderChunks) {
+    for (const codeChunk of codeChunks) {
+      const data = await execOptionalSql(
+        supabase,
+        `
+          select distinct prd.id_pedido
+          from pdprd prd
+          join produ pro on ${buildNormalizedProductSqlExpression('prd.procodigo')} = ${buildNormalizedProductSqlExpression('pro.procodigo')}
+          where prd.id_pedido in (${orderChunk.join(', ')})
+            and ${buildNormalizedCodeSqlExpression('pro.gr1codigo')} in (${codeChunk.map(sqlLiteral).join(', ')})
+        `
+      )
 
-  for (const chunk of chunks) {
-    const rows = await execOptionalSql(
-      supabase,
-      `
-        select distinct ${buildNormalizedProductSqlExpression('procodigo')} as procodigo
-        from produ
-        where ${buildNormalizedCodeSqlExpression('gr1codigo')} in (${chunk.map(sqlLiteral).join(', ')})
-      `
-    )
-
-    for (const row of rows || []) {
-      const productCode = normalizeProductCode(row.procodigo)
-      if (productCode) productCodes.add(productCode)
+      for (const row of data || []) {
+        if (row.id_pedido != null) matchingIds.add(String(row.id_pedido))
+      }
     }
   }
 
-  return productCodes
+  return intersectSets(currentIds, matchingIds)
 }
 
-async function resolveSupabaseProductCodesForFilters(supabase, filters = []) {
+async function resolveSupabaseProductFilterScopeForFilters(supabase, filters = []) {
   const productFilters = filters.filter(filter => filter.source === 'table' && filter.table && filter.column && filter.value)
   if (productFilters.length === 0) return null
 
   let productCodes = null
+  let productGroups = null
   let appliedProductFilter = false
 
   for (const filter of productFilters) {
@@ -1659,12 +1677,12 @@ async function resolveSupabaseProductCodesForFilters(supabase, filters = []) {
       const hasProductLink = columns.has('procodigo')
       const hasGroupLink = columns.has('gr1codigo')
       if (!hasProductLink && !hasGroupLink) continue
-      appliedProductFilter = true
 
       const filterCondition = buildSqlFilterCondition(filter)
       if (!filterCondition) continue
+      appliedProductFilter = true
 
-      if (hasGroupLink && !hasProductLink) {
+      if (hasGroupLink && (filter.column === 'gr1codigo' || !hasProductLink)) {
         const rows = await execOptionalSql(
           supabase,
           `
@@ -1675,12 +1693,13 @@ async function resolveSupabaseProductCodesForFilters(supabase, filters = []) {
           `
         )
 
-        const currentCodes = await resolveProductCodesByGroupCodes(
-          supabase,
-          (rows || []).map(row => row.gr1codigo)
+        const currentGroups = new Set(
+          (rows || [])
+            .map(row => normalizePermissionFilterValue(row.gr1codigo))
+            .filter(Boolean)
         )
 
-        productCodes = productCodes == null ? currentCodes : intersectSets(productCodes, currentCodes)
+        productGroups = productGroups == null ? currentGroups : intersectSets(productGroups, currentGroups)
         continue
       }
 
@@ -1702,11 +1721,16 @@ async function resolveSupabaseProductCodesForFilters(supabase, filters = []) {
 
       productCodes = productCodes == null ? currentCodes : intersectSets(productCodes, currentCodes)
     } catch (error) {
-      console.warn('[dashboard][visual-filter] filtro de produtos ignorado', filter.table, filter.column, error?.message || error)
+      console.warn('[dashboard][visual-filter] escopo de produtos ignorado', filter.table, filter.column, error?.message || error)
     }
   }
 
-  return appliedProductFilter ? productCodes || new Set() : null
+  return appliedProductFilter
+    ? {
+        productCodes: productCodes || null,
+        productGroups: productGroups || null,
+      }
+    : null
 }
 
 async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = [], context = {}) {
@@ -1731,7 +1755,10 @@ async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = 
         continue
       }
 
-      const linkColumn = getFirstExistingColumn(columns, ['id_pedido', 'pedcodigo', 'clicodigo', 'funcodigo', 'procodigo', 'gr1codigo'])
+      const linkCandidates = filter.column === 'gr1codigo'
+        ? ['gr1codigo', 'id_pedido', 'pedcodigo', 'clicodigo', 'funcodigo', 'procodigo']
+        : ['id_pedido', 'pedcodigo', 'clicodigo', 'funcodigo', 'procodigo', 'gr1codigo']
+      const linkColumn = getFirstExistingColumn(columns, linkCandidates)
       if (!linkColumn) {
         console.warn('[dashboard][visual-filter] tabela sem coluna de vinculo com pedidos', filter.table)
         continue
@@ -1782,12 +1809,12 @@ async function resolveSupabaseTableFilterIds(supabase, filters = [], orderIds = 
 
       const matchingRows = data || []
       if (linkColumn === 'gr1codigo') {
-        const productCodes = await resolveProductCodesByGroupCodes(
+        const groupCodes = matchingRows.map(row => row.gr1codigo)
+        allowedIds = await resolveOrderIdsByGroupCodes(
           supabase,
-          matchingRows.map(row => row.gr1codigo)
+          allowedIds,
+          groupCodes
         )
-
-        allowedIds = await resolveOrderIdsByProductCodes(supabase, allowedIds, [...productCodes])
         continue
       }
 
@@ -2422,11 +2449,12 @@ export async function GET(request) {
       try {
         const lossOrderIds = [...await getVisualOrderIds('perdasChart')]
         const perdasTableFilters = perdasVisualFilters.filter(filter => filter.source === 'table')
-        const lossProductCodeSet = await resolveSupabaseProductCodesForFilters(supabase, perdasTableFilters)
+        const lossProductScope = await resolveSupabaseProductFilterScopeForFilters(supabase, perdasTableFilters)
         const lossSql = buildLossMetricsByOrderIdsSql({
           orderIds: lossOrderIds,
           lossFinalityCodes,
-          productCodeFilters: lossProductCodeSet,
+          productCodeFilters: lossProductScope?.productCodes ?? null,
+          productGroupFilters: lossProductScope?.productGroups ?? null,
         })
 
         visualLossMetricsRows = lossSql ? await execSql(supabase, lossSql) : [{ qtd_perdas: 0, qtd_lanca_financeiro: 0, qtd_perda_produz: 0 }]
