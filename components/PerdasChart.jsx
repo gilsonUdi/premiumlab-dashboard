@@ -91,7 +91,7 @@ export default function PerdasChart({ data, loading }) {
                   <span className="h-3 w-3 flex-shrink-0 rounded-full" style={{ background: COLORS[index] }} />
                   <span className="text-xs" style={{ color: '#7ba3cc' }}>{item.name}</span>
                   <span className="ml-auto text-xs font-medium" style={{ color: '#e2e8f0' }}>
-                    {item.name === 'Sem Perda' ? displayTotal : item.value}
+                    {item.value}
                   </span>
                 </div>
               ))}
