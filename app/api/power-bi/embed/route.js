@@ -1,6 +1,7 @@
 import {
   canAccessPowerBiReport,
   getAllowedPowerBiPages,
+  getCompanyCodeFilter,
   getPowerBiReportFilters,
   normalizeUserPermissions,
   PORTAL_PAGE_KEYS,
@@ -39,7 +40,20 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Usuario sem acesso a este modelo de Power BI.' }, { status: 403 })
     }
 
-    const embedConfig = await generatePowerBiEmbedConfig(company, reportKey, getPowerBiReportFilters(company, permissions, reportKey))
+    const powerBiFilters = [...getPowerBiReportFilters(company, permissions, reportKey)]
+    const companyCodeFilter = getCompanyCodeFilter(company)
+
+    if (companyCodeFilter.enabled) {
+      powerBiFilters.push({
+        table: companyCodeFilter.powerBiTable,
+        column: companyCodeFilter.powerBiColumn,
+        operator: 'is',
+        value: companyCodeFilter.code,
+        valueType: 'number',
+      })
+    }
+
+    const embedConfig = await generatePowerBiEmbedConfig(company, reportKey, powerBiFilters)
     const navigablePages = embedConfig.pages.filter(isPowerBiNavigablePage)
     const allowedPageNames = getAllowedPowerBiPages(company, permissions, reportKey)
     const visiblePages =

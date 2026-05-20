@@ -71,6 +71,10 @@ const emptyForm = {
   powerBiReports: [],
   dashboardVisualFilters: buildDefaultDashboardVisualFilters(),
   orderCompletionRules: [],
+  limitByCompanyCodeEnabled: false,
+  companyCodeFilter: '',
+  companyCodePowerBiTable: 'Vendas',
+  companyCodePowerBiColumn: 'COD_EMPRESA',
   lossFinalityCodesText: '',
   tools: ['dashboard'],
   isPremiumLab: false,
@@ -373,6 +377,10 @@ export default function AdminPage() {
           .filter(Boolean),
         dashboardVisualFilters: form.dashboardVisualFilters,
         orderCompletionRules: form.orderCompletionRules,
+        limitByCompanyCodeEnabled: form.limitByCompanyCodeEnabled,
+        companyCodeFilter: form.companyCodeFilter,
+        companyCodePowerBiTable: form.companyCodePowerBiTable,
+        companyCodePowerBiColumn: form.companyCodePowerBiColumn,
         powerBiReports: normalizedReports,
         powerBiEnabled: form.powerBiEnabled && normalizedReports.length > 0,
         powerBiLabel: primaryReport?.label || '',
@@ -414,6 +422,10 @@ export default function AdminPage() {
       powerBiReports: getPowerBiReportCatalog(company),
       dashboardVisualFilters: company.dashboardVisualFilters || buildDefaultDashboardVisualFilters(),
       orderCompletionRules: Array.isArray(company.orderCompletionRules) ? company.orderCompletionRules : [],
+      limitByCompanyCodeEnabled: company.limitByCompanyCodeEnabled === true,
+      companyCodeFilter: company.companyCodeFilter || '',
+      companyCodePowerBiTable: company.companyCodePowerBiTable || 'Vendas',
+      companyCodePowerBiColumn: company.companyCodePowerBiColumn || 'COD_EMPRESA',
       lossFinalityCodesText: Array.isArray(company.lossFinalityCodes) ? company.lossFinalityCodes.join(', ') : '',
       tools: company.tools || ['dashboard'],
       isPremiumLab: company.isPremiumLab,
@@ -1437,6 +1449,52 @@ export default function AdminPage() {
                             onChange={event => setForm(previous => ({ ...previous, supabaseServiceRoleKey: event.target.value }))}
                             placeholder={form.id ? 'Preencha so se quiser trocar a chave' : 'Cole a service_role_key do tenant'}
                           />
+                        </div>
+
+                        <div className="space-y-3 md:col-span-2">
+                          <label className="flex items-center gap-2 text-sm font-medium text-[#efe9df]">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 accent-[#5aa7ff]"
+                              checked={form.limitByCompanyCodeEnabled}
+                              onChange={event => setForm(previous => ({ ...previous, limitByCompanyCodeEnabled: event.target.checked }))}
+                            />
+                            <span>Limitar dashboard por codigo da empresa</span>
+                          </label>
+                          {form.limitByCompanyCodeEnabled ? (
+                            <div className="grid gap-4 md:grid-cols-3">
+                              <div className="space-y-2">
+                                <label className="portal-label">Codigo da empresa</label>
+                                <input
+                                  className="portal-input"
+                                  value={form.companyCodeFilter}
+                                  onChange={event => setForm(previous => ({ ...previous, companyCodeFilter: event.target.value }))}
+                                  placeholder="Ex.: 1"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="portal-label">Tabela no Power BI</label>
+                                <input
+                                  className="portal-input"
+                                  value={form.companyCodePowerBiTable}
+                                  onChange={event => setForm(previous => ({ ...previous, companyCodePowerBiTable: event.target.value }))}
+                                  placeholder="Vendas"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="portal-label">Coluna no Power BI</label>
+                                <input
+                                  className="portal-input"
+                                  value={form.companyCodePowerBiColumn}
+                                  onChange={event => setForm(previous => ({ ...previous, companyCodePowerBiColumn: event.target.value }))}
+                                  placeholder="COD_EMPRESA"
+                                />
+                              </div>
+                            </div>
+                          ) : null}
+                          <p className="text-xs text-[#8d867c]">
+                            Quando ligado, o portal filtra o Supabase por PEDID.EMPCODIGO e aplica o mesmo codigo no Power BI.
+                          </p>
                         </div>
 
                         <div className="space-y-2 md:col-span-2">

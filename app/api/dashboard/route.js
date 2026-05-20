@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { addDays, differenceInDays, differenceInMinutes, format, parseISO, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
+  getCompanyCodeFilter,
   getCompanyDashboardVisualFilters,
   getCompanyOrderCompletionRules,
   getDashboardFilters,
@@ -29,7 +30,6 @@ const ACTUAL_TIME_SQL = `(ped.pedhrsaida::time - interval '3 hours')::time`
 const ACTUAL_DATETIME_SQL = `coalesce((ped.peddtsaida::date + ${ACTUAL_TIME_SQL}), ped.peddtsaida::timestamp)`
 const NORMALIZED_PEDCODIGO_SQL = `coalesce(nullif(ltrim(replace(ped.pedcodigo::text, '.000', ''), '0'), ''), '0')`
 const EXCLUDED_CLIENT_CODES = [489]
-const EXCLUDED_COMPANY_CODES = [2]
 
 function getErrorStatus(error) {
   const message = String(error?.message || '')
@@ -746,7 +746,7 @@ async function fetchAlmoxLookup(supabase, almoxCodes = []) {
   )
 }
 
-async function fetchOrderBaseRows(supabase, { dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [] }) {
+async function fetchOrderBaseRows(supabase, { dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], companyCodeFilter = null }) {
   const pedidoIds = [...new Set((pedcodigos || []).map(asSqlNumber).filter(Number.isFinite))]
   const pedidoCodes = [...new Set((pedcodigos || []).map(value => String(value || '').trim()).filter(Boolean))]
   const clienteList = [...new Set((clicodigos || []).map(asSqlNumber).filter(Number.isFinite))]
@@ -764,8 +764,9 @@ async function fetchOrderBaseRows(supabase, { dateStart, dateEnd, pedcodigos = [
       query = query.neq('clicodigo', code)
     }
 
-    for (const code of EXCLUDED_COMPANY_CODES) {
-      query = query.neq('empcodigo', code)
+    const companyCode = asSqlNumber(companyCodeFilter?.code)
+    if (companyCodeFilter?.enabled && Number.isFinite(companyCode)) {
+      query = query.eq('empcodigo', companyCode)
     }
 
     if (clienteList.length > 0) {
@@ -938,6 +939,41 @@ function asSqlNumber(value) {
   return Number.isFinite(number) ? number : null
 }
 
+function buildCompanyCodeClauses(companyCodeFilter, alias = 'ped') {
+  if (!companyCodeFilter?.enabled) return []
+  const code = asSqlNumber(companyCodeFilter.code)
+  return Number.isFinite(code) ? [`${alias}.empcodigo = ${code}`] : []
+}
+
+async function filterDashboardCacheRowsByCompanyCode(supabase, rows = [], companyCodeFilter) {
+  if (!companyCodeFilter?.enabled) return rows
+
+  const code = asSqlNumber(companyCodeFilter.code)
+  if (!Number.isFinite(code) || rows.length === 0) return rows
+
+  const ids = [...new Set(rows.map(row => asSqlNumber(row.id_pedido)).filter(Number.isFinite))]
+  if (ids.length === 0) return []
+
+  const allowedIds = new Set()
+  for (const chunk of chunkArray(ids, 500)) {
+    const data = await execOptionalSql(
+      supabase,
+      `
+        select id_pedido
+        from pedid
+        where id_pedido in (${chunk.join(', ')})
+          and empcodigo = ${code}
+      `
+    )
+
+    for (const row of data || []) {
+      if (row.id_pedido != null) allowedIds.add(String(row.id_pedido))
+    }
+  }
+
+  return rows.filter(row => allowedIds.has(String(row.id_pedido)))
+}
+
 function asSqlOrderCode(value) {
   if (value === '' || value == null) return null
   const normalized = normalizeOrderCode(value).replace(/^0+/, '')
@@ -997,13 +1033,13 @@ async function execOptionalSql(supabase, sql) {
   }
 }
 
-function buildSalesSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], kind = 'products' }) {
+function buildSalesSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], companyCodeFilter = null, kind = 'products' }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
     `ped.pedsitped <> 'C'`,
     ...EXCLUDED_CLIENT_CODES.map(code => `ped.clicodigo <> ${code}`),
-    ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
+    ...buildCompanyCodeClauses(companyCodeFilter),
   ]
 
   const clienteList = [...new Set((clicodigos || []).map(asSqlNumber).filter(Number.isFinite))]
@@ -1055,13 +1091,13 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], g
   `
 }
 
-function buildOrdersSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [] }) {
+function buildOrdersSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], companyCodeFilter = null }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
     `ped.pedsitped <> 'C'`,
     ...EXCLUDED_CLIENT_CODES.map(code => `ped.clicodigo <> ${code}`),
-    ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
+    ...buildCompanyCodeClauses(companyCodeFilter),
   ]
 
   const clienteList = [...new Set((clicodigos || []).map(asSqlNumber).filter(Number.isFinite))]
@@ -1144,13 +1180,13 @@ function resolveExcludedLossFinalityCodes(finalityData) {
   return []
 }
 
-function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], lossFinalityCodes = ['2'], productCodeFilters = [], excludedFinalityCodes = [], includeOperationTypeFilter = false }) {
+function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], gclcodigos = [], companyCodeFilter = null, lossFinalityCodes = ['2'], productCodeFilters = [], excludedFinalityCodes = [], includeOperationTypeFilter = false }) {
   const clauses = [
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
     `ped.pedsitped <> 'C'`,
     ...EXCLUDED_CLIENT_CODES.map(code => `ped.clicodigo <> ${code}`),
-    ...EXCLUDED_COMPANY_CODES.map(code => `ped.empcodigo <> ${code}`),
+    ...buildCompanyCodeClauses(companyCodeFilter),
   ]
 
   const clienteList = [...new Set((clicodigos || []).map(asSqlNumber).filter(Number.isFinite))]
@@ -1901,6 +1937,7 @@ export async function GET(request) {
     const dashboardPermissionFilters = profile.role === 'admin' ? [] : getDashboardFilters(company, permissions, dashboardMode)
     const dashboardVisualFilters = getCompanyDashboardVisualFilters(company, dashboardMode)
     const orderCompletionRules = getCompanyOrderCompletionRules(company)
+    const companyCodeFilter = getCompanyCodeFilter(company)
 
     const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
     const fallbackEnd = format(new Date(), 'yyyy-MM-dd')
@@ -1950,6 +1987,11 @@ export async function GET(request) {
     const finalityData = finalityRes.error ? [] : (finalityRes.data || [])
     const lossFinalityCodes = resolveLossFinalityCodes(company, finalityData)
     const excludedLossFinalityCodes = resolveExcludedLossFinalityCodes(finalityData)
+    const dashboardCacheRows = await filterDashboardCacheRowsByCompanyCode(
+      supabase,
+      dashboardCacheRes.data || [],
+      companyCodeFilter
+    )
     if (finalityRes.error) {
       console.warn('[dashboard][pedfinalidade]', sanitizeErrorMessage(finalityRes.error))
     }
@@ -1965,6 +2007,7 @@ export async function GET(request) {
           pedcodigos: pedcodigoValues,
           clicodigos: clientCodeFilters,
           gclcodigos: gclcodigoValues,
+          companyCodeFilter,
           lossFinalityCodes,
           excludedFinalityCodes: excludedLossFinalityCodes,
         })
@@ -1982,7 +2025,7 @@ export async function GET(request) {
       try {
         const fallbackMetrics = await fetchLossMetricsFallback(
           supabase,
-          (dashboardCacheRes.data || []).map(row => row.id_pedido),
+          dashboardCacheRows.map(row => row.id_pedido),
           lossFinalityCodes,
           excludedLossFinalityCodes
         )
@@ -1994,7 +2037,7 @@ export async function GET(request) {
       }
     }
 
-    let cachedOrders = (dashboardCacheRes.data || []).map(row => {
+    let cachedOrders = dashboardCacheRows.map(row => {
       let roteiro = row.roteiro_json
       if (typeof roteiro === 'string') {
         try {
