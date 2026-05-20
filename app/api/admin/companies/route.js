@@ -69,8 +69,6 @@ function normalizeCompanyPayload(payload = {}) {
     orderCompletionRules: portalSettings.orderCompletionRules,
     limitByCompanyCodeEnabled: portalSettings.limitByCompanyCodeEnabled,
     companyCodeFilter: portalSettings.companyCodeFilter,
-    companyCodePowerBiTable: portalSettings.companyCodePowerBiTable,
-    companyCodePowerBiColumn: portalSettings.companyCodePowerBiColumn,
     lossFinalityCodes: [...new Set(lossFinalityCodes)],
     createdAt: payload.createdAt || new Date().toISOString(),
   }
@@ -163,8 +161,6 @@ export async function POST(request) {
         orderCompletionRules: company.orderCompletionRules,
         limitByCompanyCodeEnabled: company.limitByCompanyCodeEnabled,
         companyCodeFilter: company.companyCodeFilter,
-        companyCodePowerBiTable: company.companyCodePowerBiTable,
-        companyCodePowerBiColumn: company.companyCodePowerBiColumn,
         lossFinalityCodes: company.lossFinalityCodes,
         authUid: authUser.uid,
         hasServiceRoleKey: Boolean(supabaseServiceRoleKey),

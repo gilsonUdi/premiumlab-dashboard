@@ -73,8 +73,6 @@ const emptyForm = {
   orderCompletionRules: [],
   limitByCompanyCodeEnabled: false,
   companyCodeFilter: '',
-  companyCodePowerBiTable: 'Vendas',
-  companyCodePowerBiColumn: 'COD_EMPRESA',
   lossFinalityCodesText: '',
   tools: ['dashboard'],
   isPremiumLab: false,
@@ -379,8 +377,6 @@ export default function AdminPage() {
         orderCompletionRules: form.orderCompletionRules,
         limitByCompanyCodeEnabled: form.limitByCompanyCodeEnabled,
         companyCodeFilter: form.companyCodeFilter,
-        companyCodePowerBiTable: form.companyCodePowerBiTable,
-        companyCodePowerBiColumn: form.companyCodePowerBiColumn,
         powerBiReports: normalizedReports,
         powerBiEnabled: form.powerBiEnabled && normalizedReports.length > 0,
         powerBiLabel: primaryReport?.label || '',
@@ -424,8 +420,6 @@ export default function AdminPage() {
       orderCompletionRules: Array.isArray(company.orderCompletionRules) ? company.orderCompletionRules : [],
       limitByCompanyCodeEnabled: company.limitByCompanyCodeEnabled === true,
       companyCodeFilter: company.companyCodeFilter || '',
-      companyCodePowerBiTable: company.companyCodePowerBiTable || 'Vendas',
-      companyCodePowerBiColumn: company.companyCodePowerBiColumn || 'COD_EMPRESA',
       lossFinalityCodesText: Array.isArray(company.lossFinalityCodes) ? company.lossFinalityCodes.join(', ') : '',
       tools: company.tools || ['dashboard'],
       isPremiumLab: company.isPremiumLab,
@@ -1462,38 +1456,18 @@ export default function AdminPage() {
                             <span>Limitar dashboard por codigo da empresa</span>
                           </label>
                           {form.limitByCompanyCodeEnabled ? (
-                            <div className="grid gap-4 md:grid-cols-3">
-                              <div className="space-y-2">
-                                <label className="portal-label">Codigo da empresa</label>
-                                <input
-                                  className="portal-input"
-                                  value={form.companyCodeFilter}
-                                  onChange={event => setForm(previous => ({ ...previous, companyCodeFilter: event.target.value }))}
-                                  placeholder="Ex.: 1"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <label className="portal-label">Tabela no Power BI</label>
-                                <input
-                                  className="portal-input"
-                                  value={form.companyCodePowerBiTable}
-                                  onChange={event => setForm(previous => ({ ...previous, companyCodePowerBiTable: event.target.value }))}
-                                  placeholder="Vendas"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <label className="portal-label">Coluna no Power BI</label>
-                                <input
-                                  className="portal-input"
-                                  value={form.companyCodePowerBiColumn}
-                                  onChange={event => setForm(previous => ({ ...previous, companyCodePowerBiColumn: event.target.value }))}
-                                  placeholder="COD_EMPRESA"
-                                />
-                              </div>
+                            <div className="space-y-2">
+                              <label className="portal-label">Codigo da empresa</label>
+                              <input
+                                className="portal-input"
+                                value={form.companyCodeFilter}
+                                onChange={event => setForm(previous => ({ ...previous, companyCodeFilter: event.target.value }))}
+                                placeholder="Ex.: 1"
+                              />
                             </div>
                           ) : null}
                           <p className="text-xs text-[#8d867c]">
-                            Quando ligado, o portal filtra o Supabase por PEDID.EMPCODIGO e aplica o mesmo codigo no Power BI.
+                            Quando ligado, o portal filtra PPS e Analise de Dados por PEDID.EMPCODIGO.
                           </p>
                         </div>
 
