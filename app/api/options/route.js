@@ -188,7 +188,6 @@ export async function GET(request) {
     if (almoxOrderColumn) cellsQuery = cellsQuery.order(almoxOrderColumn)
 
     let clientsQuery = supabase.from('clien').select(clienSelect).limit(500)
-    if (clienColumns.has('clicliente')) clientsQuery = clientsQuery.eq('clicliente', 'S')
     if (clienLabelOrderColumn) clientsQuery = clientsQuery.order(clienLabelOrderColumn)
 
     let localPedQuery = supabase.from('localped').select(localPedSelect)
@@ -205,7 +204,7 @@ export async function GET(request) {
 
     let endcliQuery = null
     if (endcliSelect && endcliColumns.has('clicodigo') && endcliColumns.has('endcodigo') && endcliColumns.has('zocodigo')) {
-      endcliQuery = supabase.from('endcli').select(endcliSelect).eq('endcodigo', 1).limit(5000)
+      endcliQuery = supabase.from('endcli').select(endcliSelect).order('endcodigo').limit(5000)
     }
 
     let zonaQuery = null
@@ -230,11 +229,12 @@ export async function GET(request) {
       alxperda: cell.alxperda,
     }))
 
-    const clientZoneMap = new Map(
-      (endcliRes.data || [])
-        .filter(row => row?.clicodigo != null && row?.zocodigo != null)
-        .map(row => [String(row.clicodigo), row.zocodigo])
-    )
+    const clientZoneMap = new Map()
+    for (const row of endcliRes.data || []) {
+      if (row?.clicodigo == null || row?.zocodigo == null) continue
+      const clientKey = String(row.clicodigo)
+      if (!clientZoneMap.has(clientKey)) clientZoneMap.set(clientKey, row.zocodigo)
+    }
     const zonaNameMap = new Map(
       (zonaRes.data || [])
         .filter(row => row?.zocodigo != null)

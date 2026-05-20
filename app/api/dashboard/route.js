@@ -3,6 +3,7 @@ import { addDays, differenceInDays, differenceInMinutes, format, parseISO, start
 import { ptBR } from 'date-fns/locale'
 import {
   getCompanyCodeFilter,
+  getCompanyDashboardFilters,
   getCompanyDashboardVisualFilters,
   getCompanyOrderCompletionRules,
   getDashboardFilters,
@@ -29,7 +30,6 @@ const EXPECTED_TIME_SQL = `(date_trunc('hour', ped.pedhrentre::time) - interval 
 const ACTUAL_TIME_SQL = `(ped.pedhrsaida::time - interval '3 hours')::time`
 const ACTUAL_DATETIME_SQL = `coalesce((ped.peddtsaida::date + ${ACTUAL_TIME_SQL}), ped.peddtsaida::timestamp)`
 const NORMALIZED_PEDCODIGO_SQL = `coalesce(nullif(ltrim(replace(ped.pedcodigo::text, '.000', ''), '0'), ''), '0')`
-const EXCLUDED_CLIENT_CODES = [489]
 
 function getErrorStatus(error) {
   const message = String(error?.message || '')
@@ -412,6 +412,8 @@ function buildCustomerRowsFromOrders(sourceOrders = []) {
         daysTotal: 0,
         daysCount: 0,
         gclcodigo: order.gclcodigo,
+        clicliente: order.clicliente,
+        endcodigo: order.endcodigo,
         zocodigo: order.zocodigo,
       }
     }
@@ -432,6 +434,8 @@ function buildCustomerRowsFromOrders(sourceOrders = []) {
       indice: customer.total > 0 ? Math.round((customer.onTime / customer.total) * 100) : 0,
       mediaDias: customer.daysCount > 0 ? Number((customer.daysTotal / customer.daysCount).toFixed(1)) : 0,
       gclcodigo: customer.gclcodigo,
+      clicliente: customer.clicliente,
+      endcodigo: customer.endcodigo,
       zocodigo: customer.zocodigo,
     }))
     .sort((a, b) => b.indice - a.indice)
@@ -654,7 +658,7 @@ async function fetchClientLookup(supabase, clientIds = []) {
       () =>
         supabase
           .from('clien')
-          .select('clicodigo, clinomefant, clirazsocial, gclcodigo')
+          .select('clicodigo, clinomefant, clirazsocial, gclcodigo, clicliente')
           .in('clicodigo', chunk),
       { maxRows: 2000 }
     )
@@ -664,27 +668,38 @@ async function fetchClientLookup(supabase, clientIds = []) {
   }
 
   const endCliResult = await fetchOptionalPages(
-    () => supabase.from('endcli').select('clicodigo, endcodigo, zocodigo').eq('endcodigo', 1).in('clicodigo', ids),
+    () => supabase.from('endcli').select('clicodigo, endcodigo, zocodigo').in('clicodigo', ids).order('endcodigo'),
     { maxRows: 5000 }
   )
 
   if (endCliResult.error) throw new Error(endCliResult.error.message || 'Falha ao carregar enderecos de clientes.')
 
-  const clientZoneMap = new Map(
-    (endCliResult.data || [])
-      .filter(row => row?.clicodigo != null && row?.zocodigo != null)
-      .map(row => [String(row.clicodigo), row.zocodigo])
-  )
+  const clientAddressMap = new Map()
+  for (const row of endCliResult.data || []) {
+    if (row?.clicodigo == null) continue
+    const clientKey = String(row.clicodigo)
+    if (!clientAddressMap.has(clientKey)) {
+      clientAddressMap.set(clientKey, {
+        endcodigo: row.endcodigo ?? null,
+        zocodigo: row.zocodigo ?? null,
+      })
+    }
+  }
 
   return new Map(
-    rows.map(row => [
-      String(row.clicodigo),
-      {
-        clinome: normalizeText(row.clinomefant || row.clirazsocial),
-        gclcodigo: row.gclcodigo != null ? Number(row.gclcodigo) : null,
-        zocodigo: clientZoneMap.get(String(row.clicodigo)) ?? null,
-      },
-    ])
+    rows.map(row => {
+      const address = clientAddressMap.get(String(row.clicodigo)) || {}
+      return [
+        String(row.clicodigo),
+        {
+          clinome: normalizeText(row.clinomefant || row.clirazsocial),
+          gclcodigo: row.gclcodigo != null ? Number(row.gclcodigo) : null,
+          clicliente: row.clicliente ?? null,
+          endcodigo: address.endcodigo ?? null,
+          zocodigo: address.zocodigo ?? null,
+        },
+      ]
+    })
   )
 }
 
@@ -759,10 +774,6 @@ async function fetchOrderBaseRows(supabase, { dateStart, dateEnd, pedcodigos = [
       .lt('peddtemis', `${dateEnd}T23:59:59`)
       .neq('pedsitped', 'C')
       .order('peddtemis', { ascending: false })
-
-    for (const code of EXCLUDED_CLIENT_CODES) {
-      query = query.neq('clicodigo', code)
-    }
 
     const companyCode = asSqlNumber(companyCodeFilter?.code)
     if (companyCodeFilter?.enabled && Number.isFinite(companyCode)) {
@@ -1038,7 +1049,6 @@ function buildSalesSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], g
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
     `ped.pedsitped <> 'C'`,
-    ...EXCLUDED_CLIENT_CODES.map(code => `ped.clicodigo <> ${code}`),
     ...buildCompanyCodeClauses(companyCodeFilter),
   ]
 
@@ -1096,7 +1106,6 @@ function buildOrdersSql({ dateStart, dateEnd, pedcodigos = [], clicodigos = [], 
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
     `ped.pedsitped <> 'C'`,
-    ...EXCLUDED_CLIENT_CODES.map(code => `ped.clicodigo <> ${code}`),
     ...buildCompanyCodeClauses(companyCodeFilter),
   ]
 
@@ -1185,7 +1194,6 @@ function buildLossMetricsSql({ dateStart, dateEnd, pedcodigos = [], clicodigos =
     `ped.peddtemis >= '${dateStart}T00:00:00'`,
     `ped.peddtemis < ('${dateEnd}'::date + interval '1 day')`,
     `ped.pedsitped <> 'C'`,
-    ...EXCLUDED_CLIENT_CODES.map(code => `ped.clicodigo <> ${code}`),
     ...buildCompanyCodeClauses(companyCodeFilter),
   ]
 
@@ -1934,7 +1942,9 @@ export async function GET(request) {
       throw new Error('Acesso negado a este modulo.')
     }
 
+    const dashboardCompanyFilters = getCompanyDashboardFilters(company, dashboardMode)
     const dashboardPermissionFilters = profile.role === 'admin' ? [] : getDashboardFilters(company, permissions, dashboardMode)
+    const dashboardScopedFilters = [...dashboardCompanyFilters, ...dashboardPermissionFilters]
     const dashboardVisualFilters = getCompanyDashboardVisualFilters(company, dashboardMode)
     const orderCompletionRules = getCompanyOrderCompletionRules(company)
     const companyCodeFilter = getCompanyCodeFilter(company)
@@ -2114,6 +2124,8 @@ export async function GET(request) {
       }),
       clinome: order.clinome || clientDetails?.clinome || '',
       gclcodigo: order.gclcodigo ?? clientDetails?.gclcodigo ?? null,
+      clicliente: clientDetails?.clicliente ?? null,
+      endcodigo: clientDetails?.endcodigo ?? null,
       zocodigo: clientDetails?.zocodigo ?? null,
       vendedorNome:
         order.vendedorNome ||
@@ -2156,6 +2168,8 @@ export async function GET(request) {
       clicodigo: order.clicodigo,
       clinome: order.clinome,
       gclcodigo: order.gclcodigo,
+      clicliente: order.clicliente,
+      endcodigo: order.endcodigo,
       zocodigo: order.zocodigo,
       vendedorCodigo: order.vendedorCodigo,
       vendedorNome: order.vendedorNome,
@@ -2176,7 +2190,7 @@ export async function GET(request) {
     })
 
     const visibleOrderIds = new Set(orders.map(row => row.pedidoId))
-    const selectedCachedOrders = cachedOrders.filter(order => visibleOrderIds.has(order.pedidoId))
+    let selectedCachedOrders = cachedOrders.filter(order => visibleOrderIds.has(order.pedidoId))
     const orderIds = selectedCachedOrders.map(order => Number(order.pedidoId)).filter(Number.isFinite)
     const orderNumberById = Object.fromEntries(selectedCachedOrders.map(order => [order.pedidoId, order.pedcodigo]))
 
@@ -2231,7 +2245,7 @@ export async function GET(request) {
     products = products.filter(row => visibleOrderIds.has(row.pedidoId))
     traceability = traceability.filter(row => visibleOrderIds.has(row.pedidoId))
 
-    if (dashboardPermissionFilters.length > 0) {
+    if (dashboardScopedFilters.length > 0) {
       let allowedOrderIds = new Set(orders.map(row => row.pedidoId))
       const ordersByCustomer = new Map()
       const ordersBySeller = new Map()
@@ -2256,6 +2270,8 @@ export async function GET(request) {
               clicodigo: order.clicodigo,
               clinome: order.clinome || `Cliente ${order.clicodigo}`,
               gclcodigo: order.gclcodigo,
+              clicliente: order.clicliente,
+              endcodigo: order.endcodigo,
               zocodigo: order.zocodigo,
               total: 0,
               onTime: 0,
@@ -2276,6 +2292,8 @@ export async function GET(request) {
         clicodigo: customer.clicodigo,
         clinome: customer.clinome,
         gclcodigo: customer.gclcodigo,
+        clicliente: customer.clicliente,
+        endcodigo: customer.endcodigo,
         zocodigo: customer.zocodigo,
         indice: customer.total > 0 ? Math.round((customer.onTime / customer.total) * 100) : 0,
         mediaDias: customer.daysCount > 0 ? Number((customer.daysTotal / customer.daysCount).toFixed(1)) : 0,
@@ -2307,7 +2325,7 @@ export async function GET(request) {
         sellers: sellerSummaryRows,
       }
 
-      for (const filter of dashboardPermissionFilters) {
+      for (const filter of dashboardScopedFilters) {
         const sourceRows = tableSources[filter.table]
         if (!Array.isArray(sourceRows) || sourceRows.length === 0) continue
 
@@ -2336,6 +2354,7 @@ export async function GET(request) {
       orders = orders.filter(row => allowedOrderIds.has(row.pedidoId))
       products = products.filter(row => allowedOrderIds.has(row.pedidoId))
       traceability = traceability.filter(row => allowedOrderIds.has(row.pedidoId))
+      selectedCachedOrders = selectedCachedOrders.filter(row => allowedOrderIds.has(row.pedidoId))
     }
 
     let customerMap = {}
@@ -2349,6 +2368,8 @@ export async function GET(request) {
           daysTotal: 0,
           daysCount: 0,
           gclcodigo: order.gclcodigo,
+          clicliente: order.clicliente,
+          endcodigo: order.endcodigo,
           zocodigo: order.zocodigo,
         }
       }
@@ -2369,6 +2390,8 @@ export async function GET(request) {
         indice: customer.total > 0 ? Math.round((customer.onTime / customer.total) * 100) : 0,
         mediaDias: customer.daysCount > 0 ? Number((customer.daysTotal / customer.daysCount).toFixed(1)) : 0,
         gclcodigo: customer.gclcodigo,
+        clicliente: customer.clicliente,
+        endcodigo: customer.endcodigo,
         zocodigo: customer.zocodigo,
       }))
       .sort((a, b) => b.indice - a.indice)
@@ -2488,9 +2511,11 @@ export async function GET(request) {
     let visualLossMetricsError = lossMetricsError
     const perdasVisualFilters = getVisualFilters('perdasChart')
 
-    if (perdasVisualFilters.length > 0) {
+    if (dashboardScopedFilters.length > 0 || perdasVisualFilters.length > 0) {
       try {
-        const lossOrderIds = [...await getVisualOrderIds('perdasChart')]
+        const lossOrderIds = perdasVisualFilters.length > 0
+          ? [...await getVisualOrderIds('perdasChart')]
+          : [...finalOrderIds]
         const perdasTableFilters = perdasVisualFilters.filter(filter => filter.source === 'table')
         const lossProductScope = await resolveSupabaseProductFilterScopeForFilters(supabase, perdasTableFilters)
         const lossSql = buildLossMetricsByOrderIdsSql({

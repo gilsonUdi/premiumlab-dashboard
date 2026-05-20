@@ -51,6 +51,10 @@ function createEmptyPowerBiReport() {
   }
 }
 
+function buildDefaultDashboardFilters() {
+  return { analysis: [], pps: [] }
+}
+
 const emptyForm = {
   id: '',
   name: '',
@@ -69,6 +73,7 @@ const emptyForm = {
   powerBiReportId: '',
   powerBiDatasetId: '',
   powerBiReports: [],
+  dashboardFilters: buildDefaultDashboardFilters(),
   dashboardVisualFilters: buildDefaultDashboardVisualFilters(),
   orderCompletionRules: [],
   limitByCompanyCodeEnabled: false,
@@ -373,6 +378,7 @@ export default function AdminPage() {
           .split(',')
           .map(code => String(code || '').trim())
           .filter(Boolean),
+        dashboardFilters: form.dashboardFilters,
         dashboardVisualFilters: form.dashboardVisualFilters,
         orderCompletionRules: form.orderCompletionRules,
         limitByCompanyCodeEnabled: form.limitByCompanyCodeEnabled,
@@ -416,6 +422,7 @@ export default function AdminPage() {
       powerBiReportId: company.powerBiReportId || '',
       powerBiDatasetId: company.powerBiDatasetId || '',
       powerBiReports: getPowerBiReportCatalog(company),
+      dashboardFilters: company.dashboardFilters || buildDefaultDashboardFilters(),
       dashboardVisualFilters: company.dashboardVisualFilters || buildDefaultDashboardVisualFilters(),
       orderCompletionRules: Array.isArray(company.orderCompletionRules) ? company.orderCompletionRules : [],
       limitByCompanyCodeEnabled: company.limitByCompanyCodeEnabled === true,
@@ -567,6 +574,59 @@ export default function AdminPage() {
             }
           }),
         },
+      },
+    }))
+  }
+
+  const addCompanyDashboardFilter = mode => {
+    setForm(previous => ({
+      ...previous,
+      dashboardFilters: {
+        ...previous.dashboardFilters,
+        [mode]: [
+          ...(previous.dashboardFilters?.[mode] || []),
+          {
+            id: `company-dashboard-filter-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            field: '',
+            table: '',
+            column: '',
+            operator: 'is',
+            value: '',
+          },
+        ],
+      },
+    }))
+  }
+
+  const updateCompanyDashboardFilter = (mode, filterId, field, value) => {
+    setForm(previous => ({
+      ...previous,
+      dashboardFilters: {
+        ...previous.dashboardFilters,
+        [mode]: (previous.dashboardFilters?.[mode] || []).map(filter =>
+          filter.id === filterId ? { ...filter, [field]: value } : filter
+        ),
+      },
+    }))
+  }
+
+  const updateCompanyDashboardFilterField = (mode, filterId, fieldName) => {
+    const definition = getDashboardFilterDefinition(fieldName)
+
+    setForm(previous => ({
+      ...previous,
+      dashboardFilters: {
+        ...previous.dashboardFilters,
+        [mode]: (previous.dashboardFilters?.[mode] || []).map(filter => {
+          if (filter.id !== filterId) return filter
+          return {
+            ...filter,
+            field: definition?.name || '',
+            table: definition?.table || '',
+            column: definition?.column || '',
+            value: '',
+          }
+        }),
       },
     }))
   }
@@ -782,6 +842,16 @@ export default function AdminPage() {
     setForm(previous => ({
       ...previous,
       orderCompletionRules: (previous.orderCompletionRules || []).filter(rule => rule.id !== ruleId),
+    }))
+  }
+
+  const removeCompanyDashboardFilter = (mode, filterId) => {
+    setForm(previous => ({
+      ...previous,
+      dashboardFilters: {
+        ...previous.dashboardFilters,
+        [mode]: (previous.dashboardFilters?.[mode] || []).filter(filter => filter.id !== filterId),
+      },
     }))
   }
 
@@ -1209,6 +1279,141 @@ export default function AdminPage() {
                   />
                 </div>
                 </div>
+
+                {form.supabaseEnabled ? (
+                  <details className="rounded-[24px] bg-white/[0.05] p-4">
+                    <summary className="cursor-pointer list-none">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="text-sm font-semibold text-white">Filtros gerais dos dashboards</h4>
+                          <p className="mt-1 text-sm text-[#b7b0a6]">
+                            Aplique filtros fixos para toda a empresa no PPS e na Analise de Dados.
+                          </p>
+                        </div>
+                        <span className="portal-pill">Retraivel</span>
+                      </div>
+                    </summary>
+
+                    <div className="mt-4 space-y-4">
+                      {dashboardFilterOptionsLoading ? (
+                        <p className="text-sm text-[#b7b0a6]">Carregando filtros disponiveis...</p>
+                      ) : null}
+                      {dashboardFilterOptionsError ? (
+                        <p className="text-sm text-amber-200">{dashboardFilterOptionsError}</p>
+                      ) : null}
+
+                      {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode]) => {
+                        const filters = form.dashboardFilters?.[mode] || []
+
+                        return (
+                          <div key={mode} className="rounded-[20px] bg-white/[0.04] p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <h5 className="text-sm font-semibold text-white">
+                                  {mode === 'pps' ? 'PPS' : 'Analise de Dados'}
+                                </h5>
+                                <p className="mt-1 text-xs text-[#8d867c]">
+                                  {filters.length === 0 ? 'Sem filtro geral neste modulo.' : `${filters.length} filtro(s) aplicado(s).`}
+                                </p>
+                              </div>
+                              <button type="button" className="portal-ghost-button" onClick={() => addCompanyDashboardFilter(mode)}>
+                                <Plus size={14} />
+                                Adicionar filtro
+                              </button>
+                            </div>
+
+                            <div className="mt-4 space-y-3">
+                              {filters.length === 0 ? (
+                                <p className="text-sm text-[#b7b0a6]">Nenhum filtro configurado para este modulo.</p>
+                              ) : (
+                                filters.map(filter => {
+                                  const filterDefinition = getDashboardFilterDefinition(filter.field)
+                                  const fieldOptions = getDashboardFieldOptions(filter.field)
+
+                                  return (
+                                    <div key={filter.id} className="rounded-[16px] bg-[#141216] p-3">
+                                      <div className="mb-3 flex justify-end">
+                                        <button
+                                          type="button"
+                                          className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
+                                          onClick={() => removeCompanyDashboardFilter(mode, filter.id)}
+                                        >
+                                          Remover
+                                        </button>
+                                      </div>
+                                      <div className="grid gap-3 md:grid-cols-2">
+                                        <select
+                                          className="portal-input"
+                                          value={filter.field || ''}
+                                          onChange={event => updateCompanyDashboardFilterField(mode, filter.id, event.target.value)}
+                                        >
+                                          <option value="">Selecione o filtro</option>
+                                          {getAvailableDashboardFields().map(field => (
+                                            <option key={field.name} value={field.name}>
+                                              {field.label}
+                                            </option>
+                                          ))}
+                                        </select>
+
+                                        {filterDefinition?.inputType === 'select' ? (
+                                          <select
+                                            className="portal-input"
+                                            value={filter.value}
+                                            onChange={event => updateCompanyDashboardFilter(mode, filter.id, 'value', event.target.value)}
+                                            disabled={!filter.field || fieldOptions.length === 0}
+                                          >
+                                            <option value="">
+                                              {!filter.field
+                                                ? 'Escolha o filtro primeiro'
+                                                : fieldOptions.length === 0
+                                                  ? 'Sem opcoes disponiveis'
+                                                  : 'Selecione um valor'}
+                                            </option>
+                                            {fieldOptions.map(option => (
+                                              <option key={option.value} value={option.value}>
+                                                {option.label}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        ) : (
+                                          <input
+                                            className="portal-input"
+                                            value={filter.value}
+                                            onChange={event => updateCompanyDashboardFilter(mode, filter.id, 'value', event.target.value)}
+                                            placeholder="Valor ou lista separada por virgula"
+                                            disabled={!filter.field}
+                                          />
+                                        )}
+
+                                        <select
+                                          className="portal-input"
+                                          value={filter.operator}
+                                          onChange={event => updateCompanyDashboardFilter(mode, filter.id, 'operator', event.target.value)}
+                                        >
+                                          {POWER_BI_FILTER_OPERATORS.map(option => (
+                                            <option key={option.value} value={option.value}>
+                                              {option.label}
+                                            </option>
+                                          ))}
+                                        </select>
+
+                                        <div className="portal-input flex items-center border-dashed text-sm text-[#b7b0a6]">
+                                          {getDashboardFilterDefinition(filter.field)?.inputType === 'select'
+                                            ? 'Valor definido por selecao'
+                                            : 'Valor digitado livremente'}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )
+                                })
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </details>
+                ) : null}
 
                 {form.supabaseEnabled ? (
                   <details className="rounded-[24px] bg-white/[0.05] p-4">
