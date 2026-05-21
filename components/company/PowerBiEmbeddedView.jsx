@@ -13,8 +13,21 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [loading, setLoading] = useState(true)
   const [activePageName, setActivePageName] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [isMobileLayout, setIsMobileLayout] = useState(false)
   const reportRef = useRef(null)
   const embedShellRef = useRef(null)
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)')
+    const syncLayout = () => setIsMobileLayout(mediaQuery.matches)
+
+    syncLayout()
+    mediaQuery.addEventListener('change', syncLayout)
+
+    return () => {
+      mediaQuery.removeEventListener('change', syncLayout)
+    }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -72,10 +85,27 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         },
         navContentPaneEnabled: false,
         background: models.BackgroundType.Default,
+        layoutType: isMobileLayout ? models.LayoutType.MobilePortrait : models.LayoutType.Master,
       },
       filters: Array.isArray(config.filters) ? config.filters : [],
     }
-  }, [activePageName, config])
+  }, [activePageName, config, isMobileLayout])
+
+  useEffect(() => {
+    if (!reportRef.current) return
+
+    async function updateLayout() {
+      try {
+        await reportRef.current.updateSettings({
+          layoutType: isMobileLayout ? models.LayoutType.MobilePortrait : models.LayoutType.Master,
+        })
+      } catch (layoutError) {
+        console.error(layoutError)
+      }
+    }
+
+    updateLayout()
+  }, [isMobileLayout])
 
   const handleSelectPage = async pageName => {
     setActivePageName(pageName)
@@ -215,8 +245,12 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       [
                         'loaded',
                         async () => {
-                          if (!reportRef.current || !activePageName) return
+                          if (!reportRef.current) return
                           try {
+                            await reportRef.current.updateSettings({
+                              layoutType: isMobileLayout ? models.LayoutType.MobilePortrait : models.LayoutType.Master,
+                            })
+                            if (!activePageName) return
                             const pages = await reportRef.current.getPages()
                             const selectedPage = pages.find(page => page.name === activePageName)
                             if (selectedPage) await selectedPage.setActive()
