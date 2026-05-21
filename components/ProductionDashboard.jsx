@@ -11,7 +11,7 @@ import DetalhesProdutos from '@/components/DetalhesProdutos'
 import RastreabilidadePedido from '@/components/RastreabilidadePedido'
 import IndiceAtendimento from '@/components/IndiceAtendimento'
 import RankingVendedores from '@/components/RankingVendedores'
-import { getCurrentPortalSession, getPortalAccessToken } from '@/lib/portal-store'
+import { getCurrentPortalSession, getPortalAuthHeaders } from '@/lib/portal-store'
 
 const PontualidadeChart = dynamic(() => import('@/components/PontualidadeChart'), { ssr: false })
 const PerdasChart = dynamic(() => import('@/components/PerdasChart'), { ssr: false })
@@ -153,8 +153,7 @@ export default function ProductionDashboard({
   }, [])
 
   const getAuthorizedHeaders = useCallback(async () => {
-    const token = await getPortalAccessToken()
-    return token ? { Authorization: `Bearer ${token}` } : {}
+    return getPortalAuthHeaders()
   }, [])
 
   useEffect(() => {

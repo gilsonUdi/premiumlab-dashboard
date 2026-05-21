@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   Building2,
   Copy,
+  Eye,
   LogOut,
   Pencil,
   Plus,
@@ -26,6 +27,7 @@ import {
   getCurrentPortalSession,
   getDefaultPermissionsForCompany,
   getPortalAccessToken,
+  startAdminCompanyPreview,
   slugifyCompanyName,
   updateCompanyUser,
   upsertCompany,
@@ -159,6 +161,7 @@ export default function AdminPage() {
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false)
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [managingCompanyId, setManagingCompanyId] = useState('')
+  const [portalPreviewCompanyId, setPortalPreviewCompanyId] = useState('')
   const [userForm, setUserForm] = useState(buildEmptyUserForm({ supabaseEnabled: true }))
   const [editingUserId, setEditingUserId] = useState('')
   const [powerBiCatalog, setPowerBiCatalog] = useState([])
@@ -238,6 +241,11 @@ export default function AdminPage() {
   const editingCompany = useMemo(
     () => (state?.companies || []).find(company => company.id === form.id) || null,
     [form.id, state?.companies]
+  )
+
+  const portalPreviewCompany = useMemo(
+    () => (state?.companies || []).find(company => company.id === portalPreviewCompanyId) || null,
+    [portalPreviewCompanyId, state?.companies]
   )
 
   const dashboardOptionsCompany = isUserModalOpen
@@ -351,6 +359,21 @@ export default function AdminPage() {
   const openCreateCompanyModal = () => {
     setForm(emptyForm)
     setIsCompanyModalOpen(true)
+  }
+
+  const openPortalPreviewModal = company => {
+    setPortalPreviewCompanyId(company.id)
+  }
+
+  const closePortalPreviewModal = () => {
+    setPortalPreviewCompanyId('')
+  }
+
+  const enterCompanyPortal = user => {
+    if (!portalPreviewCompany) return
+    startAdminCompanyPreview(portalPreviewCompany, user || null)
+    router.push(`/empresa/${portalPreviewCompany.slug}`)
+    closePortalPreviewModal()
   }
 
   const handleSaveCompany = async event => {
@@ -1202,10 +1225,10 @@ export default function AdminPage() {
                       </div>
 
                       <div className="flex justify-start gap-2 lg:justify-end">
-                        <Link href={`/empresa/${company.slug}`} className="portal-ghost-button">
+                        <button type="button" className="portal-ghost-button" onClick={() => openPortalPreviewModal(company)}>
                           Portal
                           <SquareArrowOutUpRight size={15} />
-                        </Link>
+                        </button>
                         <button type="button" className="portal-ghost-button" onClick={() => handleEditCompany(company)}>
                           <Pencil size={15} />
                           Editar
@@ -1970,10 +1993,10 @@ export default function AdminPage() {
                         <Users size={15} />
                         Gerenciar usuarios
                       </button>
-                      <Link href={`/empresa/${form.slug}`} className="portal-ghost-button">
+                      <button type="button" className="portal-ghost-button" onClick={() => editingCompany && openPortalPreviewModal(editingCompany)}>
                         Portal
                         <SquareArrowOutUpRight size={15} />
-                      </Link>
+                      </button>
                     </>
                   ) : null}
                 </div>
@@ -1988,6 +2011,64 @@ export default function AdminPage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {portalPreviewCompany ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#09080b]/80 px-4 py-8 backdrop-blur-sm">
+          <div className="w-full max-w-[720px] overflow-hidden rounded-[30px] bg-[#171418] shadow-[0_32px_120px_rgba(0,0,0,0.45)]">
+            <div className="flex items-center justify-between gap-4 px-6 py-5">
+              <div>
+                <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Entrar no portal</p>
+                <h3 className="mt-2 text-2xl font-semibold">{portalPreviewCompany.name}</h3>
+                <p className="mt-1 text-sm text-[#b7b0a6]">
+                  Escolha como deseja visualizar esta empresa. A opcao de usuario replica paginas, visuais e filtros liberados para ele.
+                </p>
+              </div>
+              <button type="button" className="portal-ghost-button" onClick={closePortalPreviewModal}>
+                <X size={16} />
+                Fechar
+              </button>
+            </div>
+
+            <div className="space-y-3 bg-[#121015] px-6 py-5">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-4 rounded-[22px] border border-[#e3ad5a]/25 bg-[#e3ad5a]/10 px-5 py-4 text-left transition hover:border-[#e3ad5a]/45 hover:bg-[#e3ad5a]/15"
+                onClick={() => enterCompanyPortal(null)}
+              >
+                <div>
+                  <p className="text-sm font-semibold text-white">Entrar como admin</p>
+                  <p className="mt-1 text-sm text-[#b7b0a6]">Visualiza a empresa sem restricoes de usuario.</p>
+                </div>
+                <Eye size={18} className="text-[#e3ad5a]" />
+              </button>
+
+              {getCompanyUserList(companyUsers, portalPreviewCompany).length === 0 ? (
+                <div className="rounded-[22px] border border-dashed border-white/10 px-5 py-4 text-sm text-[#b7b0a6]">
+                  Nenhum usuario cadastrado para esta empresa.
+                </div>
+              ) : (
+                getCompanyUserList(companyUsers, portalPreviewCompany).map(user => (
+                  <button
+                    key={user.uid}
+                    type="button"
+                    className="flex w-full items-center justify-between gap-4 rounded-[22px] bg-white/[0.05] px-5 py-4 text-left transition hover:bg-white/[0.08]"
+                    onClick={() => enterCompanyPortal(user)}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-white">{user.name || user.email}</p>
+                        {user.uid === portalPreviewCompany.authUid ? <span className="portal-pill">Principal</span> : null}
+                      </div>
+                      <p className="mt-1 truncate text-sm text-[#b7b0a6]">{user.email}</p>
+                    </div>
+                    <SquareArrowOutUpRight size={16} className="shrink-0 text-[#8f877d]" />
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         </div>
       ) : null}

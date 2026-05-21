@@ -8,7 +8,7 @@ import {
   getCompanyById,
   getCompanyBySlug,
   getCurrentPortalSession,
-  getPortalAccessToken,
+  getPortalAuthHeaders,
   loadCompanyState,
 } from '@/lib/portal-store'
 import { canAccessPortalPage, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
@@ -82,11 +82,8 @@ export default function PowerBiCatalogPage({ slug }) {
       try {
         setLoading(true)
         setError('')
-        const token = await getPortalAccessToken()
         const response = await fetch(`/api/power-bi/metadata?slug=${encodeURIComponent(company.slug)}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: await getPortalAuthHeaders(),
           cache: 'no-store',
         })
         const payload = await response.json()

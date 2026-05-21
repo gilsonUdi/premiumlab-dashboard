@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { PowerBIEmbed } from 'powerbi-client-react'
 import { models } from 'powerbi-client'
 import { ChevronRight, Maximize2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { getPortalAccessToken } from '@/lib/portal-store'
+import { getPortalAuthHeaders } from '@/lib/portal-store'
 
 export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [config, setConfig] = useState(null)
@@ -23,14 +23,11 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       try {
         setLoading(true)
         setError('')
-        const token = await getPortalAccessToken()
         const response = await fetch(
           `/api/power-bi/embed?slug=${encodeURIComponent(company.slug)}&report=${encodeURIComponent(reportKey)}`,
           {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          cache: 'no-store',
+            headers: await getPortalAuthHeaders(),
+            cache: 'no-store',
           }
         )
         const payload = await response.json()
