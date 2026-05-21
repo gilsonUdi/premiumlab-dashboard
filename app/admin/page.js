@@ -48,6 +48,8 @@ function createEmptyPowerBiReport() {
     workspaceId: '',
     reportId: '',
     datasetId: '',
+    effectiveIdentityUsername: '',
+    effectiveIdentityRolesText: '',
     enabled: true,
   }
 }
@@ -365,6 +367,11 @@ export default function AdminPage() {
               workspaceId: String(report.workspaceId || '').trim(),
               reportId: String(report.reportId || '').trim(),
               datasetId: String(report.datasetId || '').trim(),
+              effectiveIdentityUsername: String(report.effectiveIdentityUsername || '').trim(),
+              effectiveIdentityRoles: String(report.effectiveIdentityRolesText || report.effectiveIdentityRoles || '')
+                .split(',')
+                .map(role => String(role || '').trim())
+                .filter(Boolean),
               enabled: report.enabled !== false,
             }))
             .filter(report => report.workspaceId && report.reportId)
@@ -1905,6 +1912,27 @@ export default function AdminPage() {
                                 placeholder="17301e64-6e62-4c66-ad24-ee7d3e68e21b"
                                 required={form.powerBiEnabled}
                               />
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="portal-label">Effective identity username</label>
+                              <input
+                                className="portal-input"
+                                value={report.effectiveIdentityUsername || ''}
+                                onChange={event => updatePowerBiReportField(report.id, 'effectiveIdentityUsername', event.target.value)}
+                                placeholder="Opcional: email, usuario ou object id"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="portal-label">Papeis RLS</label>
+                              <input
+                                className="portal-input"
+                                value={report.effectiveIdentityRolesText ?? (Array.isArray(report.effectiveIdentityRoles) ? report.effectiveIdentityRoles.join(', ') : '')}
+                                onChange={event => updatePowerBiReportField(report.id, 'effectiveIdentityRolesText', event.target.value)}
+                                placeholder="Opcional: Geral, VndAdilson"
+                              />
+                              <p className="text-xs text-[#8d867c]">Separe varios papeis por virgula.</p>
                             </div>
                           </div>
                         </div>
