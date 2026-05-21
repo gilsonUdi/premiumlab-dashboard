@@ -2017,12 +2017,12 @@ export default function AdminPage() {
 
       {portalPreviewCompany ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#09080b]/80 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-[720px] overflow-hidden rounded-[30px] bg-[#171418] shadow-[0_32px_120px_rgba(0,0,0,0.45)]">
-            <div className="flex items-center justify-between gap-4 px-6 py-5">
-              <div>
-                <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Entrar no portal</p>
-                <h3 className="mt-2 text-2xl font-semibold">{portalPreviewCompany.name}</h3>
-                <p className="mt-1 text-sm text-[#b7b0a6]">
+          <div className="flex max-h-[78vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[26px] bg-[#171418] shadow-[0_32px_120px_rgba(0,0,0,0.45)]">
+            <div className="flex shrink-0 items-start justify-between gap-4 px-5 py-4">
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-[0.22em] text-[#bca27a]">Entrar no portal</p>
+                <h3 className="mt-2 truncate text-xl font-semibold">{portalPreviewCompany.name}</h3>
+                <p className="mt-1 text-sm leading-6 text-[#b7b0a6]">
                   Escolha como deseja visualizar esta empresa. A opcao de usuario replica paginas, visuais e filtros liberados para ele.
                 </p>
               </div>
@@ -2032,21 +2032,21 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <div className="space-y-3 bg-[#121015] px-6 py-5">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-[#121015] px-5 py-4">
               <button
                 type="button"
-                className="flex w-full items-center justify-between gap-4 rounded-[22px] border border-[#e3ad5a]/25 bg-[#e3ad5a]/10 px-5 py-4 text-left transition hover:border-[#e3ad5a]/45 hover:bg-[#e3ad5a]/15"
+                className="flex w-full items-center justify-between gap-4 rounded-[18px] border border-[#e3ad5a]/25 bg-[#e3ad5a]/10 px-4 py-3 text-left transition hover:border-[#e3ad5a]/45 hover:bg-[#e3ad5a]/15"
                 onClick={() => enterCompanyPortal(null)}
               >
                 <div>
                   <p className="text-sm font-semibold text-white">Entrar como admin</p>
-                  <p className="mt-1 text-sm text-[#b7b0a6]">Visualiza a empresa sem restricoes de usuario.</p>
+                  <p className="mt-1 text-xs text-[#b7b0a6]">Visualiza a empresa sem restricoes de usuario.</p>
                 </div>
                 <Eye size={18} className="text-[#e3ad5a]" />
               </button>
 
               {getCompanyUserList(companyUsers, portalPreviewCompany).length === 0 ? (
-                <div className="rounded-[22px] border border-dashed border-white/10 px-5 py-4 text-sm text-[#b7b0a6]">
+                <div className="rounded-[18px] border border-dashed border-white/10 px-4 py-3 text-sm text-[#b7b0a6]">
                   Nenhum usuario cadastrado para esta empresa.
                 </div>
               ) : (
@@ -2054,7 +2054,7 @@ export default function AdminPage() {
                   <button
                     key={user.uid}
                     type="button"
-                    className="flex w-full items-center justify-between gap-4 rounded-[22px] bg-white/[0.05] px-5 py-4 text-left transition hover:bg-white/[0.08]"
+                    className="flex w-full items-center justify-between gap-4 rounded-[18px] bg-white/[0.05] px-4 py-3 text-left transition hover:bg-white/[0.08]"
                     onClick={() => enterCompanyPortal(user)}
                   >
                     <div className="min-w-0">
