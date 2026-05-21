@@ -39,7 +39,15 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Usuario sem acesso a este modelo de Power BI.' }, { status: 403 })
     }
 
-    const embedConfig = await generatePowerBiEmbedConfig(company, reportKey, getPowerBiReportFilters(company, permissions, reportKey))
+    const embedConfig = await generatePowerBiEmbedConfig(
+      company,
+      reportKey,
+      getPowerBiReportFilters(company, permissions, reportKey),
+      {
+        email: profile.email,
+        username: profile.email,
+      }
+    )
     const navigablePages = embedConfig.pages.filter(isPowerBiNavigablePage)
     const allowedPageNames = getAllowedPowerBiPages(company, permissions, reportKey)
     const visiblePages =
