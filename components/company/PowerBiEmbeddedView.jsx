@@ -221,7 +221,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
               </div>
             ) : embedConfig ? (
               <div ref={embedShellRef} className="relative h-full w-full overflow-hidden">
-                <div className="absolute inset-x-0 top-0 z-20 bg-[#141216]">
+                <div className="absolute inset-x-0 top-0 z-20 bg-[#141216]/95 shadow-[0_10px_28px_rgba(0,0,0,0.32)] backdrop-blur">
                   <div className="flex h-12 items-center justify-between gap-3 px-3 sm:px-5">
                     <div className="flex min-w-0 items-center gap-3">
                       <Link
@@ -244,33 +244,10 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       Tela cheia
                     </button>
                   </div>
-                  {isMobileLayout && sidebarPages.length > 0 ? (
-                    <div className="border-t border-white/8 px-3 pb-2">
-                      <div className="flex gap-2 overflow-x-auto overscroll-x-contain pt-2">
-                        {sidebarPages.map(page => {
-                          const isActive = activePageName === page.name
-                          return (
-                            <button
-                              key={page.name}
-                              type="button"
-                              onClick={() => handleSelectPage(page.name)}
-                              className={`shrink-0 rounded-full px-3 py-2 text-xs font-medium transition ${
-                                isActive
-                                  ? 'bg-[#e3ad5a] text-[#17120c]'
-                                  : 'bg-white/[0.06] text-[#ddd5c8] hover:bg-white/[0.1]'
-                              }`}
-                            >
-                              {page.displayName || page.name}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
                 <PowerBIEmbed
                   embedConfig={embedConfig}
-                  cssClassName={`h-full w-full ${isMobileLayout && sidebarPages.length > 0 ? 'pt-[96px]' : 'pt-12'}`}
+                  cssClassName="h-full w-full"
                   getEmbeddedComponent={embeddedReport => {
                     reportRef.current = embeddedReport
                   }}
@@ -309,6 +286,29 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     ])
                   }
                 />
+                {isMobileLayout && sidebarPages.length > 0 ? (
+                  <div className="absolute inset-x-0 bottom-0 z-20 border-t border-white/8 bg-[#141216]/95 px-3 py-2 shadow-[0_-10px_28px_rgba(0,0,0,0.32)] backdrop-blur">
+                    <div className="flex gap-2 overflow-x-auto overscroll-x-contain">
+                      {sidebarPages.map(page => {
+                        const isActive = activePageName === page.name
+                        return (
+                          <button
+                            key={page.name}
+                            type="button"
+                            onClick={() => handleSelectPage(page.name)}
+                            className={`shrink-0 rounded-full px-3 py-2 text-xs font-medium transition ${
+                              isActive
+                                ? 'bg-[#e3ad5a] text-[#17120c]'
+                                : 'bg-white/[0.06] text-[#ddd5c8] hover:bg-white/[0.1]'
+                            }`}
+                          >
+                            {page.displayName || page.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
