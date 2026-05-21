@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { PowerBIEmbed } from 'powerbi-client-react'
 import { models } from 'powerbi-client'
-import { ChevronRight, Maximize2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Maximize2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { getPortalAuthHeaders } from '@/lib/portal-store'
 
 export default function PowerBiEmbeddedView({ company, reportKey }) {
@@ -138,7 +138,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       <Link
         href={`/empresa/${company.slug}`}
         aria-label="Voltar ao portal"
-        className="absolute left-4 top-4 z-30 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#1f1b20]/88 text-2xl text-white shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-[#2a242b] sm:left-6 sm:top-6"
+        className="absolute left-4 top-4 z-30 hidden h-12 w-12 items-center justify-center rounded-full bg-[#1f1b20]/88 text-2xl text-white shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-[#2a242b] md:inline-flex md:left-6 md:top-6"
       >
         <span aria-hidden="true">{'\u2190'}</span>
       </Link>
@@ -208,7 +208,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
           </div>
         </aside>
 
-        <div className="min-w-0 pt-20 lg:pt-0">
+        <div className="min-w-0 pt-0 lg:pt-0">
           <div className="h-full w-full bg-[#0f0d11]">
             {loading ? (
               <div className="flex h-full items-center justify-center px-6 text-sm text-[#d8d2c8]">Preparando Power BI...</div>
@@ -221,9 +221,20 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
               </div>
             ) : embedConfig ? (
               <div ref={embedShellRef} className="relative h-full w-full overflow-hidden">
-                <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-11 bg-[#141216]">
-                  <div className="flex h-full items-center justify-between gap-3 px-4 sm:px-5">
-                    <span className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#e3ad5a]">GSControladoria</span>
+                <div className="absolute inset-x-0 top-0 z-20 bg-[#141216]">
+                  <div className="flex h-12 items-center justify-between gap-3 px-3 sm:px-5">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Link
+                        href={`/empresa/${company.slug}`}
+                        aria-label="Voltar ao portal"
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-white transition hover:bg-white/[0.1] md:hidden"
+                      >
+                        <ArrowLeft size={20} />
+                      </Link>
+                      <span className="truncate text-[11px] font-medium uppercase tracking-[0.24em] text-[#e3ad5a]">
+                        GSControladoria
+                      </span>
+                    </div>
                     <button
                       type="button"
                       className="pointer-events-auto inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-[#efe9df] transition hover:border-white/20 hover:bg-white/[0.1]"
@@ -233,10 +244,33 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       Tela cheia
                     </button>
                   </div>
+                  {isMobileLayout && sidebarPages.length > 0 ? (
+                    <div className="border-t border-white/8 px-3 pb-2">
+                      <div className="flex gap-2 overflow-x-auto overscroll-x-contain pt-2">
+                        {sidebarPages.map(page => {
+                          const isActive = activePageName === page.name
+                          return (
+                            <button
+                              key={page.name}
+                              type="button"
+                              onClick={() => handleSelectPage(page.name)}
+                              className={`shrink-0 rounded-full px-3 py-2 text-xs font-medium transition ${
+                                isActive
+                                  ? 'bg-[#e3ad5a] text-[#17120c]'
+                                  : 'bg-white/[0.06] text-[#ddd5c8] hover:bg-white/[0.1]'
+                              }`}
+                            >
+                              {page.displayName || page.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
                 <PowerBIEmbed
                   embedConfig={embedConfig}
-                  cssClassName="h-full w-full"
+                  cssClassName={`h-full w-full ${isMobileLayout && sidebarPages.length > 0 ? 'pt-[96px]' : 'pt-12'}`}
                   getEmbeddedComponent={embeddedReport => {
                     reportRef.current = embeddedReport
                   }}
