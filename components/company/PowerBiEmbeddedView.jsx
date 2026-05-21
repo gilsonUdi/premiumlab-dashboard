@@ -14,6 +14,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [activePageName, setActivePageName] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobileLayout, setIsMobileLayout] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const reportRef = useRef(null)
   const embedShellRef = useRef(null)
 
@@ -26,6 +27,18 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
 
     return () => {
       mediaQuery.removeEventListener('change', syncLayout)
+    }
+  }, [])
+
+  useEffect(() => {
+    const syncFullscreen = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement) || document.body.classList.contains('power-bi-mobile-fullscreen'))
+    }
+
+    document.addEventListener('fullscreenchange', syncFullscreen)
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen)
+      document.body.classList.remove('power-bi-mobile-fullscreen')
     }
   }, [])
 
@@ -119,15 +132,39 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     }
   }
 
-  const enterFullscreen = async () => {
+  const toggleFullscreen = async () => {
     try {
-      if (embedShellRef.current?.requestFullscreen) {
-        await embedShellRef.current.requestFullscreen()
+      if (document.fullscreenElement) {
+        await document.exitFullscreen()
+        setIsFullscreen(false)
         return
       }
-      if (reportRef.current?.fullscreen) await reportRef.current.fullscreen()
+
+      if (isFullscreen) {
+        if (reportRef.current?.exitFullscreen) await reportRef.current.exitFullscreen()
+        document.body.classList.remove('power-bi-mobile-fullscreen')
+        setIsFullscreen(false)
+        return
+      }
+
+      if (embedShellRef.current?.requestFullscreen) {
+        await embedShellRef.current.requestFullscreen()
+        setIsFullscreen(true)
+        return
+      }
+
+      if (reportRef.current?.fullscreen) {
+        await reportRef.current.fullscreen()
+        setIsFullscreen(true)
+        return
+      }
+
+      document.body.classList.add('power-bi-mobile-fullscreen')
+      setIsFullscreen(true)
     } catch (fullscreenError) {
       console.error(fullscreenError)
+      document.body.classList.add('power-bi-mobile-fullscreen')
+      setIsFullscreen(true)
     }
   }
 
@@ -220,7 +257,12 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                 </div>
               </div>
             ) : embedConfig ? (
-              <div ref={embedShellRef} className="relative h-full w-full overflow-hidden">
+              <div
+                ref={embedShellRef}
+                className={`relative h-full w-full overflow-hidden bg-[#0f0d11] ${
+                  isFullscreen ? 'fixed inset-0 z-[80] h-[100dvh]' : ''
+                }`}
+              >
                 <div className="absolute inset-x-0 top-0 z-20 bg-[#141216]/95 shadow-[0_10px_28px_rgba(0,0,0,0.32)] backdrop-blur">
                   <div className="flex h-12 items-center justify-between gap-3 px-3 sm:px-5">
                     <div className="flex min-w-0 items-center gap-3">
@@ -238,10 +280,10 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     <button
                       type="button"
                       className="pointer-events-auto inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-[#efe9df] transition hover:border-white/20 hover:bg-white/[0.1]"
-                      onClick={enterFullscreen}
+                      onClick={toggleFullscreen}
                     >
                       <Maximize2 size={14} />
-                      Tela cheia
+                      {isFullscreen ? 'Sair' : 'Tela cheia'}
                     </button>
                   </div>
                 </div>
