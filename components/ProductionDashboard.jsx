@@ -102,7 +102,19 @@ export default function ProductionDashboard({
   tenantSlug,
   mode = 'analysis',
   sectionVisibility = null,
+  dashboardDataSourceType = 'supabase',
 }) {
+  const normalizeDashboardErrorMessage = useCallback((message = '') => {
+    const raw = String(message || '').trim()
+    if (!raw) return raw
+
+    const isGradualApi = dashboardDataSourceType === 'gradualApi'
+    if (isGradualApi && /supabase nao configurado para o tenant/i.test(raw)) {
+      return 'API Gradual nao configurada para este tenant.'
+    }
+
+    return raw
+  }, [dashboardDataSourceType])
   const isPpsMode = mode === 'pps'
   const visibleSections = sectionVisibility || {}
   const [filters, setFilters] = useState(defaultFilters)
@@ -174,7 +186,7 @@ export default function ProductionDashboard({
         setRequestError('')
       } catch (error) {
         console.error(error)
-        setRequestError(error.message || 'Falha ao carregar opcoes do dashboard.')
+        setRequestError(normalizeDashboardErrorMessage(error.message || 'Falha ao carregar opcoes do dashboard.'))
       }
     }
 
@@ -211,11 +223,11 @@ export default function ProductionDashboard({
     } catch (error) {
       console.error(error)
       setData(null)
-      setRequestError(error.message || 'Falha ao carregar os dados do dashboard.')
+      setRequestError(normalizeDashboardErrorMessage(error.message || 'Falha ao carregar os dados do dashboard.'))
     } finally {
       setLoading(false)
     }
-  }, [authResolved, filters, getAuthorizedHeaders, tenantSlug])
+  }, [authResolved, filters, getAuthorizedHeaders, normalizeDashboardErrorMessage, tenantSlug])
 
   const handleFiltersChange = useCallback(updater => {
     setFilters(previous => (typeof updater === 'function' ? updater(previous) : updater))
