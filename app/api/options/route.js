@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createTenantSupabase } from '@/lib/supabase'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
+import { getCompanyDashboardDataSource } from '@/lib/portal-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,6 +100,110 @@ async function getTenantSupabase(request, tenantSlug) {
   return createTenantSupabase(supabaseUrl, supabaseServiceRoleKey)
 }
 
+function asSqlDate(value, fallback) {
+  const text = String(value || '').trim()
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : fallback
+}
+
+function parseList(value) {
+  if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean)
+  return String(value || '').split(',').map(item => item.trim()).filter(Boolean)
+}
+
+function uniqueBy(items, keySelector) {
+  const seen = new Set()
+  const result = []
+  for (const item of items) {
+    const key = keySelector(item)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    result.push(item)
+  }
+  return result
+}
+
+async function getGradualApiOptions(company, companySecrets, searchParams) {
+  const settings = getCompanyDashboardDataSource(company)
+  const baseUrl = String(settings.gradualApiUrl || '').trim().replace(/\/+$/, '')
+  if (!baseUrl) {
+    return { cells: [], clients: [], clientGroups: [], zones: [], stages: [], employees: [], statuses: [], supabaseTables: [] }
+  }
+
+  const fallbackEnd = new Date().toISOString().slice(0, 10)
+  const fallbackStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const dateStart = asSqlDate(searchParams.get('dateStart'), fallbackStart)
+  const dateEnd = asSqlDate(searchParams.get('dateEnd'), fallbackEnd)
+  const url = new URL('/api/pps/orders', baseUrl)
+  url.searchParams.set('start', dateStart)
+  url.searchParams.set('end', dateEnd)
+  url.searchParams.set('limit', String(Math.min(Number(settings.gradualApiLimit) || 50, 50)))
+  url.searchParams.set('scanWindow', String(Number(settings.gradualApiScanWindow) || 500))
+
+  const source = String(settings.gradualApiSource || '').trim()
+  const companyIds = parseList(settings.gradualApiCompanyIds)
+  if (source) url.searchParams.set('source', source)
+  if (companyIds.length > 0) url.searchParams.set('companies', companyIds.join(','))
+  if (settings.gradualApiStartOrderId) url.searchParams.set('startOrderId', String(settings.gradualApiStartOrderId).trim())
+
+  const gradualApiKey = String(companySecrets?.gradualApiKey || '').trim()
+  const response = await fetch(url, {
+    cache: 'no-store',
+    headers: gradualApiKey ? { 'x-gs-api-key': gradualApiKey } : {},
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(`API Gradual respondeu ${response.status}: ${text || response.statusText}`)
+  }
+
+  const payload = await response.json().catch(() => ({}))
+  const datasets = payload?.datasets || {}
+  const orders = Array.isArray(datasets.orders) ? datasets.orders : Array.isArray(payload.orders) ? payload.orders : []
+  const routes = Array.isArray(datasets.routes) ? datasets.routes : []
+
+  const cells = uniqueBy(
+    routes
+      .map(route => ({
+        value: route.warehouseDescription || route.locationDescription || route.warehouseCode || route.locationCode || '',
+        label: normalizeText(route.warehouseDescription || route.locationDescription || route.warehouseCode || route.locationCode || ''),
+      }))
+      .filter(cell => cell.value),
+    cell => String(cell.value)
+  )
+
+  const clients = uniqueBy(
+    orders
+      .map(order => {
+        const clicodigo = order.clicodigo || order.customerId || ''
+        const label = normalizeText(order.clinome || order.customerName || (clicodigo ? `Cliente ${clicodigo}` : ''))
+        return { clicodigo, label, razaoSocial: label, gclcodigo: order.gclcodigo || null, zocodigo: null }
+      })
+      .filter(client => client.clicodigo),
+    client => String(client.clicodigo)
+  )
+
+  const groupCodeSet = new Set(clients.map(client => client.gclcodigo).filter(Boolean))
+  const clientGroups = [...groupCodeSet].map(code => ({ value: code, label: `Grupo ${code}` }))
+
+  const statuses = [
+    { value: 'in_progress', label: 'Em Producao' },
+    { value: 'delayed', label: 'Em Producao (atraso)' },
+    { value: 'completed', label: 'Concluido' },
+    { value: 'delayed_completed', label: 'Entregue (atraso)' },
+    { value: 'pending', label: 'Aguardando' },
+  ]
+
+  return {
+    cells,
+    clients,
+    clientGroups,
+    zones: [],
+    stages: cells.map(cell => ({ value: cell.value, label: cell.label, isFinal: false, isStart: false })),
+    employees: [],
+    statuses,
+    supabaseTables: [],
+  }
+}
+
 async function execSql(supabase, sql) {
   const compactSql = sql.replace(/\s+/g, ' ').trim()
   const { data, error } = await supabase.rpc('exec_sql', { sql: compactSql })
@@ -140,6 +245,13 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const tenantSlug = searchParams.get('tenant') || ''
+    const { company, companySecrets } = await resolveAuthorizedCompany(request, tenantSlug)
+    const dashboardDataSource = getCompanyDashboardDataSource(company)
+    if (dashboardDataSource.type === 'gradualApi') {
+      const options = await getGradualApiOptions(company, companySecrets, searchParams)
+      return NextResponse.json(options, { headers: NO_STORE_HEADERS })
+    }
+
     const supabase = await getTenantSupabase(request, tenantSlug)
 
     const allTablesRows = await execSql(
