@@ -73,6 +73,7 @@ const emptyForm = {
   supabaseLabel: '',
   dashboardDataSource: 'supabase',
   gradualApiUrl: '',
+  gradualApiKey: '',
   gradualApiCompanyIdsText: '',
   gradualApiScanWindow: 1500,
   gradualApiStartOrderId: '',
@@ -420,6 +421,7 @@ export default function AdminPage() {
         dashboardVisualFilters: form.dashboardVisualFilters,
         dashboardDataSource: form.dashboardDataSource,
         gradualApiUrl: form.gradualApiUrl,
+        gradualApiKey: form.gradualApiKey,
         gradualApiCompanyIds: String(form.gradualApiCompanyIdsText || '')
           .split(',')
           .map(value => String(value || '').trim())
@@ -463,6 +465,7 @@ export default function AdminPage() {
       supabaseLabel: company.supabaseLabel || '',
       dashboardDataSource: company.dashboardDataSource || company.dashboardDataSourceType || 'supabase',
       gradualApiUrl: company.gradualApiUrl || '',
+      gradualApiKey: '',
       gradualApiCompanyIdsText: Array.isArray(company.gradualApiCompanyIds)
         ? company.gradualApiCompanyIds.join(', ')
         : String(company.gradualApiCompanyIds || ''),
@@ -1757,6 +1760,17 @@ export default function AdminPage() {
                                     value={form.gradualApiUrl}
                                     onChange={event => setForm(previous => ({ ...previous, gradualApiUrl: event.target.value }))}
                                     placeholder="http://127.0.0.1:5001"
+                                  />
+                                </div>
+
+                                <div className="space-y-2 md:col-span-2">
+                                  <label className="portal-label">Chave da API Gradual</label>
+                                  <input
+                                    className="portal-input"
+                                    type="password"
+                                    value={form.gradualApiKey}
+                                    onChange={event => setForm(previous => ({ ...previous, gradualApiKey: event.target.value }))}
+                                    placeholder={form.id ? 'Preencha so se quiser trocar a chave' : 'Cole a chave PPS_API_KEY'}
                                   />
                                 </div>
 

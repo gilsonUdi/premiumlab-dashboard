@@ -1943,7 +1943,10 @@ export async function GET(request) {
 
     if (dashboardDataSource.type === 'gradualApi') {
       const gradualPayload = await buildGradualApiDashboardPayload({
-        companySettings: dashboardDataSource,
+        companySettings: {
+          ...dashboardDataSource,
+          gradualApiKey: companySecrets.gradualApiKey || '',
+        },
         searchParams,
         dashboardScopedFilters,
         dashboardVisualFilters,

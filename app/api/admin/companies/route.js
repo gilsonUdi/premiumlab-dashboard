@@ -74,6 +74,7 @@ function normalizeCompanyPayload(payload = {}) {
     gradualApiScanWindow: portalSettings.gradualApiScanWindow,
     gradualApiStartOrderId: portalSettings.gradualApiStartOrderId,
     gradualApiLimit: portalSettings.gradualApiLimit,
+    gradualApiKey: String(payload.gradualApiKey || '').trim(),
     orderCompletionRules: portalSettings.orderCompletionRules,
     limitByCompanyCodeEnabled: portalSettings.limitByCompanyCodeEnabled,
     companyCodeFilter: portalSettings.companyCodeFilter,
@@ -139,11 +140,14 @@ export async function POST(request) {
     const mainUserRef = db.collection(USERS_COLLECTION).doc(authUser.uid)
     const mainUserSnapshot = await mainUserRef.get()
 
+    const existingSecretSnapshot = await db.collection(COMPANY_SECRETS_COLLECTION).doc(company.id).get()
+    const existingSecrets = existingSecretSnapshot.exists ? existingSecretSnapshot.data() : {}
     const supabaseUrl = company.supabaseUrl || existingCompany?.supabaseUrl || getPremiumFallbackUrl(company)
     const supabaseServiceRoleKey =
       company.supabaseServiceRoleKey ||
-      (await db.collection(COMPANY_SECRETS_COLLECTION).doc(company.id).get()).data()?.supabaseServiceRoleKey ||
+      existingSecrets.supabaseServiceRoleKey ||
       getPremiumFallbackSecret(company)
+    const gradualApiKey = company.gradualApiKey || existingSecrets.gradualApiKey || ''
 
     await companyRef.set(
       {
@@ -174,6 +178,7 @@ export async function POST(request) {
         gradualApiScanWindow: company.gradualApiScanWindow,
         gradualApiStartOrderId: company.gradualApiStartOrderId,
         gradualApiLimit: company.gradualApiLimit,
+        hasGradualApiKey: Boolean(gradualApiKey),
         orderCompletionRules: company.orderCompletionRules,
         limitByCompanyCodeEnabled: company.limitByCompanyCodeEnabled,
         companyCodeFilter: company.companyCodeFilter,
@@ -213,11 +218,12 @@ export async function POST(request) {
       { merge: true }
     )
 
-    if (supabaseUrl || supabaseServiceRoleKey) {
+    if (supabaseUrl || supabaseServiceRoleKey || gradualApiKey) {
       await db.collection(COMPANY_SECRETS_COLLECTION).doc(company.id).set(
         {
           supabaseUrl,
           supabaseServiceRoleKey,
+          gradualApiKey,
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
