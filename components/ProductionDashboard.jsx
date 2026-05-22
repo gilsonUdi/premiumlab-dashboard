@@ -125,6 +125,7 @@ export default function ProductionDashboard({
   const [lastUpdated, setLastUpdated] = useState(null)
   const [authResolved, setAuthResolved] = useState(false)
   const [requestError, setRequestError] = useState('')
+  const [optionsError, setOptionsError] = useState('')
   const debounceRef = useRef(null)
 
   const selectedOrder = filters.pedcodigo.length === 1 ? filters.pedcodigo[0] : null
@@ -183,10 +184,10 @@ export default function ProductionDashboard({
         const payload = await response.json()
         if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar opcoes.')
         setOptions(payload)
-        setRequestError('')
+        setOptionsError('')
       } catch (error) {
         console.error(error)
-        setRequestError(normalizeDashboardErrorMessage(error.message || 'Falha ao carregar opcoes do dashboard.'))
+        setOptionsError(normalizeDashboardErrorMessage(error.message || 'Falha ao carregar opcoes do dashboard.'))
       }
     }
 
@@ -220,6 +221,7 @@ export default function ProductionDashboard({
       if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar dashboard.')
       setData(payload)
       setLastUpdated(new Date())
+      setRequestError('')
     } catch (error) {
       console.error(error)
       setData(null)
@@ -449,9 +451,9 @@ export default function ProductionDashboard({
           </div>
         ) : null}
 
-        {requestError ? (
+        {(requestError || (!data && optionsError)) ? (
           <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-            {requestError}
+            {requestError || optionsError}
           </div>
         ) : null}
 
