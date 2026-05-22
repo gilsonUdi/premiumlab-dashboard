@@ -3,6 +3,7 @@ import { addDays, differenceInDays, differenceInMinutes, format, parseISO, start
 import { ptBR } from 'date-fns/locale'
 import {
   getCompanyCodeFilter,
+  getCompanyDashboardDataSource,
   getCompanyDashboardFilters,
   getCompanyDashboardVisualFilters,
   getCompanyOrderCompletionRules,
@@ -10,6 +11,7 @@ import {
   normalizeUserPermissions,
   PORTAL_PAGE_KEYS,
 } from '@/lib/portal-config'
+import { buildGradualApiDashboardPayload } from '@/lib/gradual-api-source'
 import { createTenantSupabase } from '@/lib/supabase'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
 
@@ -1927,15 +1929,6 @@ export async function GET(request) {
     const dashboardMode = requestedMode === 'pps' ? 'pps' : 'analysis'
     const pageKey = dashboardMode === 'pps' ? PORTAL_PAGE_KEYS.PPS : PORTAL_PAGE_KEYS.ANALYSIS
     const { company, companySecrets, profile } = await resolveAuthorizedCompany(request, tenantSlug)
-    const supabase = (() => {
-      const { url: supabaseUrl, serviceRoleKey: supabaseServiceRoleKey } = resolveSupabaseConfig(company, companySecrets)
-
-      if (!supabaseUrl || !supabaseServiceRoleKey) {
-        throw new Error(`Supabase nao configurado para o tenant ${company.slug}.`)
-      }
-
-      return createTenantSupabase(supabaseUrl, supabaseServiceRoleKey)
-    })()
     const permissions = normalizeUserPermissions(profile.permissions, company)
 
     if (profile.role !== 'admin' && !permissions.pages[pageKey]) {
@@ -1946,6 +1939,28 @@ export async function GET(request) {
     const dashboardPermissionFilters = profile.role === 'admin' ? [] : getDashboardFilters(company, permissions, dashboardMode)
     const dashboardScopedFilters = [...dashboardCompanyFilters, ...dashboardPermissionFilters]
     const dashboardVisualFilters = getCompanyDashboardVisualFilters(company, dashboardMode)
+    const dashboardDataSource = getCompanyDashboardDataSource(company)
+
+    if (dashboardDataSource.type === 'gradualApi') {
+      const gradualPayload = await buildGradualApiDashboardPayload({
+        companySettings: dashboardDataSource,
+        searchParams,
+        dashboardScopedFilters,
+        dashboardVisualFilters,
+      })
+
+      return NextResponse.json(gradualPayload, { headers: NO_STORE_HEADERS })
+    }
+
+    const supabase = (() => {
+      const { url: supabaseUrl, serviceRoleKey: supabaseServiceRoleKey } = resolveSupabaseConfig(company, companySecrets)
+
+      if (!supabaseUrl || !supabaseServiceRoleKey) {
+        throw new Error(`Supabase nao configurado para o tenant ${company.slug}.`)
+      }
+
+      return createTenantSupabase(supabaseUrl, supabaseServiceRoleKey)
+    })()
     const orderCompletionRules = getCompanyOrderCompletionRules(company)
     const companyCodeFilter = getCompanyCodeFilter(company)
 

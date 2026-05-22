@@ -34,6 +34,7 @@ import {
 } from '@/lib/portal-store'
 import {
   DASHBOARD_FILTER_FIELDS,
+  DASHBOARD_DATA_SOURCE_TYPES,
   DASHBOARD_SECTION_GROUPS,
   buildDefaultDashboardVisualFilters,
   getDashboardFilterDefinition,
@@ -70,6 +71,12 @@ const emptyForm = {
   supabaseUrl: '',
   supabaseServiceRoleKey: '',
   supabaseLabel: '',
+  dashboardDataSource: 'supabase',
+  gradualApiUrl: '',
+  gradualApiCompanyIdsText: '',
+  gradualApiScanWindow: 1500,
+  gradualApiStartOrderId: '',
+  gradualApiLimit: 500,
   externalDashboardUrl: '',
   powerBiEnabled: false,
   powerBiEmbedUrl: '',
@@ -411,6 +418,15 @@ export default function AdminPage() {
           .filter(Boolean),
         dashboardFilters: form.dashboardFilters,
         dashboardVisualFilters: form.dashboardVisualFilters,
+        dashboardDataSource: form.dashboardDataSource,
+        gradualApiUrl: form.gradualApiUrl,
+        gradualApiCompanyIds: String(form.gradualApiCompanyIdsText || '')
+          .split(',')
+          .map(value => String(value || '').trim())
+          .filter(Boolean),
+        gradualApiScanWindow: form.gradualApiScanWindow,
+        gradualApiStartOrderId: form.gradualApiStartOrderId,
+        gradualApiLimit: form.gradualApiLimit,
         orderCompletionRules: form.orderCompletionRules,
         limitByCompanyCodeEnabled: form.limitByCompanyCodeEnabled,
         companyCodeFilter: form.companyCodeFilter,
@@ -445,6 +461,14 @@ export default function AdminPage() {
       supabaseUrl: company.supabaseUrl || '',
       supabaseServiceRoleKey: '',
       supabaseLabel: company.supabaseLabel || '',
+      dashboardDataSource: company.dashboardDataSource || company.dashboardDataSourceType || 'supabase',
+      gradualApiUrl: company.gradualApiUrl || '',
+      gradualApiCompanyIdsText: Array.isArray(company.gradualApiCompanyIds)
+        ? company.gradualApiCompanyIds.join(', ')
+        : String(company.gradualApiCompanyIds || ''),
+      gradualApiScanWindow: company.gradualApiScanWindow || 1500,
+      gradualApiStartOrderId: company.gradualApiStartOrderId || '',
+      gradualApiLimit: company.gradualApiLimit || 500,
       externalDashboardUrl: company.externalDashboardUrl || '',
       powerBiEnabled: company.powerBiEnabled === true,
       powerBiEmbedUrl: company.powerBiEmbedUrl || '',
@@ -1691,6 +1715,89 @@ export default function AdminPage() {
                             onChange={event => setForm(previous => ({ ...previous, supabaseServiceRoleKey: event.target.value }))}
                             placeholder={form.id ? 'Preencha so se quiser trocar a chave' : 'Cole a service_role_key do tenant'}
                           />
+                        </div>
+
+                        <div className="space-y-3 md:col-span-2">
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2">
+                              <label className="portal-label">Fonte de dados do dashboard</label>
+                              <select
+                                className="portal-input"
+                                value={form.dashboardDataSource}
+                                onChange={event => setForm(previous => ({ ...previous, dashboardDataSource: event.target.value }))}
+                              >
+                                {DASHBOARD_DATA_SOURCE_TYPES.map(source => (
+                                  <option key={source.value} value={source.value}>
+                                    {source.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="portal-label">Limite por busca da API</label>
+                              <input
+                                className="portal-input"
+                                type="number"
+                                min="1"
+                                value={form.gradualApiLimit}
+                                onChange={event => setForm(previous => ({ ...previous, gradualApiLimit: event.target.value }))}
+                                disabled={form.dashboardDataSource !== 'gradualApi'}
+                              />
+                            </div>
+                          </div>
+
+                          {form.dashboardDataSource === 'gradualApi' ? (
+                            <div className="rounded-[16px] bg-white/[0.04] p-3">
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <div className="space-y-2 md:col-span-2">
+                                  <label className="portal-label">URL da API Gradual</label>
+                                  <input
+                                    className="portal-input"
+                                    value={form.gradualApiUrl}
+                                    onChange={event => setForm(previous => ({ ...previous, gradualApiUrl: event.target.value }))}
+                                    placeholder="http://127.0.0.1:5001"
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <label className="portal-label">Empresas na API</label>
+                                  <input
+                                    className="portal-input"
+                                    value={form.gradualApiCompanyIdsText}
+                                    onChange={event => setForm(previous => ({ ...previous, gradualApiCompanyIdsText: event.target.value }))}
+                                    placeholder="Ex.: 6, 7"
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <label className="portal-label">Janela de varredura</label>
+                                  <input
+                                    className="portal-input"
+                                    type="number"
+                                    min="1"
+                                    value={form.gradualApiScanWindow}
+                                    onChange={event => setForm(previous => ({ ...previous, gradualApiScanWindow: event.target.value }))}
+                                    placeholder="1500"
+                                  />
+                                </div>
+
+                                <div className="space-y-2 md:col-span-2">
+                                  <label className="portal-label">ID inicial opcional</label>
+                                  <input
+                                    className="portal-input"
+                                    value={form.gradualApiStartOrderId}
+                                    onChange={event => setForm(previous => ({ ...previous, gradualApiStartOrderId: event.target.value }))}
+                                    placeholder="Deixe vazio para a API usar o estado salvo"
+                                  />
+                                </div>
+                              </div>
+
+                              <p className="mt-3 text-xs text-[#8d867c]">
+                                A resposta sera convertida para o formato atual do portal: pedidos, produtos, rastreabilidade, clientes e vendedores.
+                              </p>
+                            </div>
+                          ) : null}
                         </div>
 
                         <div className="space-y-3 md:col-span-2">
