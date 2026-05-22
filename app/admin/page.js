@@ -74,6 +74,7 @@ const emptyForm = {
   dashboardDataSource: 'supabase',
   gradualApiUrl: '',
   gradualApiKey: '',
+  gradualApiSource: '',
   gradualApiCompanyIdsText: '',
   gradualApiScanWindow: 1500,
   gradualApiStartOrderId: '',
@@ -422,6 +423,7 @@ export default function AdminPage() {
         dashboardDataSource: form.dashboardDataSource,
         gradualApiUrl: form.gradualApiUrl,
         gradualApiKey: form.gradualApiKey,
+        gradualApiSource: form.gradualApiSource,
         gradualApiCompanyIds: String(form.gradualApiCompanyIdsText || '')
           .split(',')
           .map(value => String(value || '').trim())
@@ -466,6 +468,7 @@ export default function AdminPage() {
       dashboardDataSource: company.dashboardDataSource || company.dashboardDataSourceType || 'supabase',
       gradualApiUrl: company.gradualApiUrl || '',
       gradualApiKey: '',
+      gradualApiSource: company.gradualApiSource || '',
       gradualApiCompanyIdsText: Array.isArray(company.gradualApiCompanyIds)
         ? company.gradualApiCompanyIds.join(', ')
         : String(company.gradualApiCompanyIds || ''),
@@ -1771,6 +1774,16 @@ export default function AdminPage() {
                                     value={form.gradualApiKey}
                                     onChange={event => setForm(previous => ({ ...previous, gradualApiKey: event.target.value }))}
                                     placeholder={form.id ? 'Preencha so se quiser trocar a chave' : 'Cole a chave PPS_API_KEY'}
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <label className="portal-label">Fonte na API</label>
+                                  <input
+                                    className="portal-input"
+                                    value={form.gradualApiSource}
+                                    onChange={event => setForm(previous => ({ ...previous, gradualApiSource: event.target.value }))}
+                                    placeholder="Ex.: lentes-gradual"
                                   />
                                 </div>
 
