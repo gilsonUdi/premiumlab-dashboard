@@ -1675,7 +1675,7 @@ export default function AdminPage() {
                     <div>
                       <h4 className="text-sm font-semibold text-white">Tipo de portal</h4>
                       <p className="mt-1 text-sm text-[#b7b0a6]">
-                        Defina se a empresa usa o portal interno com Supabase ou um dashboard externo.
+                        Defina se a empresa usa o portal interno ou um dashboard externo.
                       </p>
                     </div>
 
@@ -1685,44 +1685,13 @@ export default function AdminPage() {
                         checked={form.supabaseEnabled}
                         onChange={event => setForm(previous => ({ ...previous, supabaseEnabled: event.target.checked }))}
                       />
-                      <span>Supabase</span>
+                      <span>Portal interno</span>
                     </label>
                   </div>
 
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     {form.supabaseEnabled ? (
                       <>
-                        <div className="space-y-2">
-                          <label className="portal-label">Supabase URL</label>
-                          <input
-                            className="portal-input"
-                            value={form.supabaseUrl}
-                            onChange={event => setForm(previous => ({ ...previous, supabaseUrl: event.target.value }))}
-                            placeholder="https://projeto.supabase.co"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="portal-label">Identificacao do banco</label>
-                          <input
-                            className="portal-input"
-                            value={form.supabaseLabel}
-                            onChange={event => setForm(previous => ({ ...previous, supabaseLabel: event.target.value }))}
-                            placeholder="Ex.: sincronizado em Supabase producao"
-                          />
-                        </div>
-
-                        <div className="space-y-2 md:col-span-2">
-                          <label className="portal-label">Supabase Service Role Key</label>
-                          <input
-                            className="portal-input"
-                            type="password"
-                            value={form.supabaseServiceRoleKey}
-                            onChange={event => setForm(previous => ({ ...previous, supabaseServiceRoleKey: event.target.value }))}
-                            placeholder={form.id ? 'Preencha so se quiser trocar a chave' : 'Cole a service_role_key do tenant'}
-                          />
-                        </div>
-
                         <div className="space-y-3 md:col-span-2">
                           <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
@@ -1752,6 +1721,41 @@ export default function AdminPage() {
                               />
                             </div>
                           </div>
+
+                          {form.dashboardDataSource === 'supabase' ? (
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div className="space-y-2">
+                                <label className="portal-label">Supabase URL</label>
+                                <input
+                                  className="portal-input"
+                                  value={form.supabaseUrl}
+                                  onChange={event => setForm(previous => ({ ...previous, supabaseUrl: event.target.value }))}
+                                  placeholder="https://projeto.supabase.co"
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <label className="portal-label">Identificacao do banco</label>
+                                <input
+                                  className="portal-input"
+                                  value={form.supabaseLabel}
+                                  onChange={event => setForm(previous => ({ ...previous, supabaseLabel: event.target.value }))}
+                                  placeholder="Ex.: sincronizado em Supabase producao"
+                                />
+                              </div>
+
+                              <div className="space-y-2 md:col-span-2">
+                                <label className="portal-label">Supabase Service Role Key</label>
+                                <input
+                                  className="portal-input"
+                                  type="password"
+                                  value={form.supabaseServiceRoleKey}
+                                  onChange={event => setForm(previous => ({ ...previous, supabaseServiceRoleKey: event.target.value }))}
+                                  placeholder={form.id ? 'Preencha so se quiser trocar a chave' : 'Cole a service_role_key do tenant'}
+                                />
+                              </div>
+                            </div>
+                          ) : null}
 
                           {form.dashboardDataSource === 'gradualApi' ? (
                             <div className="rounded-[16px] bg-white/[0.04] p-3">
