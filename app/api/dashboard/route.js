@@ -1940,8 +1940,12 @@ export async function GET(request) {
     const dashboardScopedFilters = [...dashboardCompanyFilters, ...dashboardPermissionFilters]
     const dashboardVisualFilters = getCompanyDashboardVisualFilters(company, dashboardMode)
     const dashboardDataSource = getCompanyDashboardDataSource(company)
+    const { url: supabaseUrl, serviceRoleKey: supabaseServiceRoleKey } = resolveSupabaseConfig(company, companySecrets)
+    const supabaseConfigured = Boolean(supabaseUrl && supabaseServiceRoleKey)
+    const hasGradualApiConfig = Boolean(String(dashboardDataSource.gradualApiUrl || '').trim())
+    const shouldUseGradualApi = dashboardDataSource.type === 'gradualApi' || (!supabaseConfigured && hasGradualApiConfig)
 
-    if (dashboardDataSource.type === 'gradualApi') {
+    if (shouldUseGradualApi) {
       const gradualPayload = await buildGradualApiDashboardPayload({
         companySettings: {
           ...dashboardDataSource,
@@ -1956,8 +1960,6 @@ export async function GET(request) {
     }
 
     const supabase = (() => {
-      const { url: supabaseUrl, serviceRoleKey: supabaseServiceRoleKey } = resolveSupabaseConfig(company, companySecrets)
-
       if (!supabaseUrl || !supabaseServiceRoleKey) {
         throw new Error(`Supabase nao configurado para o tenant ${company.slug}.`)
       }
