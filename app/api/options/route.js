@@ -4,6 +4,7 @@ import { resolveAuthorizedCompany } from '@/lib/server-auth'
 import { getCompanyDashboardDataSource } from '@/lib/portal-config'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',

@@ -16,6 +16,7 @@ import { createTenantSupabase } from '@/lib/supabase'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
