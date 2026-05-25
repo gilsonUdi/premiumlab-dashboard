@@ -199,7 +199,10 @@ export default function AdminPage() {
         setState(seededState)
       } catch (error) {
         console.error(error)
-        if (active) router.replace('/login')
+        if (active) {
+          setMessage(error?.message || 'Falha ao carregar dados administrativos.')
+          setState({ companies: [], users: [] })
+        }
       }
     }
 
