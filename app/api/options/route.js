@@ -5,6 +5,7 @@ import { getCompanyDashboardDataSource } from '@/lib/portal-config'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
+const GRADUAL_OPTIONS_TIMEOUT_MS = Math.max(5000, Number(process.env.GRADUAL_API_OPTIONS_TIMEOUT_MS || 25000))
 
 const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -138,7 +139,7 @@ async function getGradualApiOptions(company, companySecrets, searchParams) {
   url.searchParams.set('start', dateStart)
   url.searchParams.set('end', dateEnd)
   url.searchParams.set('limit', String(Math.min(Number(settings.gradualApiLimit) || 50, 50)))
-  url.searchParams.set('scanWindow', String(Number(settings.gradualApiScanWindow) || 500))
+  url.searchParams.set('scanWindow', String(Math.min(Number(settings.gradualApiScanWindow) || 500, 500)))
 
   const source = String(settings.gradualApiSource || '').trim()
   const companyIds = parseList(settings.gradualApiCompanyIds)
@@ -147,16 +148,58 @@ async function getGradualApiOptions(company, companySecrets, searchParams) {
   if (settings.gradualApiStartOrderId) url.searchParams.set('startOrderId', String(settings.gradualApiStartOrderId).trim())
 
   const gradualApiKey = String(companySecrets?.gradualApiKey || '').trim()
-  const response = await fetch(url, {
-    cache: 'no-store',
-    headers: gradualApiKey ? { 'x-gs-api-key': gradualApiKey } : {},
-  })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(`API Gradual respondeu ${response.status}: ${text || response.statusText}`)
+  const headers = gradualApiKey ? { 'x-gs-api-key': gradualApiKey } : {}
+  const candidates = [
+    { limit: Number(url.searchParams.get('limit')) || 50, scanWindow: Number(url.searchParams.get('scanWindow')) || 500 },
+    { limit: 30, scanWindow: 300 },
+    { limit: 20, scanWindow: 200 },
+  ]
+
+  let payload = {}
+  let lastError = null
+
+  for (const candidate of candidates) {
+    const attemptUrl = new URL(url.toString())
+    attemptUrl.searchParams.set('limit', String(candidate.limit))
+    attemptUrl.searchParams.set('scanWindow', String(candidate.scanWindow))
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), GRADUAL_OPTIONS_TIMEOUT_MS)
+
+    try {
+      const response = await fetch(attemptUrl, {
+        cache: 'no-store',
+        headers,
+        signal: controller.signal,
+      })
+
+      const text = await response.text().catch(() => '')
+      if (!response.ok) {
+        const message = `API Gradual respondeu ${response.status}: ${text || response.statusText}`
+        if ([502, 503, 504].includes(response.status)) {
+          lastError = new Error(message)
+          continue
+        }
+        throw new Error(message)
+      }
+
+      payload = text ? JSON.parse(text) : {}
+      lastError = null
+      break
+    } catch (error) {
+      const message = String(error?.message || error || '')
+      if (error?.name === 'AbortError' || /timed out|timeout|50[234]/i.test(message)) {
+        lastError = new Error('API Gradual indisponivel no momento (timeout).')
+        continue
+      }
+      throw error
+    } finally {
+      clearTimeout(timeout)
+    }
   }
 
-  const payload = await response.json().catch(() => ({}))
+  if (lastError) throw lastError
+
   const datasets = payload?.datasets || {}
   const orders = Array.isArray(datasets.orders) ? datasets.orders : Array.isArray(payload.orders) ? payload.orders : []
   const routes = Array.isArray(datasets.routes) ? datasets.routes : []
