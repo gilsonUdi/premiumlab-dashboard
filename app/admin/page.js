@@ -987,11 +987,22 @@ export default function AdminPage() {
     })
   }
 
-  const toggleUserPowerBiReportPage = (reportId, pageName) => {
+  const toggleUserPowerBiReportPage = (reportId, pageName, allPageNames = []) => {
     setUserForm(previous => {
       const current = previous.permissions.powerBiReports?.[reportId] || { enabled: true, pages: [], filters: [] }
       const pages = current.pages || []
-      const nextPages = pages.includes(pageName) ? pages.filter(value => value !== pageName) : [...pages, pageName]
+      let nextPages = []
+
+      if (pages.length === 0) {
+        // Modo "Todas": ao clicar em uma pagina, vira selecao manual removendo apenas a pagina clicada.
+        nextPages = allPageNames
+          .map(value => String(value || '').trim())
+          .filter(Boolean)
+          .filter(value => value !== pageName)
+      } else {
+        nextPages = pages.includes(pageName) ? pages.filter(value => value !== pageName) : [...pages, pageName]
+      }
+
       return {
         ...previous,
         permissions: {
@@ -2453,8 +2464,13 @@ export default function AdminPage() {
                                             <input
                                               type="checkbox"
                                               checked={allowAllPages ? true : reportPermission.pages.includes(page.name)}
-                                              onChange={() => toggleUserPowerBiReportPage(report.id, page.name)}
-                                              disabled={allowAllPages}
+                                              onChange={() =>
+                                                toggleUserPowerBiReportPage(
+                                                  report.id,
+                                                  page.name,
+                                                  (report.pages || []).map(item => item.name)
+                                                )
+                                              }
                                             />
                                             <span>{page.displayName || page.name}</span>
                                           </label>
