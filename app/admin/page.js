@@ -186,7 +186,10 @@ export default function AdminPage() {
     async function hydrate() {
       try {
         const session = await getCurrentPortalSession()
-        if (!session || session.type !== 'admin' || session.email !== ADMIN_CREDENTIALS.email) {
+        const normalizedSessionEmail = String(session?.email || '').trim().toLowerCase()
+        const normalizedAdminEmail = String(ADMIN_CREDENTIALS.email || '').trim().toLowerCase()
+
+        if (!session || session.type !== 'admin' || normalizedSessionEmail !== normalizedAdminEmail) {
           router.replace('/login')
           return
         }
