@@ -95,6 +95,29 @@ function formatDateTimeLabel(value) {
   }
 }
 
+async function parseApiResponse(response, fallbackMessage) {
+  const text = await response.text().catch(() => '')
+  let payload = {}
+
+  if (text) {
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      if (!response.ok) {
+        throw new Error(text || response.statusText || fallbackMessage)
+      }
+
+      throw new Error(text || fallbackMessage)
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(payload?.error || text || response.statusText || fallbackMessage)
+  }
+
+  return payload
+}
+
 export default function ProductionDashboard({
   companyName = 'Premium Lab',
   companySubtitle = 'Dashboard de Producao',
@@ -181,8 +204,7 @@ export default function ProductionDashboard({
           headers: await getAuthorizedHeaders(),
           cache: 'no-store',
         })
-        const payload = await response.json()
-        if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar opcoes.')
+        const payload = await parseApiResponse(response, 'Falha ao carregar opcoes.')
         setOptions(payload)
         setOptionsError('')
       } catch (error) {
@@ -217,8 +239,7 @@ export default function ProductionDashboard({
         headers: await getAuthorizedHeaders(),
         cache: 'no-store',
       })
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar dashboard.')
+      const payload = await parseApiResponse(response, 'Falha ao carregar dashboard.')
       setData(payload)
       setLastUpdated(new Date())
       setRequestError('')
