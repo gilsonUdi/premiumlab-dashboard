@@ -179,8 +179,6 @@ export default function AdminPage() {
   const [dashboardFilterOptions, setDashboardFilterOptions] = useState(null)
   const [dashboardFilterOptionsLoading, setDashboardFilterOptionsLoading] = useState(false)
   const [dashboardFilterOptionsError, setDashboardFilterOptionsError] = useState('')
-  const [revealedPasswords, setRevealedPasswords] = useState({})
-  const [revealingPasswordByUid, setRevealingPasswordByUid] = useState({})
 
   useEffect(() => {
     let active = true
@@ -538,8 +536,6 @@ export default function AdminPage() {
     setPowerBiCatalog([])
     setPowerBiCatalogError('')
     setPowerBiCatalogLoading(false)
-    setRevealedPasswords({})
-    setRevealingPasswordByUid({})
   }
 
   const startCreateUser = () => {
@@ -564,53 +560,6 @@ export default function AdminPage() {
     }))
     setMessage(`Configuracao copiada de ${user.name || user.email}.`)
     window.setTimeout(() => setMessage(''), 2500)
-  }
-
-  const toggleRevealUserPassword = async user => {
-    if (!managingCompany) return
-
-    const current = revealedPasswords[user.uid]
-    if (current?.revealed) {
-      setRevealedPasswords(previous => ({
-        ...previous,
-        [user.uid]: { ...current, revealed: false },
-      }))
-      return
-    }
-
-    try {
-      setRevealingPasswordByUid(previous => ({ ...previous, [user.uid]: true }))
-      const token = await getPortalAccessToken()
-      const response = await fetch('/api/admin/company-users', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          uid: user.uid,
-          companyId: managingCompany.id,
-        }),
-      })
-      const payload = await response.json()
-      if (!response.ok) {
-        throw new Error(payload.error || 'Nao foi possivel revelar a senha.')
-      }
-
-      setRevealedPasswords(previous => ({
-        ...previous,
-        [user.uid]: {
-          password: String(payload.password || ''),
-          revealed: true,
-        },
-      }))
-    } catch (error) {
-      console.error(error)
-      setMessage(error.message || 'Nao foi possivel revelar a senha.')
-      window.setTimeout(() => setMessage(''), 3200)
-    } finally {
-      setRevealingPasswordByUid(previous => ({ ...previous, [user.uid]: false }))
-    }
   }
 
   const updateUserFormField = (field, value) => {
@@ -2316,28 +2265,6 @@ export default function AdminPage() {
                             {user.uid === managingCompany.authUid ? <span className="portal-pill">Principal</span> : null}
                           </div>
                           <p className="mt-1 text-sm text-[#b7b0a6]">{user.email}</p>
-                          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[#b7b0a6]">
-                            <span>
-                              Senha:{' '}
-                              <span className="font-medium text-white">
-                                {revealedPasswords[user.uid]?.revealed
-                                  ? revealedPasswords[user.uid]?.password || 'Nao disponivel'
-                                  : '••••••••'}
-                              </span>
-                            </span>
-                            <button
-                              type="button"
-                              className="portal-ghost-button h-8 px-3 text-xs"
-                              onClick={() => toggleRevealUserPassword(user)}
-                              disabled={Boolean(revealingPasswordByUid[user.uid])}
-                            >
-                              {revealingPasswordByUid[user.uid]
-                                ? 'Carregando...'
-                                : revealedPasswords[user.uid]?.revealed
-                                  ? 'Ocultar'
-                                  : 'Revelar'}
-                            </button>
-                          </div>
                         </div>
                         <div className="flex flex-wrap justify-end gap-2">
                           <button type="button" className="portal-ghost-button" onClick={() => copyUserConfiguration(user)}>
