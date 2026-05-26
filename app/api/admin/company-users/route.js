@@ -3,6 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore'
 import { getFirebaseAdminAuth, getFirebaseAdminDb } from '@/lib/firebase-admin'
 import { USERS_COLLECTION, requireAdmin } from '@/lib/server-auth'
 import { normalizeCompanyPortalSettings, normalizeUserPermissions } from '@/lib/portal-config'
+import { decryptUserPassword, encryptUserPassword, isPasswordVaultEnabled } from '@/lib/password-vault'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,6 +72,8 @@ export async function POST(request) {
       displayName: payload.name,
     })
 
+    const encryptedPasswordVault = encryptUserPassword(payload.email, payload.password)
+
     await getFirebaseAdminDb().collection(USERS_COLLECTION).doc(authUser.uid).set(
       {
         role: 'company',
@@ -80,6 +83,7 @@ export async function POST(request) {
         companySlug: payload.companySlug,
         companyName: payload.companyName,
         permissions: payload.permissions,
+        ...(encryptedPasswordVault ? { passwordVault: encryptedPasswordVault } : {}),
         active: true,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
@@ -111,24 +115,64 @@ export async function PUT(request) {
     if (payload.password) authUpdates.password = payload.password
     await auth.updateUser(payload.uid, authUpdates)
 
-    await getFirebaseAdminDb().collection(USERS_COLLECTION).doc(payload.uid).set(
-      {
-        email: payload.email,
-        name: payload.name,
-        companyId: payload.companyId,
-        companySlug: payload.companySlug,
-        companyName: payload.companyName,
-        permissions: payload.permissions,
-        active: true,
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    )
+    const profileUpdates = {
+      email: payload.email,
+      name: payload.name,
+      companyId: payload.companyId,
+      companySlug: payload.companySlug,
+      companyName: payload.companyName,
+      permissions: payload.permissions,
+      active: true,
+      updatedAt: FieldValue.serverTimestamp(),
+    }
+    if (payload.password) {
+      const encrypted = encryptUserPassword(payload.email, payload.password)
+      if (encrypted) profileUpdates.passwordVault = encrypted
+    }
+
+    await getFirebaseAdminDb().collection(USERS_COLLECTION).doc(payload.uid).set(profileUpdates, { merge: true })
 
     return NextResponse.json({ ok: true, uid: payload.uid })
   } catch (error) {
     console.error('[admin-company-users:put]', error)
     return NextResponse.json({ error: error.message || 'Falha ao atualizar usuario.' }, { status: getErrorStatus(error) })
+  }
+}
+
+export async function PATCH(request) {
+  try {
+    await requireAdmin(request)
+    if (!isPasswordVaultEnabled()) {
+      return NextResponse.json({ error: 'Cofre de senha desabilitado neste ambiente.' }, { status: 503 })
+    }
+
+    const body = await request.json()
+    const uid = String(body.uid || '').trim()
+    const companyId = String(body.companyId || '').trim()
+
+    if (!uid || !companyId) {
+      return NextResponse.json({ error: 'Usuario nao informado.' }, { status: 400 })
+    }
+
+    const snapshot = await getFirebaseAdminDb().collection(USERS_COLLECTION).doc(uid).get()
+    if (!snapshot.exists) {
+      return NextResponse.json({ error: 'Usuario nao encontrado.' }, { status: 404 })
+    }
+
+    const user = snapshot.data()
+    if (String(user.companyId || '') !== companyId) {
+      return NextResponse.json({ error: 'Usuario nao pertence a esta empresa.' }, { status: 400 })
+    }
+
+    const password = decryptUserPassword(user.email, user.passwordVault)
+    if (!password) {
+      return NextResponse.json({ error: 'Senha nao disponivel para este usuario.' }, { status: 404 })
+    }
+
+    return NextResponse.json({ ok: true, password })
+  } catch (error) {
+    console.error('[admin-company-users:patch]', error)
+    return NextResponse.json({ error: error.message || 'Falha ao revelar senha.' }, { status: getErrorStatus(error) })
   }
 }
 
