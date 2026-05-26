@@ -7,6 +7,7 @@ import {
   Building2,
   Copy,
   Eye,
+  FileDown,
   LogOut,
   Pencil,
   Plus,
@@ -179,8 +180,9 @@ export default function AdminPage() {
   const [dashboardFilterOptions, setDashboardFilterOptions] = useState(null)
   const [dashboardFilterOptionsLoading, setDashboardFilterOptionsLoading] = useState(false)
   const [dashboardFilterOptionsError, setDashboardFilterOptionsError] = useState('')
-  const [revealedPasswords, setRevealedPasswords] = useState({})
-  const [revealingPasswordByUid, setRevealingPasswordByUid] = useState({})
+  const [isPasswordListModalOpen, setIsPasswordListModalOpen] = useState(false)
+  const [passwordBatchMap, setPasswordBatchMap] = useState({})
+  const [isGeneratingPasswordList, setIsGeneratingPasswordList] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -538,8 +540,9 @@ export default function AdminPage() {
     setPowerBiCatalog([])
     setPowerBiCatalogError('')
     setPowerBiCatalogLoading(false)
-    setRevealedPasswords({})
-    setRevealingPasswordByUid({})
+    setIsPasswordListModalOpen(false)
+    setPasswordBatchMap({})
+    setIsGeneratingPasswordList(false)
   }
 
   const startCreateUser = () => {
@@ -566,50 +569,103 @@ export default function AdminPage() {
     window.setTimeout(() => setMessage(''), 2500)
   }
 
-  const toggleRevealUserPassword = async user => {
+  const openPasswordListModal = () => {
     if (!managingCompany) return
-
-    const current = revealedPasswords[user.uid]
-    if (current?.revealed) {
-      setRevealedPasswords(previous => ({
-        ...previous,
-        [user.uid]: { ...current, revealed: false },
-      }))
+    const users = getCompanyUserList(companyUsers, managingCompany)
+    if (users.length === 0) {
+      setMessage('Nao existem usuarios cadastrados para gerar a lista.')
+      window.setTimeout(() => setMessage(''), 2500)
       return
     }
 
+    const nextPasswordMap = users.reduce((acc, user) => {
+      acc[user.uid] = ''
+      return acc
+    }, {})
+    setPasswordBatchMap(nextPasswordMap)
+    setIsPasswordListModalOpen(true)
+  }
+
+  const closePasswordListModal = () => {
+    setIsPasswordListModalOpen(false)
+    setPasswordBatchMap({})
+    setIsGeneratingPasswordList(false)
+  }
+
+  const updatePasswordBatchValue = (uid, value) => {
+    setPasswordBatchMap(previous => ({
+      ...previous,
+      [uid]: value,
+    }))
+  }
+
+  const handleGeneratePasswordList = async () => {
+    if (!state || !managingCompany) return
+
+    const users = getCompanyUserList(companyUsers, managingCompany)
+    if (users.length === 0) {
+      setMessage('Nao existem usuarios cadastrados para gerar a lista.')
+      window.setTimeout(() => setMessage(''), 2500)
+      return
+    }
+
+    for (const user of users) {
+      const password = String(passwordBatchMap[user.uid] || '')
+      if (password.length < 6) {
+        setMessage(`Defina senha com ao menos 6 caracteres para ${user.name || user.email}.`)
+        window.setTimeout(() => setMessage(''), 3200)
+        return
+      }
+    }
+
     try {
-      setRevealingPasswordByUid(previous => ({ ...previous, [user.uid]: true }))
-      const token = await getPortalAccessToken()
-      const response = await fetch('/api/admin/company-users', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          uid: user.uid,
-          companyId: managingCompany.id,
-        }),
-      })
-      const payload = await response.json()
-      if (!response.ok) {
-        throw new Error(payload.error || 'Nao foi possivel revelar a senha.')
+      setIsGeneratingPasswordList(true)
+      let nextState = state
+
+      for (const user of users) {
+        const nextPassword = String(passwordBatchMap[user.uid] || '')
+        nextState = await updateCompanyUser(
+          managingCompany,
+          { uid: user.uid },
+          {
+            name: user.name || '',
+            email: user.email || '',
+            password: nextPassword,
+            permissions: user.permissions || getDefaultPermissionsForCompany(managingCompany),
+          }
+        )
       }
 
-      setRevealedPasswords(previous => ({
-        ...previous,
-        [user.uid]: {
-          password: String(payload.password || ''),
-          revealed: true,
-        },
-      }))
+      const lines = users.map(user => {
+        const name = user.name || 'Nao informado'
+        const email = user.email || 'Nao informado'
+        const password = String(passwordBatchMap[user.uid] || '')
+        return `Nome: ${name}\nEmail: ${email}\nSenha: ${password}\n`
+      })
+
+      const now = new Date()
+      const stamp = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
+      const filename = `usuarios-${managingCompany.slug}-${stamp}.txt`
+      const content = `Empresa: ${managingCompany.name}\nGerado em: ${now.toLocaleString('pt-BR')}\n\n${lines.join('\n')}`
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+      const href = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = href
+      anchor.download = filename
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(href)
+
+      setState(nextState)
+      setMessage('Lista gerada e senhas atualizadas com sucesso.')
+      window.setTimeout(() => setMessage(''), 3000)
+      closePasswordListModal()
     } catch (error) {
       console.error(error)
-      setMessage(error.message || 'Nao foi possivel revelar a senha.')
-      window.setTimeout(() => setMessage(''), 3200)
-    } finally {
-      setRevealingPasswordByUid(previous => ({ ...previous, [user.uid]: false }))
+      setMessage(error.message || 'Falha ao gerar lista e atualizar senhas.')
+      window.setTimeout(() => setMessage(''), 3500)
+      setIsGeneratingPasswordList(false)
     }
   }
 
@@ -2300,10 +2356,16 @@ export default function AdminPage() {
               <div className="overflow-y-auto bg-[#121015] p-6">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <h3 className="text-lg font-semibold">Lista de usuarios</h3>
-                  <button type="button" className="portal-primary-button" onClick={startCreateUser}>
-                    <UserPlus size={16} />
-                    Novo usuario
-                  </button>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <button type="button" className="portal-ghost-button" onClick={openPasswordListModal}>
+                      <FileDown size={14} />
+                      Gerar lista
+                    </button>
+                    <button type="button" className="portal-primary-button" onClick={startCreateUser}>
+                      <UserPlus size={16} />
+                      Novo usuario
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -2316,28 +2378,6 @@ export default function AdminPage() {
                             {user.uid === managingCompany.authUid ? <span className="portal-pill">Principal</span> : null}
                           </div>
                           <p className="mt-1 text-sm text-[#b7b0a6]">{user.email}</p>
-                          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[#b7b0a6]">
-                            <span>
-                              Senha:{' '}
-                              <span className="font-medium text-white">
-                                {revealedPasswords[user.uid]?.revealed
-                                  ? revealedPasswords[user.uid]?.password || 'Nao disponivel'
-                                  : '••••••••'}
-                              </span>
-                            </span>
-                            <button
-                              type="button"
-                              className="portal-ghost-button h-8 px-3 text-xs"
-                              onClick={() => toggleRevealUserPassword(user)}
-                              disabled={Boolean(revealingPasswordByUid[user.uid])}
-                            >
-                              {revealingPasswordByUid[user.uid]
-                                ? 'Carregando...'
-                                : revealedPasswords[user.uid]?.revealed
-                                  ? 'Ocultar'
-                                  : 'Revelar'}
-                            </button>
-                          </div>
                         </div>
                         <div className="flex flex-wrap justify-end gap-2">
                           <button type="button" className="portal-ghost-button" onClick={() => copyUserConfiguration(user)}>
@@ -2810,6 +2850,60 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
+          {isPasswordListModalOpen ? (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#09080b]/75 px-4 py-8 backdrop-blur-sm">
+              <div className="flex max-h-[88vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[28px] bg-[#19161c] shadow-[0_32px_120px_rgba(0,0,0,0.55)]">
+                <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
+                  <div>
+                    <h3 className="text-xl font-semibold text-white">Gerar lista de usuarios</h3>
+                    <p className="mt-1 text-sm text-[#b7b0a6]">
+                      Informe a nova senha de cada usuario. Ao concluir, o portal atualiza as senhas e baixa um TXT com nome, email e senha.
+                    </p>
+                  </div>
+                  <button type="button" className="portal-ghost-button" onClick={closePasswordListModal} disabled={isGeneratingPasswordList}>
+                    <X size={14} />
+                    Fechar
+                  </button>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                  <div className="space-y-3">
+                    {getCompanyUserList(companyUsers, managingCompany).map(user => (
+                      <div key={user.uid} className="rounded-2xl bg-white/[0.04] p-4">
+                        <p className="text-sm font-semibold text-white">{user.name || 'Sem nome'}</p>
+                        <p className="mt-1 text-sm text-[#b7b0a6]">{user.email}</p>
+                        <div className="mt-3 space-y-2">
+                          <label className="portal-label">Nova senha</label>
+                          <input
+                            className="portal-input"
+                            type="text"
+                            value={passwordBatchMap[user.uid] || ''}
+                            onChange={event => updatePasswordBatchValue(user.uid, event.target.value)}
+                            placeholder="Minimo 6 caracteres"
+                            disabled={isGeneratingPasswordList}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-3 border-t border-white/10 px-6 py-5">
+                  <button type="button" className="portal-ghost-button" onClick={closePasswordListModal} disabled={isGeneratingPasswordList}>
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="portal-primary-button"
+                    onClick={handleGeneratePasswordList}
+                    disabled={isGeneratingPasswordList}
+                  >
+                    {isGeneratingPasswordList ? 'Processando...' : 'Concluir e gerar TXT'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </main>
