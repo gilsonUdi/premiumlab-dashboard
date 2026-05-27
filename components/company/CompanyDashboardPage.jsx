@@ -102,7 +102,7 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
     return getCompanyBySlug(state, slug) || (session?.companyId ? getCompanyById(state, session.companyId) : null)
   }, [session?.companyId, slug, state])
 
-  const isExternalDashboard = !company?.supabaseEnabled && Boolean(company?.externalDashboardUrl)
+  const isExternalDashboard = mode !== 'power-bi' && !company?.supabaseEnabled && Boolean(company?.externalDashboardUrl)
   const selectedPowerBiReport = mode === 'power-bi' ? getPowerBiConfigFromCompany(company || {}, powerBiReportKey) : null
   const isEmbeddedPowerBi = mode === 'power-bi' && Boolean(selectedPowerBiReport?.workspaceId) && Boolean(selectedPowerBiReport?.reportId)
   const isLegacyPowerBi = mode === 'power-bi' && Boolean(selectedPowerBiReport?.embedUrl) && !isEmbeddedPowerBi
