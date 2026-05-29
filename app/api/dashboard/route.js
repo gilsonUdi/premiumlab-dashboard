@@ -1921,6 +1921,390 @@ async function getTenantSupabase(request, tenantSlug) {
   return createTenantSupabase(supabaseUrl, supabaseServiceRoleKey)
 }
 
+function normalizeTenantCandidate(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+async function resolveApiCacheTenantSlug(supabase, company) {
+  const rows = await fetchAllPages(
+    () => supabase.from('gradual_cache_orders').select('tenant_slug').order('tenant_slug', { ascending: true }),
+    { maxRows: 2000 }
+  )
+
+  if (rows.error) {
+    throw new Error(`gradual_cache_orders: ${rows.error.message}`)
+  }
+
+  const available = [...new Set((rows.data || []).map(row => String(row.tenant_slug || '').trim()).filter(Boolean))]
+  if (available.length === 0) {
+    throw new Error('gradual_cache_orders ainda nao possui dados para nenhum tenant.')
+  }
+
+  const candidates = [
+    company?.dashboardApiCacheTenantSlug,
+    company?.apiCacheTenantSlug,
+    company?.slug,
+    company?.id,
+    company?.name,
+  ].map(normalizeTenantCandidate).filter(Boolean)
+
+  const byNormalized = new Map(available.map(value => [normalizeTenantCandidate(value), value]))
+  for (const candidate of candidates) {
+    const found = byNormalized.get(candidate)
+    if (found) return found
+  }
+
+  if (available.length === 1) return available[0]
+
+  throw new Error(`Nao foi possivel resolver o tenant do cache API para ${company?.slug}. Disponiveis: ${available.join(', ')}`)
+}
+
+function pickOrderPayloadValue(orderRow = {}, ...keys) {
+  const payload = orderRow.payload && typeof orderRow.payload === 'object' ? orderRow.payload : {}
+  for (const key of keys) {
+    const parts = String(key).split('.')
+    let current = payload
+    for (const part of parts) {
+      current = current?.[part]
+      if (current == null) break
+    }
+    if (current != null && String(current).trim() !== '') return current
+  }
+  return null
+}
+
+function mapApiCacheRouteSteps(orderRow = {}, expectedDate, now) {
+  const payload = orderRow.payload && typeof orderRow.payload === 'object' ? orderRow.payload : {}
+  const routes = Array.isArray(payload.routes) ? payload.routes : []
+
+  return routes.map((route, index) => {
+    const startedAt = parseLocalDateTime(route?.initialDate || route?.startedAt || route?.date)
+    const finishedAt = parseLocalDateTime(route?.finishDate || route?.finishedAt)
+    const state = finishedAt ? ((expectedDate && finishedAt > expectedDate) ? 'delayed' : 'completed') : 'pending'
+    const alxcodigo = String(route?.warehouseCode || route?.locationCode || route?.code || index + 1).trim()
+    const descricao = normalizeText(route?.warehouseDescription || route?.locationDescription || route?.currentCell || route?.location || '')
+    return {
+      ordem: index + 1,
+      alxcodigo,
+      label: buildRouteStepLabel(alxcodigo, descricao),
+      descricao,
+      state,
+      startedAt: startedAt ? startedAt.toISOString() : '',
+      finishedAt: finishedAt ? finishedAt.toISOString() : '',
+    }
+  })
+}
+
+async function buildApiCacheDashboardPayload({
+  supabase,
+  company,
+  searchParams,
+  dashboardScopedFilters = [],
+  dashboardVisualFilters = {},
+  now,
+}) {
+  const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
+  const fallbackEnd = format(new Date(), 'yyyy-MM-dd')
+  const dateStart = asSqlDate(searchParams.get('dateStart'), fallbackStart)
+  const dateEnd = asSqlDate(searchParams.get('dateEnd'), fallbackEnd)
+  const tenantSlug = await resolveApiCacheTenantSlug(supabase, company)
+
+  const pedcodigoValues = parseCsvParam(searchParams, 'pedcodigo').map(normalizeOrderCode)
+  const statusFilters = parseCsvParam(searchParams, 'status')
+  const clicodigoValues = parseCsvParam(searchParams, 'clicodigo')
+  const clinomeFilters = parseCsvParam(searchParams, 'clinome')
+  const gclcodigoValues = parseCsvParam(searchParams, 'gclcodigo')
+  const zocodigoValues = parseCsvParam(searchParams, 'zocodigo')
+  const emissaoFilters = parseCsvParam(searchParams, 'emissao')
+  const indiceFilters = parseCsvParam(searchParams, 'indice')
+  const previstoFilters = parseCsvParam(searchParams, 'previsto')
+  const saidaFilters = parseCsvParam(searchParams, 'saida')
+  const quantidadeFilters = parseCsvParam(searchParams, 'quantidade')
+  const currentCellFilters = parseCsvParam(searchParams, 'currentCell').map(normalizeText)
+  const productStatusFilters = parseCsvParam(searchParams, 'productStatus')
+  const procodigoFilters = parseCsvParam(searchParams, 'procodigo')
+  const prodescricaoFilters = parseCsvParam(searchParams, 'prodescricao')
+  const productQuantidadeFilters = parseCsvParam(searchParams, 'productQuantidade')
+  const customerIndiceFilters = parseCsvParam(searchParams, 'customerIndice')
+  const customerMediaDiasFilters = parseCsvParam(searchParams, 'customerMediaDias')
+  const shouldLoadTraceability = pedcodigoValues.length > 0
+
+  const ordersRes = await fetchAllPages(
+    () => supabase
+      .from('gradual_cache_orders')
+      .select('tenant_slug,order_id,issue_date,expedition_date,delivery_date,status,payload')
+      .eq('tenant_slug', tenantSlug)
+      .gte('issue_date', dateStart)
+      .lte('issue_date', dateEnd)
+      .order('issue_date', { ascending: false }),
+    { maxRows: MAX_SALES_ROWS }
+  )
+  if (ordersRes.error) throw new Error(`gradual_cache_orders: ${ordersRes.error.message}`)
+
+  const itemsRes = await fetchAllPages(
+    () => supabase
+      .from('gradual_cache_items')
+      .select('tenant_slug,order_id,item_key,product_code,quantity,missing_quantity,payload')
+      .eq('tenant_slug', tenantSlug),
+    { maxRows: MAX_SALES_ROWS }
+  )
+  if (itemsRes.error) throw new Error(`gradual_cache_items: ${itemsRes.error.message}`)
+
+  const eventsRes = await fetchAllPages(
+    () => supabase
+      .from('gradual_cache_events')
+      .select('tenant_slug,order_id,event_type,event_key,event_date,event_ts,payload')
+      .eq('tenant_slug', tenantSlug),
+    { maxRows: MAX_SALES_ROWS }
+  )
+  if (eventsRes.error) throw new Error(`gradual_cache_events: ${eventsRes.error.message}`)
+
+  const itemsByOrder = new Map()
+  for (const row of itemsRes.data || []) {
+    const orderId = String(row.order_id || '').trim()
+    if (!orderId) continue
+    if (!itemsByOrder.has(orderId)) itemsByOrder.set(orderId, [])
+    itemsByOrder.get(orderId).push(row)
+  }
+
+  let cachedOrders = (ordersRes.data || []).map(row => {
+    const orderId = String(row.order_id || '').trim()
+    const emittedDate = parseLocalDateTime(`${row.issue_date}T00:00:00`)
+    const expectedDate = parseLocalDateTime(
+      pickOrderPayloadValue(row, 'datas.deliveryDate', 'deliveryDate') || (row.delivery_date ? `${row.delivery_date}T00:00:00` : null)
+    )
+    const deliveredDate = parseLocalDateTime(
+      pickOrderPayloadValue(row, 'datas.expeditionDate', 'datas.closedDate', 'expeditionDate', 'closedDate') ||
+      (row.expedition_date ? `${row.expedition_date}T00:00:00` : null)
+    )
+    const route = mapApiCacheRouteSteps(row, expectedDate, now)
+    const relatedItems = itemsByOrder.get(orderId) || []
+    const itemQty = relatedItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0)
+    const payloadQty = Number(pickOrderPayloadValue(row, 'totalQuantity', 'quantidade') || 0) || 0
+    const quantidade = itemQty > 0 ? itemQty : payloadQty
+
+    return resolveOrderOperationalState({
+      pedcodigo: normalizeOrderCode(pickOrderPayloadValue(row, 'pedcodigo', 'orderId') || row.order_id),
+      pedidoId: orderId,
+      emissao: localDateTimeText(emittedDate),
+      indice: 0,
+      previsto: localDateTimeText(expectedDate),
+      saida: localDateTimeText(deliveredDate),
+      quantidade,
+      status: String(row.status || '').trim(),
+      currentCell: normalizeText(pickOrderPayloadValue(row, 'currentCell', 'currentLocation') || '-') || '-',
+      caixa: normalizeText(pickOrderPayloadValue(row, 'caixa', 'box', 'boxNumber') || '-') || '-',
+      roteiro: route,
+      roteiroResumo: route.map(step => step.label).join(' | '),
+      clicodigo: String(pickOrderPayloadValue(row, 'customerId', 'clicodigo') || '').trim(),
+      clinome: normalizeText(pickOrderPayloadValue(row, 'customerName', 'clinome') || ''),
+      gclcodigo: pickOrderPayloadValue(row, 'gclcodigo', 'customerGroupId'),
+      clicliente: pickOrderPayloadValue(row, 'clicliente'),
+      endcodigo: pickOrderPayloadValue(row, 'endcodigo'),
+      zocodigo: pickOrderPayloadValue(row, 'zocodigo'),
+      vendedorCodigo: String(pickOrderPayloadValue(row, 'sellerId', 'vendedorCodigo') || '').trim(),
+      vendedorNome: normalizeText(pickOrderPayloadValue(row, 'sellerName', 'vendedorNome') || ''),
+      emittedDate,
+      expectedDate,
+      deliveredDate,
+    }, now, false)
+  })
+
+  if (pedcodigoValues.length > 0) {
+    const wanted = new Set(pedcodigoValues.map(value => String(value || '').trim()))
+    cachedOrders = cachedOrders.filter(row => wanted.has(String(row.pedidoId)) || wanted.has(String(row.pedcodigo)))
+  }
+
+  let orders = cachedOrders.map(order => ({
+    pedcodigo: order.pedcodigo,
+    pedidoId: order.pedidoId,
+    emissao: order.emissao,
+    indice: order.indice,
+    previsto: order.previsto,
+    saida: order.saida,
+    quantidade: order.quantidade,
+    status: order.status,
+    currentCell: order.currentCell,
+    caixa: order.caixa,
+    roteiro: order.roteiro,
+    roteiroResumo: order.roteiroResumo,
+    delayRank: order.delayRank,
+    statusPriority: order.statusPriority,
+    rowTone: order.rowTone,
+    clicodigo: order.clicodigo,
+    clinome: order.clinome,
+    gclcodigo: order.gclcodigo,
+    clicliente: order.clicliente,
+    endcodigo: order.endcodigo,
+    zocodigo: order.zocodigo,
+    vendedorCodigo: order.vendedorCodigo,
+    vendedorNome: order.vendedorNome,
+  }))
+
+  let products = (itemsRes.data || []).map(item => {
+    const orderId = String(item.order_id || '').trim()
+    const payload = item.payload && typeof item.payload === 'object' ? item.payload : {}
+    const order = cachedOrders.find(row => row.pedidoId === orderId)
+    return {
+      pedcodigo: order?.pedcodigo || normalizeOrderCode(orderId),
+      pedidoId: orderId,
+      status: order?.saida ? 'Saida' : 'Em Producao',
+      procodigo: String(item.product_code || payload.productCode || payload.procodigo || '').trim(),
+      prodescricao: normalizeText(payload.description || payload.prodescricao || 'Produto sem descricao'),
+      quantidade: Number(item.quantity) || 0,
+      missingQuantity: Number(item.missing_quantity) || 0,
+      clinome: order?.clinome || '',
+    }
+  })
+
+  let traceability = shouldLoadTraceability
+    ? (eventsRes.data || []).map(event => {
+        const orderId = String(event.order_id || '').trim()
+        const order = cachedOrders.find(row => row.pedidoId === orderId)
+        const payload = event.payload && typeof event.payload === 'object' ? event.payload : {}
+        const eventDateTime = parseLocalDateTime(event.event_ts || event.event_date || payload.dateTime || payload.date || null)
+        return {
+          estoque: normalizeText(payload.warehouseDescription || payload.locationDescription || payload.location || event.event_type || '-'),
+          celula: normalizeText(payload.locationDescription || payload.currentCell || payload.warehouseCode || event.event_type || '-') || '-',
+          dataHora: localDateTimeText(eventDateTime),
+          usuario: normalizeText(payload.userName || payload.user || payload.operator || '-') || '-',
+          pedcodigo: order?.pedcodigo || normalizeOrderCode(orderId),
+          pedidoId: orderId,
+          clicodigo: order?.clicodigo || null,
+          clinome: order?.clinome || '-',
+        }
+      })
+    : []
+
+  if (statusFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'status', statusFilters))
+  if (emissaoFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'emissao', emissaoFilters))
+  if (indiceFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'indice', indiceFilters))
+  if (previstoFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'previsto', previstoFilters))
+  if (saidaFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'saida', saidaFilters))
+  if (quantidadeFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'quantidade', quantidadeFilters))
+  if (currentCellFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'currentCell', currentCellFilters))
+  if (clicodigoValues.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'clicodigo', clicodigoValues))
+  if (clinomeFilters.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'clinome', clinomeFilters))
+  if (gclcodigoValues.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'gclcodigo', gclcodigoValues))
+  if (zocodigoValues.length > 0) orders = orders.filter(row => rowMatchesAnyFilter(row, 'zocodigo', zocodigoValues))
+
+  orders.sort((a, b) => {
+    if (b.statusPriority !== a.statusPriority) return b.statusPriority - a.statusPriority
+    return b.delayRank - a.delayRank
+  })
+
+  const visibleOrderIds = new Set(orders.map(row => row.pedidoId))
+  let selectedCachedOrders = cachedOrders.filter(order => visibleOrderIds.has(order.pedidoId))
+  products = products.filter(row => visibleOrderIds.has(row.pedidoId))
+  traceability = traceability.filter(row => visibleOrderIds.has(row.pedidoId))
+
+  if (productStatusFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'status', productStatusFilters))
+  if (procodigoFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'procodigo', procodigoFilters))
+  if (prodescricaoFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'prodescricao', prodescricaoFilters))
+  if (productQuantidadeFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'quantidade', productQuantidadeFilters))
+
+  if (dashboardScopedFilters.length > 0) {
+    const allowedOrderIds = resolveAllowedOrderIdsFromDashboardFilters(dashboardScopedFilters, selectedCachedOrders, products, traceability)
+    orders = orders.filter(row => allowedOrderIds.has(row.pedidoId))
+    products = products.filter(row => allowedOrderIds.has(row.pedidoId))
+    traceability = traceability.filter(row => allowedOrderIds.has(row.pedidoId))
+    selectedCachedOrders = selectedCachedOrders.filter(row => allowedOrderIds.has(row.pedidoId))
+  }
+
+  let customers = buildCustomerRowsFromOrders(selectedCachedOrders)
+  if (customerIndiceFilters.length > 0) customers = customers.filter(row => rowMatchesAnyFilter(row, 'indice', customerIndiceFilters))
+  if (customerMediaDiasFilters.length > 0) customers = customers.filter(row => rowMatchesAnyFilter(row, 'mediaDias', customerMediaDiasFilters))
+  const filteredClientIds = new Set(customers.map(row => String(row.clicodigo)))
+  if (filteredClientIds.size > 0 && (customerIndiceFilters.length > 0 || customerMediaDiasFilters.length > 0)) {
+    orders = orders.filter(row => filteredClientIds.has(String(row.clicodigo)))
+  }
+
+  const finalOrderIds = new Set(orders.map(row => row.pedidoId))
+  products = products.filter(row => finalOrderIds.has(row.pedidoId))
+  traceability = traceability.filter(row => finalOrderIds.has(row.pedidoId))
+  const finalCachedOrders = selectedCachedOrders.filter(row => finalOrderIds.has(row.pedidoId))
+  const sellerRanking = buildSellerRowsFromOrders(finalCachedOrders)
+
+  const getVisualFilters = sectionKey => dashboardVisualFilters?.[sectionKey] || []
+  const getVisualOrderIds = sectionKey => resolveAllowedOrderIdsFromDashboardFilters(
+    getVisualFilters(sectionKey),
+    finalCachedOrders,
+    products,
+    traceability
+  )
+  const getVisualOrders = sectionKey => {
+    const ids = getVisualOrderIds(sectionKey)
+    return orders.filter(row => ids.has(row.pedidoId))
+  }
+
+  const kpiOrders = getVisualOrders('kpis')
+  const pontualidadeOrders = getVisualOrders('pontualidadeChart')
+  const historyOrders = getVisualOrders('history')
+  const productOrderIds = getVisualOrderIds('products')
+  const traceabilityOrderIds = getVisualOrderIds('traceability')
+  const visualProducts = products.filter(row => productOrderIds.has(row.pedidoId))
+  const visualTraceability = traceability.filter(row => traceabilityOrderIds.has(row.pedidoId))
+  const visualCustomers = getVisualFilters('customerService').length > 0 ? buildCustomerRowsFromOrders(getVisualOrders('customerService')) : customers
+  const visualSellerRanking = getVisualFilters('sellerRanking').length > 0 ? buildSellerRowsFromOrders(getVisualOrders('sellerRanking')) : sellerRanking
+
+  const weekMap = {}
+  for (const order of pontualidadeOrders) {
+    const week = format(startOfWeek(parseISO(order.emissao), { locale: ptBR }), 'dd/MM', { locale: ptBR })
+    if (!weekMap[week]) weekMap[week] = { period: week, noPrazo: 0, atrasado: 0, producao: 0 }
+    if (order.status === 'completed') weekMap[week].noPrazo += 1
+    else if (order.status === 'delayed' || order.status === 'delayed_completed') weekMap[week].atrasado += 1
+    else weekMap[week].producao += 1
+  }
+
+  const perdasOrderIds = getVisualOrderIds('perdasChart')
+  const lossProducts = products.filter(row => perdasOrderIds.has(row.pedidoId))
+  const totalQuantity = lossProducts.reduce((acc, item) => acc + (Number(item.quantidade) || 0), 0)
+  const lossQuantity = lossProducts.reduce((acc, item) => acc + (Number(item.missingQuantity) || 0), 0)
+  const perdas = {
+    total: totalQuantity,
+    withLoss: lossQuantity,
+    percentage: totalQuantity > 0 ? Number(((lossQuantity / totalQuantity) * 100).toFixed(2)) : 0,
+    semPerda: Math.max(0, totalQuantity - lossQuantity),
+    errorCode: '',
+    errorMessage: '',
+  }
+
+  const totalOrders = kpiOrders.length
+  const completed = kpiOrders.filter(row => row.status === 'completed' || row.status === 'delayed_completed').length
+  const deliveredOnTime = kpiOrders.filter(row => row.status === 'completed').length
+  const onTime = kpiOrders.filter(row => row.status === 'completed' || row.status === 'in_progress').length
+  const inProduction = kpiOrders.filter(row => row.status === 'in_progress').length
+  const inProductionDelayed = kpiOrders.filter(row => row.status === 'delayed').length
+  const deliveredDelayed = kpiOrders.filter(row => row.status === 'delayed_completed').length
+
+  return {
+    kpis: {
+      totalOrders,
+      pontualidade: totalOrders > 0 ? Number(((onTime / totalOrders) * 100).toFixed(1)) : 0,
+      emProducao: inProduction,
+      emProducaoAtraso: inProductionDelayed,
+      perdas: perdas.percentage,
+      atrasados: deliveredDelayed,
+      entregueAtraso: deliveredDelayed,
+      entregueNoPrazo: deliveredOnTime,
+      concluidos: completed,
+    },
+    pontualidade: Object.values(weekMap).slice(-8),
+    perdas,
+    orders: historyOrders,
+    products: visualProducts.slice(0, 200),
+    traceability: shouldLoadTraceability ? visualTraceability : visualTraceability.slice(0, 150),
+    customers: visualCustomers.slice(0, 100),
+    sellerRanking: visualSellerRanking,
+  }
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -1949,6 +2333,20 @@ export async function GET(request) {
 
       return createTenantSupabase(supabaseUrl, supabaseServiceRoleKey)
     })()
+    const now = nowInProductionTimeZone()
+
+    if (dashboardFeedingModel === 'api_cache') {
+      const payload = await buildApiCacheDashboardPayload({
+        supabase,
+        company,
+        searchParams,
+        dashboardScopedFilters,
+        dashboardVisualFilters,
+        now,
+      })
+      return NextResponse.json(payload, { headers: NO_STORE_HEADERS })
+    }
+
     const orderCompletionRules = getCompanyOrderCompletionRules(company)
     const companyCodeFilter = getCompanyCodeFilter(company)
 
@@ -1976,7 +2374,7 @@ export async function GET(request) {
     const customerMediaDiasFilters = parseCsvParam(searchParams, 'customerMediaDias')
     const clientCodeFilters = [...new Set([...clicodigoValues, ...clinomeFilters])]
 
-    const now = nowInProductionTimeZone()
+    
     const shouldLoadTraceability = pedcodigoValues.length > 0
     const shouldLoadProductDetails = pedcodigoValues.length > 0
     const groupCodeFilterSet = new Set(gclcodigoValues.map(Number).filter(Number.isFinite))

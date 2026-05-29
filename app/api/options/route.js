@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createTenantSupabase } from '@/lib/supabase'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
+import { getCompanyDashboardFeedingModel } from '@/lib/portal-config'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -112,6 +113,159 @@ function uniqueBy(items, keySelector) {
   return result
 }
 
+function normalizeTenantCandidate(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+async function resolveApiCacheTenantSlug(supabase, company) {
+  const { data, error } = await supabase
+    .from('gradual_cache_orders')
+    .select('tenant_slug')
+    .order('tenant_slug', { ascending: true })
+    .limit(2000)
+
+  if (error) throw new Error(`gradual_cache_orders: ${error.message}`)
+
+  const available = [...new Set((data || []).map(row => String(row.tenant_slug || '').trim()).filter(Boolean))]
+  if (available.length === 0) return ''
+
+  const candidates = [
+    company?.dashboardApiCacheTenantSlug,
+    company?.apiCacheTenantSlug,
+    company?.slug,
+    company?.id,
+    company?.name,
+  ].map(normalizeTenantCandidate).filter(Boolean)
+
+  const byNormalized = new Map(available.map(value => [normalizeTenantCandidate(value), value]))
+  for (const candidate of candidates) {
+    const found = byNormalized.get(candidate)
+    if (found) return found
+  }
+
+  return available.length === 1 ? available[0] : ''
+}
+
+function asSqlDate(value, fallback) {
+  const text = String(value || '').trim()
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : fallback
+}
+
+function pickPayloadValue(payload = {}, ...paths) {
+  for (const path of paths) {
+    const parts = String(path).split('.')
+    let current = payload
+    for (const part of parts) {
+      current = current?.[part]
+      if (current == null) break
+    }
+    if (current != null && String(current).trim() !== '') return current
+  }
+  return null
+}
+
+async function buildApiCacheOptions(supabase, company, searchParams) {
+  const tenantSlug = await resolveApiCacheTenantSlug(supabase, company)
+  if (!tenantSlug) {
+    return { cells: [], clients: [], clientGroups: [], zones: [], stages: [], employees: [], statuses: [], supabaseTables: [] }
+  }
+
+  const fallbackEnd = new Date().toISOString().slice(0, 10)
+  const fallbackStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const dateStart = asSqlDate(searchParams.get('dateStart'), fallbackStart)
+  const dateEnd = asSqlDate(searchParams.get('dateEnd'), fallbackEnd)
+
+  const [ordersRes, eventsRes] = await Promise.all([
+    supabase
+      .from('gradual_cache_orders')
+      .select('order_id,payload,issue_date')
+      .eq('tenant_slug', tenantSlug)
+      .gte('issue_date', dateStart)
+      .lte('issue_date', dateEnd)
+      .limit(5000),
+    supabase
+      .from('gradual_cache_events')
+      .select('payload,event_type')
+      .eq('tenant_slug', tenantSlug)
+      .limit(10000),
+  ])
+
+  if (ordersRes.error) throw new Error(`gradual_cache_orders: ${ordersRes.error.message}`)
+  if (eventsRes.error) throw new Error(`gradual_cache_events: ${eventsRes.error.message}`)
+
+  const orders = ordersRes.data || []
+  const events = eventsRes.data || []
+
+  const clients = uniqueBy(
+    orders.map(row => {
+      const payload = row.payload && typeof row.payload === 'object' ? row.payload : {}
+      const clicodigo = String(pickPayloadValue(payload, 'customerId', 'clicodigo') || '').trim()
+      const label = normalizeText(pickPayloadValue(payload, 'customerName', 'clinome') || (clicodigo ? `Cliente ${clicodigo}` : ''))
+      return {
+        clicodigo,
+        label,
+        razaoSocial: label,
+        gclcodigo: pickPayloadValue(payload, 'gclcodigo', 'customerGroupId') || null,
+        zocodigo: pickPayloadValue(payload, 'zocodigo') || null,
+      }
+    }).filter(client => client.clicodigo),
+    client => client.clicodigo
+  )
+
+  const groupCodeSet = new Set(clients.map(client => client.gclcodigo).filter(Boolean))
+  const clientGroups = [...groupCodeSet]
+    .map(code => ({ value: code, label: `Grupo ${code}` }))
+    .sort((a, b) => String(a.label).localeCompare(String(b.label), 'pt-BR'))
+
+  const zoneCodeSet = new Set(clients.map(client => client.zocodigo).filter(Boolean))
+  const zones = [...zoneCodeSet]
+    .map(code => ({ value: code, label: `Zona ${code}` }))
+    .sort((a, b) => String(a.label).localeCompare(String(b.label), 'pt-BR'))
+
+  const cells = uniqueBy(
+    [
+      ...orders.map(row => {
+        const payload = row.payload && typeof row.payload === 'object' ? row.payload : {}
+        const value = String(pickPayloadValue(payload, 'currentCell', 'currentLocation') || '').trim()
+        return { value, label: normalizeText(value) }
+      }),
+      ...events.map(row => {
+        const payload = row.payload && typeof row.payload === 'object' ? row.payload : {}
+        const value = String(pickPayloadValue(payload, 'warehouseDescription', 'locationDescription', 'location', 'currentCell') || '').trim()
+        return { value, label: normalizeText(value) }
+      }),
+    ].filter(cell => cell.value),
+    cell => cell.value
+  )
+
+  const stages = uniqueBy(
+    events.map(row => {
+      const payload = row.payload && typeof row.payload === 'object' ? row.payload : {}
+      const value = String(pickPayloadValue(payload, 'locationCode', 'warehouseCode', 'code') || '').trim()
+      const label = normalizeText(pickPayloadValue(payload, 'locationDescription', 'warehouseDescription', 'currentCell') || value)
+      return { value: value || label, label, isFinal: false, isStart: false }
+    }).filter(stage => stage.value),
+    stage => stage.value
+  )
+
+  const employees = []
+  const statuses = [
+    { value: 'in_progress', label: 'Em Producao' },
+    { value: 'delayed', label: 'Em Producao (atraso)' },
+    { value: 'completed', label: 'Concluido' },
+    { value: 'delayed_completed', label: 'Entregue (atraso)' },
+    { value: 'pending', label: 'Aguardando' },
+  ]
+
+  return { cells, clients, clientGroups, zones, stages, employees, statuses, supabaseTables: [] }
+}
+
 async function execSql(supabase, sql) {
   const compactSql = sql.replace(/\s+/g, ' ').trim()
   const { data, error } = await supabase.rpc('exec_sql', { sql: compactSql })
@@ -156,6 +310,10 @@ export async function GET(request) {
     const { company } = await resolveAuthorizedCompany(request, tenantSlug)
 
     const supabase = await getTenantSupabase(request, tenantSlug)
+    if (getCompanyDashboardFeedingModel(company) === 'api_cache') {
+      const options = await buildApiCacheOptions(supabase, company, searchParams)
+      return NextResponse.json(options, { headers: NO_STORE_HEADERS })
+    }
 
     const allTablesRows = await execSql(
       supabase,
