@@ -1979,6 +1979,156 @@ function pickOrderPayloadValue(orderRow = {}, ...keys) {
   return null
 }
 
+function normalizeComparableToken(value) {
+  if (value == null) return ''
+  const text = String(value).trim()
+  if (!text) return ''
+  return text.toLowerCase()
+}
+
+function normalizeComparableVariants(value) {
+  const variants = new Set()
+  const raw = String(value == null ? '' : value).trim()
+  if (!raw) return variants
+
+  variants.add(normalizeComparableToken(raw))
+  const numeric = Number(raw.replace(',', '.'))
+  if (Number.isFinite(numeric)) {
+    variants.add(String(numeric))
+    variants.add(String(Math.trunc(numeric)))
+    variants.add(String(Math.trunc(numeric)).padStart(2, '0'))
+  }
+
+  return variants
+}
+
+function pickObjectPathValue(source = {}, path = '') {
+  const parts = String(path || '').split('.').map(part => part.trim()).filter(Boolean)
+  if (parts.length === 0) return null
+
+  let current = source
+  for (const part of parts) {
+    current = current?.[part]
+    if (current == null) return null
+  }
+  return current
+}
+
+function resolveApiCacheCompanyCode(orderRow = {}) {
+  return pickOrderPayloadValue(
+    orderRow,
+    'empcodigo',
+    'EMP_CODIGO',
+    'companyCode',
+    'companyId',
+    'company.codigo',
+    'company.id',
+    'empresa.codigo',
+    'empresa.id'
+  )
+}
+
+function filterApiCacheOrdersByCompanyCode(orders = [], companyCodeFilter = null) {
+  if (!companyCodeFilter?.enabled) return orders
+
+  const filterVariants = normalizeComparableVariants(companyCodeFilter.code)
+  if (filterVariants.size === 0) return orders
+
+  return orders.filter(order => {
+    const code = resolveApiCacheCompanyCode(order)
+    if (code == null || String(code).trim() === '') return false
+    const valueVariants = normalizeComparableVariants(code)
+    for (const variant of valueVariants) {
+      if (filterVariants.has(variant)) return true
+    }
+    return false
+  })
+}
+
+function rowMatchesApiCacheRule(row = {}, column = '', value = '') {
+  const normalizedColumn = String(column || '').trim()
+  if (!normalizedColumn) return false
+
+  let left = null
+  if (normalizedColumn.startsWith('payload.')) {
+    left = pickObjectPathValue(row.payload && typeof row.payload === 'object' ? row.payload : {}, normalizedColumn.slice(8))
+  } else if (normalizedColumn.includes('.')) {
+    left = pickObjectPathValue(row, normalizedColumn)
+  } else {
+    left = row[normalizedColumn]
+    if (left == null && row.payload && typeof row.payload === 'object') {
+      left = row.payload[normalizedColumn]
+    }
+  }
+
+  if (left == null) return false
+  if (Array.isArray(left)) {
+    return left.some(item => rowMatchesApiCacheRule({ payload: { value: item } }, 'payload.value', value))
+  }
+
+  const rightVariants = normalizeComparableVariants(value)
+  const leftVariants = normalizeComparableVariants(left)
+  for (const variant of leftVariants) {
+    if (rightVariants.has(variant)) return true
+  }
+  return false
+}
+
+function resolveApiCacheCompletionRuleIds({
+  rules = [],
+  orders = [],
+  items = [],
+  events = [],
+}) {
+  const validRules = (rules || []).filter(rule => rule?.table && rule?.column && rule?.value)
+  if (validRules.length === 0) return new Set()
+
+  const ordersById = new Map((orders || []).map(row => [String(row.order_id || '').trim(), row]))
+  const itemsByOrder = new Map()
+  for (const item of items || []) {
+    const orderId = String(item.order_id || '').trim()
+    if (!orderId) continue
+    if (!itemsByOrder.has(orderId)) itemsByOrder.set(orderId, [])
+    itemsByOrder.get(orderId).push(item)
+  }
+  const eventsByOrder = new Map()
+  for (const event of events || []) {
+    const orderId = String(event.order_id || '').trim()
+    if (!orderId) continue
+    if (!eventsByOrder.has(orderId)) eventsByOrder.set(orderId, [])
+    eventsByOrder.get(orderId).push(event)
+  }
+
+  const completedIds = new Set()
+  const candidateOrderIds = new Set([
+    ...ordersById.keys(),
+    ...itemsByOrder.keys(),
+    ...eventsByOrder.keys(),
+  ])
+
+  for (const orderId of candidateOrderIds) {
+    for (const rule of validRules) {
+      const table = String(rule.table || '').trim().toLowerCase()
+      const rows =
+        table === 'orders' || table === 'gradual_cache_orders'
+          ? [ordersById.get(orderId)].filter(Boolean)
+          : table === 'items' || table === 'gradual_cache_items'
+            ? (itemsByOrder.get(orderId) || [])
+            : table === 'events' || table === 'gradual_cache_events' || table === 'tracking' || table === 'traceability'
+              ? (eventsByOrder.get(orderId) || [])
+              : []
+
+      if (rows.length === 0) continue
+      if (rows.some(row => rowMatchesApiCacheRule(row, rule.column, rule.value))) {
+        completedIds.add(orderId)
+        break
+      }
+    }
+  }
+
+  return completedIds
+}
+
 function mapApiCacheRouteSteps(orderRow = {}, expectedDate, now) {
   const payload = orderRow.payload && typeof orderRow.payload === 'object' ? orderRow.payload : {}
   const routes = Array.isArray(payload.routes) ? payload.routes : []
@@ -2007,6 +2157,8 @@ async function buildApiCacheDashboardPayload({
   searchParams,
   dashboardScopedFilters = [],
   dashboardVisualFilters = {},
+  orderCompletionRules = [],
+  companyCodeFilter = null,
   now,
 }) {
   const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
@@ -2065,15 +2217,27 @@ async function buildApiCacheDashboardPayload({
   )
   if (eventsRes.error) throw new Error(`gradual_cache_events: ${eventsRes.error.message}`)
 
+  const filteredOrdersData = filterApiCacheOrdersByCompanyCode(ordersRes.data || [], companyCodeFilter)
+  const allowedOrderIdSet = new Set(filteredOrdersData.map(row => String(row.order_id || '').trim()).filter(Boolean))
+  const filteredItemsData = (itemsRes.data || []).filter(row => allowedOrderIdSet.has(String(row.order_id || '').trim()))
+  const filteredEventsData = (eventsRes.data || []).filter(row => allowedOrderIdSet.has(String(row.order_id || '').trim()))
+
   const itemsByOrder = new Map()
-  for (const row of itemsRes.data || []) {
+  for (const row of filteredItemsData) {
     const orderId = String(row.order_id || '').trim()
     if (!orderId) continue
     if (!itemsByOrder.has(orderId)) itemsByOrder.set(orderId, [])
     itemsByOrder.get(orderId).push(row)
   }
 
-  let cachedOrders = (ordersRes.data || []).map(row => {
+  const completionRuleIds = resolveApiCacheCompletionRuleIds({
+    rules: orderCompletionRules,
+    orders: filteredOrdersData,
+    items: filteredItemsData,
+    events: filteredEventsData,
+  })
+
+  let cachedOrders = filteredOrdersData.map(row => {
     const orderId = String(row.order_id || '').trim()
     const emittedDate = parseLocalDateTime(`${row.issue_date}T00:00:00`)
     const expectedDate = parseLocalDateTime(
@@ -2113,7 +2277,7 @@ async function buildApiCacheDashboardPayload({
       emittedDate,
       expectedDate,
       deliveredDate,
-    }, now, false)
+    }, now, completionRuleIds.has(orderId))
   })
 
   if (pedcodigoValues.length > 0) {
@@ -2147,7 +2311,7 @@ async function buildApiCacheDashboardPayload({
     vendedorNome: order.vendedorNome,
   }))
 
-  let products = (itemsRes.data || []).map(item => {
+  let products = filteredItemsData.map(item => {
     const orderId = String(item.order_id || '').trim()
     const payload = item.payload && typeof item.payload === 'object' ? item.payload : {}
     const order = cachedOrders.find(row => row.pedidoId === orderId)
@@ -2164,7 +2328,7 @@ async function buildApiCacheDashboardPayload({
   })
 
   let traceability = shouldLoadTraceability
-    ? (eventsRes.data || []).map(event => {
+    ? filteredEventsData.map(event => {
         const orderId = String(event.order_id || '').trim()
         const order = cachedOrders.find(row => row.pedidoId === orderId)
         const payload = event.payload && typeof event.payload === 'object' ? event.payload : {}
@@ -2324,6 +2488,8 @@ export async function GET(request) {
     const dashboardScopedFilters = [...dashboardCompanyFilters, ...dashboardPermissionFilters]
     const dashboardVisualFilters = getCompanyDashboardVisualFilters(company, dashboardMode)
     const dashboardFeedingModel = getCompanyDashboardFeedingModel(company)
+    const orderCompletionRules = getCompanyOrderCompletionRules(company)
+    const companyCodeFilter = getCompanyCodeFilter(company)
     const { url: supabaseUrl, serviceRoleKey: supabaseServiceRoleKey } = resolveSupabaseConfig(company, companySecrets)
 
     const supabase = (() => {
@@ -2342,13 +2508,12 @@ export async function GET(request) {
         searchParams,
         dashboardScopedFilters,
         dashboardVisualFilters,
+        orderCompletionRules,
+        companyCodeFilter,
         now,
       })
       return NextResponse.json(payload, { headers: NO_STORE_HEADERS })
     }
-
-    const orderCompletionRules = getCompanyOrderCompletionRules(company)
-    const companyCodeFilter = getCompanyCodeFilter(company)
 
     const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
     const fallbackEnd = format(new Date(), 'yyyy-MM-dd')
