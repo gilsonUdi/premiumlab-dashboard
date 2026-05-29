@@ -181,7 +181,7 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
       tenantSlug={company.slug}
       mode={mode}
       sectionVisibility={getSectionVisibility(company, session?.permissions, mode === 'pps' ? 'pps' : 'analysis')}
-      dashboardDataSourceType={company.dashboardDataSource || company.dashboardDataSourceType || 'supabase'}
+      dashboardFeedingModel={company.dashboardFeedingModel || company.dashboardDataSource || company.dashboardDataSourceType || 'firebird_legacy'}
     />
   )
 }

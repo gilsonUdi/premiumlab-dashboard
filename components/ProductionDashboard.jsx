@@ -125,19 +125,14 @@ export default function ProductionDashboard({
   tenantSlug,
   mode = 'analysis',
   sectionVisibility = null,
-  dashboardDataSourceType = 'supabase',
+  dashboardFeedingModel = 'firebird_legacy',
 }) {
   const normalizeDashboardErrorMessage = useCallback((message = '') => {
     const raw = String(message || '').trim()
     if (!raw) return raw
 
-    const isGradualApi = dashboardDataSourceType === 'gradualApi'
-    if (isGradualApi && /supabase nao configurado para o tenant/i.test(raw)) {
-      return 'API Gradual nao configurada para este tenant.'
-    }
-
     return raw
-  }, [dashboardDataSourceType])
+  }, [dashboardFeedingModel])
   const isPpsMode = mode === 'pps'
   const visibleSections = sectionVisibility || {}
   const [filters, setFilters] = useState(defaultFilters)

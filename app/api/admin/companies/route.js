@@ -67,15 +67,7 @@ function normalizeCompanyPayload(payload = {}) {
     powerBiReports: portalSettings.powerBiReports,
     dashboardFilters: portalSettings.dashboardFilters,
     dashboardVisualFilters: portalSettings.dashboardVisualFilters,
-    dashboardDataSource: portalSettings.dashboardDataSource,
-    dashboardDataSourceType: portalSettings.dashboardDataSourceType,
-    gradualApiUrl: portalSettings.gradualApiUrl,
-    gradualApiSource: portalSettings.gradualApiSource,
-    gradualApiCompanyIds: portalSettings.gradualApiCompanyIds,
-    gradualApiScanWindow: portalSettings.gradualApiScanWindow,
-    gradualApiStartOrderId: portalSettings.gradualApiStartOrderId,
-    gradualApiLimit: portalSettings.gradualApiLimit,
-    gradualApiKey: String(payload.gradualApiKey || '').trim(),
+    dashboardFeedingModel: portalSettings.dashboardFeedingModel,
     orderCompletionRules: portalSettings.orderCompletionRules,
     limitByCompanyCodeEnabled: portalSettings.limitByCompanyCodeEnabled,
     companyCodeFilter: portalSettings.companyCodeFilter,
@@ -148,7 +140,6 @@ export async function POST(request) {
       company.supabaseServiceRoleKey ||
       existingSecrets.supabaseServiceRoleKey ||
       getPremiumFallbackSecret(company)
-    const gradualApiKey = company.gradualApiKey || existingSecrets.gradualApiKey || ''
 
     await companyRef.set(
       {
@@ -172,15 +163,7 @@ export async function POST(request) {
         powerBiReports: company.powerBiReports,
         dashboardFilters: company.dashboardFilters,
         dashboardVisualFilters: company.dashboardVisualFilters,
-        dashboardDataSource: company.dashboardDataSource,
-        dashboardDataSourceType: company.dashboardDataSourceType,
-        gradualApiUrl: company.gradualApiUrl,
-        gradualApiSource: company.gradualApiSource,
-        gradualApiCompanyIds: company.gradualApiCompanyIds,
-        gradualApiScanWindow: company.gradualApiScanWindow,
-        gradualApiStartOrderId: company.gradualApiStartOrderId,
-        gradualApiLimit: company.gradualApiLimit,
-        hasGradualApiKey: Boolean(gradualApiKey),
+        dashboardFeedingModel: company.dashboardFeedingModel,
         orderCompletionRules: company.orderCompletionRules,
         limitByCompanyCodeEnabled: company.limitByCompanyCodeEnabled,
         companyCodeFilter: company.companyCodeFilter,
@@ -220,12 +203,11 @@ export async function POST(request) {
       { merge: true }
     )
 
-    if (supabaseUrl || supabaseServiceRoleKey || gradualApiKey) {
+    if (supabaseUrl || supabaseServiceRoleKey) {
       await db.collection(COMPANY_SECRETS_COLLECTION).doc(company.id).set(
         {
           supabaseUrl,
           supabaseServiceRoleKey,
-          gradualApiKey,
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true }

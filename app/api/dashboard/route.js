@@ -3,7 +3,7 @@ import { addDays, differenceInDays, differenceInMinutes, format, parseISO, start
 import { ptBR } from 'date-fns/locale'
 import {
   getCompanyCodeFilter,
-  getCompanyDashboardDataSource,
+  getCompanyDashboardFeedingModel,
   getCompanyDashboardFilters,
   getCompanyDashboardVisualFilters,
   getCompanyOrderCompletionRules,
@@ -11,7 +11,6 @@ import {
   normalizeUserPermissions,
   PORTAL_PAGE_KEYS,
 } from '@/lib/portal-config'
-import { buildGradualApiDashboardPayload } from '@/lib/gradual-api-source'
 import { createTenantSupabase } from '@/lib/supabase'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
 
@@ -1940,25 +1939,8 @@ export async function GET(request) {
     const dashboardPermissionFilters = profile.role === 'admin' ? [] : getDashboardFilters(company, permissions, dashboardMode)
     const dashboardScopedFilters = [...dashboardCompanyFilters, ...dashboardPermissionFilters]
     const dashboardVisualFilters = getCompanyDashboardVisualFilters(company, dashboardMode)
-    const dashboardDataSource = getCompanyDashboardDataSource(company)
+    const dashboardFeedingModel = getCompanyDashboardFeedingModel(company)
     const { url: supabaseUrl, serviceRoleKey: supabaseServiceRoleKey } = resolveSupabaseConfig(company, companySecrets)
-    const supabaseConfigured = Boolean(supabaseUrl && supabaseServiceRoleKey)
-    const hasGradualApiConfig = Boolean(String(dashboardDataSource.gradualApiUrl || '').trim())
-    const shouldUseGradualApi = dashboardDataSource.type === 'gradualApi' || (!supabaseConfigured && hasGradualApiConfig)
-
-    if (shouldUseGradualApi) {
-      const gradualPayload = await buildGradualApiDashboardPayload({
-        companySettings: {
-          ...dashboardDataSource,
-          gradualApiKey: companySecrets.gradualApiKey || '',
-        },
-        searchParams,
-        dashboardScopedFilters,
-        dashboardVisualFilters,
-      })
-
-      return NextResponse.json(gradualPayload, { headers: NO_STORE_HEADERS })
-    }
 
     const supabase = (() => {
       if (!supabaseUrl || !supabaseServiceRoleKey) {
@@ -2023,6 +2005,11 @@ export async function GET(request) {
       dashboardCacheRes.data || [],
       companyCodeFilter
     )
+    // Por enquanto, ambos os modelos leem dados fisicos do Supabase.
+    // A diferenca entre firebird_legacy e api_cache fica restrita a normalizacao.
+    if (dashboardFeedingModel === 'api_cache') {
+      console.info(`[dashboard] tenant=${company.slug} model=api_cache (normalizacao Supabase)`)
+    }
     if (finalityRes.error) {
       console.warn('[dashboard][pedfinalidade]', sanitizeErrorMessage(finalityRes.error))
     }
