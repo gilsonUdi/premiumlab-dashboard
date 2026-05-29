@@ -170,6 +170,38 @@ function pickPayloadValue(payload = {}, ...paths) {
   return null
 }
 
+function collectPayloadKeys(rows = [], maxKeys = 80) {
+  const counts = new Map()
+
+  for (const row of rows) {
+    const payload = row?.payload && typeof row.payload === 'object' ? row.payload : {}
+    for (const key of Object.keys(payload)) {
+      const normalized = String(key || '').trim()
+      if (!normalized) continue
+      counts.set(normalized, (counts.get(normalized) || 0) + 1)
+    }
+  }
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, maxKeys)
+    .map(([key]) => `payload.${key}`)
+}
+
+function uniqueColumns(...groups) {
+  const seen = new Set()
+  const result = []
+  for (const group of groups) {
+    for (const value of group || []) {
+      const column = String(value || '').trim()
+      if (!column || seen.has(column)) continue
+      seen.add(column)
+      result.push(column)
+    }
+  }
+  return result
+}
+
 async function buildApiCacheOptions(supabase, company, searchParams) {
   const tenantSlug = await resolveApiCacheTenantSlug(supabase, company)
   if (!tenantSlug) {
@@ -263,7 +295,57 @@ async function buildApiCacheOptions(supabase, company, searchParams) {
     { value: 'pending', label: 'Aguardando' },
   ]
 
-  return { cells, clients, clientGroups, zones, stages, employees, statuses, supabaseTables: [] }
+  const orderPayloadColumns = collectPayloadKeys(orders)
+  const eventPayloadColumns = collectPayloadKeys(events)
+  const orderIds = new Set(orders.map(row => String(row.order_id || '').trim()).filter(Boolean))
+  const itemSampleRows = orderIds.size > 0
+    ? await supabase
+        .from('gradual_cache_items')
+        .select('payload')
+        .eq('tenant_slug', tenantSlug)
+        .limit(5000)
+    : { data: [], error: null }
+
+  if (itemSampleRows.error) throw new Error(`gradual_cache_items: ${itemSampleRows.error.message}`)
+  const itemPayloadColumns = collectPayloadKeys(itemSampleRows.data || [])
+
+  const supabaseTables = [
+    {
+      name: 'gradual_cache_orders',
+      columns: uniqueColumns([
+        'tenant_slug',
+        'order_id',
+        'issue_date',
+        'expedition_date',
+        'delivery_date',
+        'status',
+      ], ['payload.companyId', 'payload.companyName'], orderPayloadColumns),
+    },
+    {
+      name: 'gradual_cache_items',
+      columns: uniqueColumns([
+        'tenant_slug',
+        'order_id',
+        'item_key',
+        'product_code',
+        'quantity',
+        'missing_quantity',
+      ], itemPayloadColumns),
+    },
+    {
+      name: 'gradual_cache_events',
+      columns: uniqueColumns([
+        'tenant_slug',
+        'order_id',
+        'event_type',
+        'event_key',
+        'event_date',
+        'event_ts',
+      ], eventPayloadColumns),
+    },
+  ]
+
+  return { cells, clients, clientGroups, zones, stages, employees, statuses, supabaseTables }
 }
 
 async function execSql(supabase, sql) {

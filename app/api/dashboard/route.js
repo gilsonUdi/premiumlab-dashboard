@@ -2015,17 +2015,7 @@ function pickObjectPathValue(source = {}, path = '') {
 }
 
 function resolveApiCacheCompanyCode(orderRow = {}) {
-  return pickOrderPayloadValue(
-    orderRow,
-    'empcodigo',
-    'EMP_CODIGO',
-    'companyCode',
-    'companyId',
-    'company.codigo',
-    'company.id',
-    'empresa.codigo',
-    'empresa.id'
-  )
+  return pickOrderPayloadValue(orderRow, 'companyId')
 }
 
 function filterApiCacheOrdersByCompanyCode(orders = [], companyCodeFilter = null) {
