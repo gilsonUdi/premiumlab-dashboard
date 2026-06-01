@@ -7,13 +7,13 @@ import { ArrowLeft, BarChart3, LayoutPanelTop, LogOut, MessageSquareText, PieCha
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import {
   clearPortalSession,
-  getFirebaseServices,
   getCompanyById,
   getCompanyBySlug,
   getCurrentPortalSession,
   getPortalAuthHeaders,
   loadCompanyState,
 } from '@/lib/portal-store'
+import { getFirebaseServices } from '@/lib/firebase-client'
 import { canAccessPortalPage, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
 import { hasAnyPowerBiConfig } from '@/lib/power-bi'
 
