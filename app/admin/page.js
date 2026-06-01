@@ -164,6 +164,7 @@ export default function AdminPage() {
   const [deletingCompanyId, setDeletingCompanyId] = useState('')
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false)
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
+  const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false)
   const [managingCompanyId, setManagingCompanyId] = useState('')
   const [portalPreviewCompanyId, setPortalPreviewCompanyId] = useState('')
   const [userForm, setUserForm] = useState(buildEmptyUserForm({ supabaseEnabled: true }))
@@ -662,6 +663,7 @@ export default function AdminPage() {
 
   const closeUserModal = () => {
     setIsUserModalOpen(false)
+    setIsCreateUserModalOpen(false)
     setManagingCompanyId('')
     setEditingUserId('')
     setPowerBiCatalog([])
@@ -676,10 +678,18 @@ export default function AdminPage() {
     if (!managingCompany) return
     setEditingUserId('')
     setUserForm(buildEmptyUserForm(managingCompany))
+    setIsCreateUserModalOpen(true)
+  }
+
+  const closeCreateUserModal = () => {
+    if (!managingCompany) return
+    setIsCreateUserModalOpen(false)
+    setUserForm(buildEmptyUserForm(managingCompany))
   }
 
   const startEditUser = user => {
     if (!managingCompany) return
+    setIsCreateUserModalOpen(false)
     setEditingUserId(user.uid)
     setUserForm(cloneUserForm(user, managingCompany))
   }
@@ -1366,6 +1376,7 @@ export default function AdminPage() {
       setMessage(editingUserId ? 'Usuário atualizado com sucesso.' : 'Usuário criado com sucesso.')
       window.setTimeout(() => setMessage(''), 2500)
       setEditingUserId('')
+      setIsCreateUserModalOpen(false)
       setUserForm(buildEmptyUserForm(managingCompany))
     } catch (error) {
       console.error(error)
@@ -2666,13 +2677,17 @@ export default function AdminPage() {
               </div>
 
               <div className="overflow-y-auto p-6" style={{ background: '#110f0d' }}>
-                <div className="mb-5">
-                  <h3 className="text-base font-bold text-white">{editingUserId ? 'Editar usuário' : 'Novo usuário'}</h3>
-                  <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
-                    Controle quais páginas ele acessa e quais blocos de PPS ou Análise de Dados ficam visíveis para esse usuário.
-                  </p>
-                </div>
+                {!editingUserId ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                    <h3 className="text-base font-bold text-white">Selecione um usuário para editar</h3>
+                    <p className="mt-2 text-sm text-[#b7b0a6]">
+                      A edição só aparece após clicar em <strong>Editar</strong> na lista à esquerda.
+                      Para criar um novo usuário, use o botão <strong>Novo usuário</strong>.
+                    </p>
+                  </div>
+                ) : null}
 
+                {editingUserId ? (
                 <form className="space-y-5" onSubmit={handleSaveUser}>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
@@ -3098,18 +3113,82 @@ export default function AdminPage() {
                   <div className="flex flex-wrap items-center gap-3">
                     <button type="submit" className="portal-primary-button">
                       <UserPlus size={16} />
-                      {editingUserId ? 'Salvar usuário' : 'Criar usuário'}
+                      Salvar usuário
                     </button>
-                    {editingUserId ? (
-                      <button type="button" className="portal-ghost-button" onClick={startCreateUser}>
-                        Novo cadastro
-                      </button>
-                    ) : null}
+                  </div>
+                </form>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          {isCreateUserModalOpen ? (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-8" style={{ background: 'rgba(0,0,0,0.82)' }}>
+              <div
+                className="flex max-h-[90vh] w-full max-w-[760px] flex-col overflow-hidden rounded-2xl"
+                style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(0,0,0,0.7)' }}
+              >
+                <div className="flex items-start justify-between gap-4 px-6 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Novo usuário</h3>
+                    <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
+                      Crie o usuário e defina os acessos principais.
+                    </p>
+                  </div>
+                  <button type="button" className="portal-ghost-button" onClick={closeCreateUserModal}>
+                    <X size={14} />
+                    Fechar
+                  </button>
+                </div>
+
+                <form className="min-h-0 flex-1 overflow-y-auto px-6 py-5 space-y-5" onSubmit={handleSaveUser} style={{ background: '#110f0d' }}>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="portal-label">Nome</label>
+                      <input className="portal-input" value={userForm.name} onChange={event => updateUserFormField('name', event.target.value)} required />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="portal-label">Email</label>
+                      <input className="portal-input" type="email" value={userForm.email} onChange={event => updateUserFormField('email', event.target.value)} required />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="portal-label">Senha</label>
+                      <input className="portal-input" type="text" value={userForm.password} onChange={event => updateUserFormField('password', event.target.value)} required placeholder="Senha de acesso" />
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <h4 className="text-sm font-semibold text-white">Páginas liberadas</h4>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <label className="portal-checkbox">
+                        <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.ANALYSIS]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.ANALYSIS)} disabled={!managingCompany.supabaseEnabled} />
+                        <span>Análise de Dados</span>
+                      </label>
+                      <label className="portal-checkbox">
+                        <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.PPS]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.PPS)} disabled={!managingCompany.supabaseEnabled} />
+                        <span>PPS</span>
+                      </label>
+                      <label className="portal-checkbox">
+                        <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)} disabled={managingCompany.supabaseEnabled || !managingCompany.externalDashboardUrl} />
+                        <span>Dashboard externo</span>
+                      </label>
+                      <label className="portal-checkbox">
+                        <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.POWER_BI]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.POWER_BI)} disabled={!hasConfiguredPowerBi(managingCompany)} />
+                        <span>Power BI</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3">
+                    <button type="button" className="portal-ghost-button" onClick={closeCreateUserModal}>Cancelar</button>
+                    <button type="submit" className="portal-primary-button">
+                      <UserPlus size={16} />
+                      Criar usuário
+                    </button>
                   </div>
                 </form>
               </div>
             </div>
-          </div>
+          ) : null}
           {isPasswordListModalOpen ? (
             <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-8" style={{ background: 'rgba(0,0,0,0.82)' }}>
               <div
