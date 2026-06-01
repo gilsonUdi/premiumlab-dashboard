@@ -58,7 +58,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         )
         const payload = await response.json()
         if (!response.ok) {
-          throw new Error(payload.error || 'Nao foi possivel preparar o Power BI.')
+          throw new Error(payload.error || 'Não foi possível preparar o Power BI.')
         }
         if (!active) return
         setConfig(payload)
@@ -66,7 +66,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       } catch (embedError) {
         console.error(embedError)
         if (!active) return
-        setError(embedError.message || 'Nao foi possivel carregar o Power BI.')
+        setError(embedError.message || 'Não foi possível carregar o Power BI.')
       } finally {
         if (active) setLoading(false)
       }
@@ -189,7 +189,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
               )}
               <button
                 type="button"
-                aria-label={sidebarCollapsed ? 'Expandir paginas' : 'Recolher paginas'}
+                aria-label={sidebarCollapsed ? 'Expandir páginas' : 'Recolher páginas'}
                 className={`${sidebarCollapsed ? 'h-10 w-10' : 'h-11 w-11'} inline-flex items-center justify-center rounded-full bg-white/[0.05] text-[#d9d1c7] transition hover:bg-white/[0.1]`}
                 onClick={() => setSidebarCollapsed(previous => !previous)}
               >
@@ -200,12 +200,12 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
 
           <div className={`min-h-0 flex-1 overflow-y-auto ${sidebarCollapsed ? 'px-2 pb-6' : 'px-4 pb-6'}`}>
             {loading ? (
-              <div className="rounded-[22px] bg-white/[0.05] px-4 py-4 text-sm text-[#d8d2c8]">Carregando paginas...</div>
+              <div className="rounded-[22px] bg-white/[0.05] px-4 py-4 text-sm text-[#d8d2c8]">Carregando páginas...</div>
             ) : error ? (
               <div className="rounded-[22px] bg-red-500/10 px-4 py-4 text-sm text-[#f3c6c6]">{error}</div>
             ) : sidebarPages.length === 0 ? (
               <div className="rounded-[22px] bg-white/[0.05] px-4 py-4 text-sm text-[#d8d2c8]">
-                Nenhuma pagina disponivel neste relatorio.
+                Nenhuma página disponível neste relatório.
               </div>
             ) : (
               <div className="space-y-2">

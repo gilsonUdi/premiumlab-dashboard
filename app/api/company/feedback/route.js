@@ -44,22 +44,22 @@ export async function POST(request) {
     const attachments = normalizeAttachments(payload?.attachments)
 
     if (!tenant) {
-      return NextResponse.json({ error: 'Tenant nao informado.' }, { status: 400 })
+      return NextResponse.json({ error: 'Tenant não informado.' }, { status: 400 })
     }
 
     if (!message) {
-      return NextResponse.json({ error: 'Digite sua solicitacao ou sugestao.' }, { status: 400 })
+      return NextResponse.json({ error: 'Digite sua solicitação ou sugestão.' }, { status: 400 })
     }
 
     if (message.length > 3000) {
-      return NextResponse.json({ error: 'Mensagem muito longa (maximo de 3000 caracteres).' }, { status: 400 })
+      return NextResponse.json({ error: 'Mensagem muito longa (máximo de 3000 caracteres).' }, { status: 400 })
     }
     if (attachments.length > 4) {
-      return NextResponse.json({ error: 'Anexe no maximo 4 arquivos por sugestao.' }, { status: 400 })
+      return NextResponse.json({ error: 'Anexe no máximo 4 arquivos por sugestão.' }, { status: 400 })
     }
     for (const file of attachments) {
       if (!ALLOWED_ATTACHMENT_TYPES.has(file.type)) {
-        return NextResponse.json({ error: `Tipo de arquivo nao permitido: ${file.name}` }, { status: 400 })
+        return NextResponse.json({ error: `Tipo de arquivo não permitido: ${file.name}` }, { status: 400 })
       }
       if (file.size <= 0 || file.size > 30 * 1024 * 1024) {
         return NextResponse.json({ error: `Arquivo fora do limite (30MB): ${file.name}` }, { status: 400 })
@@ -90,7 +90,7 @@ export async function POST(request) {
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error('[company-feedback:post]', error)
-    return NextResponse.json({ error: error?.message || 'Falha ao registrar sugestao.' }, { status: getErrorStatus(error) })
+    return NextResponse.json({ error: error?.message || 'Falha ao registrar sugestão.' }, { status: getErrorStatus(error) })
   }
 }
 
@@ -107,7 +107,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const tenant = String(searchParams.get('tenant') || '').trim()
     if (!tenant) {
-      return NextResponse.json({ error: 'Tenant nao informado.' }, { status: 400 })
+      return NextResponse.json({ error: 'Tenant não informado.' }, { status: 400 })
     }
 
     const { decoded, company } = await resolveAuthorizedCompany(request, tenant)
@@ -138,6 +138,6 @@ export async function GET(request) {
     })
   } catch (error) {
     console.error('[company-feedback:get]', error)
-    return NextResponse.json({ error: error?.message || 'Falha ao carregar historico.' }, { status: getErrorStatus(error) })
+    return NextResponse.json({ error: error?.message || 'Falha ao carregar histórico.' }, { status: getErrorStatus(error) })
   }
 }

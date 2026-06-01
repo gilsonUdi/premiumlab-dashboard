@@ -65,7 +65,7 @@ export async function GET(request) {
     })
   } catch (error) {
     console.error('[admin-feedback:get]', error)
-    return NextResponse.json({ error: error?.message || 'Falha ao carregar sugestoes.' }, { status: getErrorStatus(error) })
+    return NextResponse.json({ error: error?.message || 'Falha ao carregar sugestões.' }, { status: getErrorStatus(error) })
   }
 }
 
@@ -78,7 +78,7 @@ export async function PUT(request) {
     const allowed = new Set(['lido', 'em_progresso', 'concluido'])
 
     if (!id) {
-      return NextResponse.json({ error: 'ID da sugestao nao informado.' }, { status: 400 })
+      return NextResponse.json({ error: 'ID da sugestão não informado.' }, { status: 400 })
     }
     if (!allowed.has(status)) {
       return NextResponse.json({ error: 'Status invalido.' }, { status: 400 })

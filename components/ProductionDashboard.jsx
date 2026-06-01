@@ -46,17 +46,17 @@ const FILTER_LABELS = {
   gclcodigo: 'Grupo Cliente',
   zocodigo: 'Zona',
   status: 'Status',
-  emissao: 'Emissao',
-  indice: 'Indice',
+  emissao: 'Emissão',
+  indice: 'Índice',
   previsto: 'Dt. Prevista',
   saida: 'Dt. Saida',
   quantidade: 'Quantidade',
-  currentCell: 'Celula',
+  currentCell: 'Célula',
   productStatus: 'Status Produto',
   procodigo: 'Cod. Produto',
-  prodescricao: 'Descricao',
+  prodescricao: 'Descrição',
   productQuantidade: 'Qtd. Produto',
-  customerIndice: 'Indice Cliente',
+  customerIndice: 'Índice Cliente',
   customerMediaDias: 'Media Dias',
 }
 
@@ -79,10 +79,10 @@ const INTERACTIVE_FIELD_MAP = {
 }
 
 const STATUS_LABELS = {
-  completed: 'Concluido',
+  completed: 'Concluído',
   delayed_completed: 'Entregue (atraso)',
-  delayed: 'Em Producao (atraso)',
-  in_progress: 'Em Producao',
+  delayed: 'Em Produção (atraso)',
+  in_progress: 'Em Produção',
   pending: 'Aguardando',
 }
 
@@ -164,12 +164,12 @@ export default function ProductionDashboard({
         if (!active) return
 
         if (!session) {
-          setRequestError('Sessao expirada. Entre novamente no portal.')
+          setRequestError('Sessão expirada. Entre novamente no portal.')
         }
       } catch (error) {
         console.error(error)
         if (active) {
-          setRequestError('Nao foi possivel validar a sessao do portal.')
+          setRequestError('Não foi possível validar a sessão do portal.')
         }
       } finally {
         if (active) setAuthResolved(true)
@@ -199,12 +199,12 @@ export default function ProductionDashboard({
           headers: await getAuthorizedHeaders(),
           cache: 'no-store',
         })
-        const payload = await parseApiResponse(response, 'Falha ao carregar opcoes.')
+        const payload = await parseApiResponse(response, 'Falha ao carregar opções.')
         setOptions(payload)
         setOptionsError('')
       } catch (error) {
         console.error(error)
-        setOptionsError(normalizeDashboardErrorMessage(error.message || 'Falha ao carregar opcoes do dashboard.'))
+        setOptionsError(normalizeDashboardErrorMessage(error.message || 'Falha ao carregar opções do dashboard.'))
       }
     }
 

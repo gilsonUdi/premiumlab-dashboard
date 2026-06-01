@@ -19,13 +19,13 @@ function PlaceholderTool({ company }) {
     <main className="flex min-h-screen items-center justify-center bg-[#141216] px-6 text-white">
       <div className="max-w-[720px] rounded-[30px] border border-white/8 bg-[#1c191d] p-8">
         <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">
-          {usesExternalDashboard ? 'Dashboard externo configurado' : 'Ferramenta em configuracao'}
+          {usesExternalDashboard ? 'Dashboard externo configurado' : 'Ferramenta em configuração'}
         </p>
         <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
         <p className="mt-4 text-base leading-8 text-[#c6c0b7]">
           {usesExternalDashboard
             ? 'Esta empresa usa um dashboard externo. Volte para o portal da empresa e abra o botao de Dashboard para seguir pelo link configurado.'
-            : 'O tenant ja esta pronto, mas ainda falta cadastrar a service role do Supabase para este banco. Depois disso, o dashboard passa a operar normalmente para a empresa.'}
+            : 'O tenant já está pronto, mas ainda falta cadastrar a service role do Supabase para este banco. Depois disso, o dashboard passa a operar normalmente para a empresa.'}
         </p>
       </div>
     </main>
@@ -131,7 +131,7 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
           <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Acesso restrito</p>
           <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
           <p className="mt-4 text-base leading-8 text-[#c6c0b7]">
-            Este usuario nao possui permissao para acessar {isExternalDashboard ? 'o dashboard externo' : isEmbeddedPowerBi || isLegacyPowerBi ? 'o Power BI' : mode === 'pps' ? 'o PPS' : 'a Analise de Dados'} desta empresa.
+            Este usuário não possui permissão para acessar {isExternalDashboard ? 'o dashboard externo' : isEmbeddedPowerBi || isLegacyPowerBi ? 'o Power BI' : mode === 'pps' ? 'o PPS' : 'a Análise de Dados'} desta empresa.
           </p>
         </div>
       </main>
@@ -154,10 +154,10 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#141216] px-6 text-white">
         <div className="max-w-[720px] rounded-[30px] border border-white/8 bg-[#1c191d] p-8">
-          <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Modelo nao encontrado</p>
+          <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Modelo não encontrado</p>
           <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
           <p className="mt-4 text-base leading-8 text-[#c6c0b7]">
-            O modelo de Power BI solicitado nao esta disponivel para esta empresa. Volte para a lista de modelos e escolha um relatorio valido.
+            O modelo de Power BI solicitado não está disponível para esta empresa. Volte para a lista de modelos e escolha um relatório válido.
           </p>
           <Link href={`/empresa/${company.slug}/power-bi`} className="portal-ghost-button mt-6 inline-flex">
             Voltar para os modelos
@@ -176,7 +176,7 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
   return (
     <ProductionDashboard
       companyName={company.name}
-      companySubtitle={mode === 'pps' ? 'PPS' : 'Analise de Dados'}
+      companySubtitle={mode === 'pps' ? 'PPS' : 'Análise de Dados'}
       backHref={backHref}
       tenantSlug={company.slug}
       mode={mode}

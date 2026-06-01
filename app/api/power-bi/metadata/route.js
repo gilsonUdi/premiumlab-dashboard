@@ -37,7 +37,7 @@ export async function GET(request) {
 
     const permissions = normalizeUserPermissions(profile.permissions, company)
     if (profile.role !== 'admin' && !permissions.pages[PORTAL_PAGE_KEYS.POWER_BI]) {
-      return NextResponse.json({ error: 'Usuario sem acesso ao Power BI desta empresa.' }, { status: 403 })
+      return NextResponse.json({ error: 'Usuário sem acesso ao Power BI desta empresa.' }, { status: 403 })
     }
 
     if (!reportKey) {
@@ -61,7 +61,7 @@ export async function GET(request) {
     }
 
     if (profile.role !== 'admin' && !canAccessPowerBiReport(company, permissions, reportKey)) {
-      return NextResponse.json({ error: 'Usuario sem acesso a este modelo de Power BI.' }, { status: 403 })
+      return NextResponse.json({ error: 'Usuário sem acesso a este modelo de Power BI.' }, { status: 403 })
     }
 
     const metadata = await getPowerBiReportMetadata(company, reportKey)
@@ -80,6 +80,6 @@ export async function GET(request) {
     })
   } catch (error) {
     console.error('[power-bi-metadata:get]', error)
-    return NextResponse.json({ error: error.message || 'Falha ao carregar paginas do Power BI.' }, { status: getErrorStatus(error) })
+    return NextResponse.json({ error: error.message || 'Falha ao carregar páginas do Power BI.' }, { status: getErrorStatus(error) })
   }
 }

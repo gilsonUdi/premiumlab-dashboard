@@ -15,10 +15,10 @@ import { canAccessPortalPage, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
 
 function formatRefreshDate(value) {
   const normalized = String(value || '').trim()
-  if (!normalized) return 'Atualizacao nao informada'
+  if (!normalized) return 'Atualização não informada'
 
   const parsed = new Date(normalized)
-  if (Number.isNaN(parsed.getTime())) return 'Atualizacao nao informada'
+  if (Number.isNaN(parsed.getTime())) return 'Atualização não informada'
 
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
@@ -88,14 +88,14 @@ export default function PowerBiCatalogPage({ slug }) {
         })
         const payload = await response.json()
         if (!response.ok) {
-          throw new Error(payload.error || 'Nao foi possivel carregar os modelos do Power BI.')
+          throw new Error(payload.error || 'Não foi possível carregar os modelos do Power BI.')
         }
         if (!active) return
         setReports(Array.isArray(payload.reports) ? payload.reports : [])
       } catch (catalogError) {
         console.error(catalogError)
         if (!active) return
-        setError(catalogError.message || 'Nao foi possivel carregar os modelos do Power BI.')
+        setError(catalogError.message || 'Não foi possível carregar os modelos do Power BI.')
       } finally {
         if (active) setLoading(false)
       }
@@ -127,7 +127,7 @@ export default function PowerBiCatalogPage({ slug }) {
           <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Acesso restrito</p>
           <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
           <p className="mt-4 text-base leading-8 text-[#c6c0b7]">
-            Este usuario nao possui permissao para acessar os modelos de Power BI desta empresa.
+            Este usuário não possui permissão para acessar os modelos de Power BI desta empresa.
           </p>
         </div>
       </main>
@@ -176,7 +176,7 @@ export default function PowerBiCatalogPage({ slug }) {
                 <div className="mt-5 rounded-[22px] bg-white/[0.04] p-4 text-sm text-[#d8d2c8]">
                   <div className="flex items-center gap-2 text-[#e8ddcf]">
                     <Clock3 size={15} className="text-[#e3ad5a]" />
-                    <span>Ultima atualizacao</span>
+                    <span>Última atualização</span>
                   </div>
                   <p className="mt-2">{formatRefreshDate(report.lastRefreshAt)}</p>
                   {report.lastRefreshStatus ? (

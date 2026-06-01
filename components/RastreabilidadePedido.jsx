@@ -35,9 +35,9 @@ export default function RastreabilidadePedido({ data, selectedOrder, onColumnCli
 
   const cols = [
     { key: 'estoque', label: 'Estoque' },
-    { key: 'celula', label: 'Celula' },
+    { key: 'celula', label: 'Célula' },
     { key: 'dataHora', label: 'Data e Hora' },
-    { key: 'usuario', label: 'Usuario' },
+    { key: 'usuario', label: 'Usuário' },
   ]
 
   return (

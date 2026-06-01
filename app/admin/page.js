@@ -123,7 +123,7 @@ function getCompanyUserList(companyUsers, company) {
 }
 
 function formatCompanyDate(value) {
-  if (!value) return 'Nao informado'
+  if (!value) return 'Não informado'
 
   const parsed =
     typeof value?.toDate === 'function'
@@ -132,7 +132,7 @@ function formatCompanyDate(value) {
         ? new Date(value.seconds * 1000)
         : new Date(value)
 
-  if (Number.isNaN(parsed.getTime())) return 'Nao informado'
+  if (Number.isNaN(parsed.getTime())) return 'Não informado'
 
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
@@ -302,7 +302,7 @@ export default function AdminPage() {
         })
         const payload = await response.json()
         if (!response.ok) {
-          throw new Error(payload.error || 'Nao foi possivel carregar as paginas do Power BI.')
+          throw new Error(payload.error || 'Não foi possível carregar as páginas do Power BI.')
         }
         if (!active) return
         setPowerBiCatalog(Array.isArray(payload.reports) ? payload.reports : [])
@@ -310,7 +310,7 @@ export default function AdminPage() {
         console.error(error)
         if (!active) return
         setPowerBiCatalog([])
-        setPowerBiCatalogError(error.message || 'Nao foi possivel carregar as paginas do Power BI.')
+        setPowerBiCatalogError(error.message || 'Não foi possível carregar as páginas do Power BI.')
       } finally {
         if (active) setPowerBiCatalogLoading(false)
       }
@@ -348,7 +348,7 @@ export default function AdminPage() {
         })
         const payload = await response.json()
         if (!response.ok) {
-          throw new Error(payload.error || 'Nao foi possivel carregar os filtros do dashboard.')
+          throw new Error(payload.error || 'Não foi possível carregar os filtros do dashboard.')
         }
         if (!active) return
         setDashboardFilterOptions(payload || {})
@@ -356,7 +356,7 @@ export default function AdminPage() {
         console.error(error)
         if (!active) return
         setDashboardFilterOptions(null)
-        setDashboardFilterOptionsError(error.message || 'Nao foi possivel carregar os filtros do dashboard.')
+        setDashboardFilterOptionsError(error.message || 'Não foi possível carregar os filtros do dashboard.')
       } finally {
         if (active) setDashboardFilterOptionsLoading(false)
       }
@@ -387,13 +387,13 @@ export default function AdminPage() {
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(payload?.error || 'Falha ao carregar sugestoes.')
+        throw new Error(payload?.error || 'Falha ao carregar sugestões.')
       }
       setFeedbackItems(Array.isArray(payload.feedback) ? payload.feedback : [])
       setFeedbackNewCount(0)
     } catch (error) {
       console.error(error)
-      setFeedbackError(error?.message || 'Falha ao carregar sugestoes.')
+      setFeedbackError(error?.message || 'Falha ao carregar sugestões.')
       setFeedbackItems([])
     } finally {
       setFeedbackLoading(false)
@@ -450,9 +450,9 @@ export default function AdminPage() {
   }
 
   const formatDateTime = value => {
-    if (!value) return 'Nao informado'
+    if (!value) return 'Não informado'
     const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) return 'Nao informado'
+    if (Number.isNaN(parsed.getTime())) return 'Não informado'
     return new Intl.DateTimeFormat('pt-BR', {
       day: '2-digit',
       month: '2-digit',
@@ -595,7 +595,7 @@ export default function AdminPage() {
       window.setTimeout(() => setMessage(''), 2500)
     } catch (error) {
       console.error(error)
-      setMessage(error.message || 'Nao foi possivel salvar a empresa.')
+      setMessage(error.message || 'Não foi possível salvar a empresa.')
       window.setTimeout(() => setMessage(''), 3500)
     }
   }
@@ -635,18 +635,18 @@ export default function AdminPage() {
   const handleDeleteCompany = async company => {
     if (!state || company.isPremiumLab) return
 
-    const confirmed = window.confirm(`Excluir a empresa ${company.name}? Essa acao remove o tenant do portal.`)
+    const confirmed = window.confirm(`Excluir a empresa ${company.name}? Essa ação remove o tenant do portal.`)
     if (!confirmed) return
 
     try {
       setDeletingCompanyId(company.id)
       const nextState = await deleteCompany(state, company.id)
       setState(nextState)
-      setMessage('Empresa excluida com sucesso.')
+      setMessage('Empresa excluída com sucesso.')
       window.setTimeout(() => setMessage(''), 2500)
     } catch (error) {
       console.error(error)
-      setMessage('Nao foi possivel excluir a empresa.')
+      setMessage('Não foi possível excluir a empresa.')
       window.setTimeout(() => setMessage(''), 3500)
     } finally {
       setDeletingCompanyId('')
@@ -692,7 +692,7 @@ export default function AdminPage() {
       ...previous,
       permissions: JSON.parse(JSON.stringify(copiedPermissions)),
     }))
-    setMessage(`Configuracao copiada de ${user.name || user.email}.`)
+    setMessage(`Configuração copiada de ${user.name || user.email}.`)
     window.setTimeout(() => setMessage(''), 2500)
   }
 
@@ -700,7 +700,7 @@ export default function AdminPage() {
     if (!managingCompany) return
     const users = getCompanyUserList(companyUsers, managingCompany)
     if (users.length === 0) {
-      setMessage('Nao existem usuarios cadastrados para gerar a lista.')
+      setMessage('Não existem usuários cadastrados para gerar a lista.')
       window.setTimeout(() => setMessage(''), 2500)
       return
     }
@@ -731,7 +731,7 @@ export default function AdminPage() {
 
     const users = getCompanyUserList(companyUsers, managingCompany)
     if (users.length === 0) {
-      setMessage('Nao existem usuarios cadastrados para gerar a lista.')
+      setMessage('Não existem usuários cadastrados para gerar a lista.')
       window.setTimeout(() => setMessage(''), 2500)
       return
     }
@@ -764,8 +764,8 @@ export default function AdminPage() {
       }
 
       const lines = users.map(user => {
-        const name = user.name || 'Nao informado'
-        const email = user.email || 'Nao informado'
+        const name = user.name || 'Não informado'
+        const email = user.email || 'Não informado'
         const password = String(passwordBatchMap[user.uid] || '')
         return `Nome: ${name}\nEmail: ${email}\nSenha: ${password}\n`
       })
@@ -1228,7 +1228,7 @@ export default function AdminPage() {
       let nextPages = []
 
       if (pages.length === 0) {
-        // Modo "Todas": ao clicar em uma pagina, vira selecao manual removendo apenas a pagina clicada.
+        // Modo "Todas": ao clicar em uma página, vira seleção manual removendo apenas a página clicada.
         nextPages = allPageNames
           .map(value => String(value || '').trim())
           .filter(Boolean)
@@ -1363,20 +1363,20 @@ export default function AdminPage() {
         : await createCompanyUser(managingCompany, userForm)
 
       setState(nextState)
-      setMessage(editingUserId ? 'Usuario atualizado com sucesso.' : 'Usuario criado com sucesso.')
+      setMessage(editingUserId ? 'Usuário atualizado com sucesso.' : 'Usuário criado com sucesso.')
       window.setTimeout(() => setMessage(''), 2500)
       setEditingUserId('')
       setUserForm(buildEmptyUserForm(managingCompany))
     } catch (error) {
       console.error(error)
-      setMessage(error.message || 'Nao foi possivel salvar o usuario.')
+      setMessage(error.message || 'Não foi possível salvar o usuário.')
       window.setTimeout(() => setMessage(''), 3500)
     }
   }
 
   const handleDeleteUser = async user => {
     if (!state || !managingCompany || user.uid === managingCompany.authUid) return
-    const confirmed = window.confirm(`Excluir o usuario ${user.email}?`)
+    const confirmed = window.confirm(`Excluir o usuário ${user.email}?`)
     if (!confirmed) return
 
     try {
@@ -1386,46 +1386,71 @@ export default function AdminPage() {
         setEditingUserId('')
         setUserForm(buildEmptyUserForm(managingCompany))
       }
-      setMessage('Usuario excluido com sucesso.')
+      setMessage('Usuário excluído com sucesso.')
       window.setTimeout(() => setMessage(''), 2500)
     } catch (error) {
       console.error(error)
-      setMessage(error.message || 'Nao foi possivel excluir o usuario.')
+      setMessage(error.message || 'Não foi possível excluir o usuário.')
       window.setTimeout(() => setMessage(''), 3500)
     }
   }
 
   if (!state) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#1b1713] text-white">
-        <div className="rounded-3xl bg-white/[0.05] px-6 py-5 text-sm text-[#d8d2c8] shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
-          Carregando administracao...
+      <main className="flex min-h-screen items-center justify-center text-white" style={{ background: '#0d0b09' }}>
+        <div
+          className="rounded-2xl px-6 py-4 text-sm"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#8a8278' }}
+        >
+          Carregando administração...
         </div>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-[#1b1713] text-white">
-      <div className="grid min-h-screen xl:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="flex flex-col bg-[#171418]">
-          <div className="px-7 py-8">
-            <p className="text-[11px] uppercase tracking-[0.26em] text-[#bca27a]">GSGestao</p>
-            <h1 className="mt-2 text-2xl font-semibold">Admin</h1>
-            <p className="mt-2 text-sm text-[#a79f93]">{ADMIN_CREDENTIALS.email}</p>
+    <main className="min-h-screen text-white" style={{ background: '#0f0d0b' }}>
+      <div className="grid min-h-screen xl:grid-cols-[280px_minmax(0,1fr)]">
+
+        {/* Sidebar */}
+        <aside
+          className="flex flex-col"
+          style={{ background: '#0c0a08', borderRight: '1px solid rgba(255,255,255,0.05)' }}
+        >
+          {/* Brand */}
+          <div className="px-6 py-7" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <div className="flex items-center gap-2.5">
+              <div
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-black"
+                style={{ background: 'rgba(227,173,90,0.12)', color: '#c9924a', border: '1px solid rgba(227,173,90,0.18)' }}
+              >
+                GS
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#4a4238' }}>Portal</p>
+                <p className="text-sm font-semibold text-white">Administração</p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs" style={{ color: '#3d3630' }}>{ADMIN_CREDENTIALS.email}</p>
           </div>
 
-          <div className="px-5 py-5">
-            <div className="space-y-2">
+          {/* Nav */}
+          <nav className="flex-1 px-4 py-5">
+            <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#3a332c' }}>Menu</p>
+            <div className="space-y-1">
               <button
                 type="button"
                 onClick={() => setActivePanel('companies')}
-                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                  activePanel === 'companies' ? 'bg-white/[0.06] text-white' : 'text-[#c6bfb4] hover:bg-white/[0.04]'
-                }`}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all"
+                style={
+                  activePanel === 'companies'
+                    ? { background: 'rgba(227,173,90,0.08)', color: '#e3ad5a', border: '1px solid rgba(227,173,90,0.15)' }
+                    : { color: '#6b6358', border: '1px solid transparent' }
+                }
               >
-                <Building2 size={16} className="text-[#e3ad5a]" />
+                <Building2 size={15} />
                 <span>Empresas</span>
+                {activePanel === 'companies' ? null : null}
               </button>
               <button
                 type="button"
@@ -1433,63 +1458,83 @@ export default function AdminPage() {
                   setActivePanel('feedback')
                   loadFeedbackItems()
                 }}
-                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                  activePanel === 'feedback' ? 'bg-white/[0.06] text-white' : 'text-[#c6bfb4] hover:bg-white/[0.04]'
-                }`}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all"
+                style={
+                  activePanel === 'feedback'
+                    ? { background: 'rgba(227,173,90,0.08)', color: '#e3ad5a', border: '1px solid rgba(227,173,90,0.15)' }
+                    : { color: '#6b6358', border: '1px solid transparent' }
+                }
               >
-                <MessageSquareText size={16} className="text-[#e3ad5a]" />
-                <span className="flex items-center gap-2">
-                  Sugestoes
+                <MessageSquareText size={15} />
+                <span className="flex flex-1 items-center justify-between">
+                  Sugestões
                   {feedbackNewCount > 0 ? (
-                    <span className="inline-flex min-w-[22px] items-center justify-center rounded-full bg-[#e3ad5a]/20 px-2 py-0.5 text-[11px] font-semibold text-[#f3cb89]">
+                    <span
+                      className="inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                      style={{ background: 'rgba(227,173,90,0.18)', color: '#e3ad5a' }}
+                    >
                       {feedbackNewCount}
                     </span>
                   ) : null}
                 </span>
               </button>
             </div>
-          </div>
+          </nav>
 
-          <div className="mt-auto px-5 pb-5">
+          {/* Logout */}
+          <div className="px-4 py-5" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
             <button
               type="button"
               onClick={handleLogout}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white/[0.06] text-sm font-medium text-[#d6cfc3] transition hover:bg-white/[0.1]"
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium transition-all"
+              style={{ background: 'rgba(255,255,255,0.04)', color: '#5c554e', border: '1px solid rgba(255,255,255,0.05)' }}
             >
-              <LogOut size={16} />
+              <LogOut size={14} />
               Sair
             </button>
           </div>
         </aside>
 
-        <section className="bg-[#1e1914] px-4 py-5 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-[1320px]">
+        {/* Main content */}
+        <section
+          className="px-5 py-6 sm:px-7 lg:px-10"
+          style={{ background: '#110e0c' }}
+        >
+          <div className="mx-auto max-w-[1280px]">
             {activePanel === 'companies' ? (
               <>
-                <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <h2 className="text-3xl font-semibold">Empresas</h2>
-                    <p className="mt-2 text-sm text-[#b7b0a6]">{state.companies.length} empresas cadastradas no portal.</p>
+                    <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#4a4238' }}>Gestão</p>
+                    <h2 className="text-2xl font-bold tracking-tight text-white">Empresas</h2>
+                    <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>{state.companies.length} empresas cadastradas no portal.</p>
                   </div>
-
                   <button type="button" className="portal-primary-button" onClick={openCreateCompanyModal}>
-                    <Plus size={16} />
+                    <Plus size={15} />
                     Nova empresa
                   </button>
                 </header>
 
                 {message ? (
-                  <div className="mb-4 rounded-2xl bg-[#9ed3a9]/12 px-4 py-3 text-sm text-[#c8f0d0]">
+                  <div
+                    className="mb-4 rounded-xl px-4 py-3 text-sm"
+                    style={{ background: 'rgba(158,211,169,0.08)', color: '#a8e6b4', border: '1px solid rgba(158,211,169,0.15)' }}
+                  >
                     {message}
                   </div>
                 ) : null}
 
-                <section className="rounded-[28px] bg-[#171418] shadow-[0_18px_60px_rgba(0,0,0,0.2)]">
-                  <div className="px-5 py-5 sm:px-6">
-                    <div className="relative w-full max-w-lg">
-                      <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#81796f]" />
+                <section
+                  className="rounded-2xl overflow-hidden"
+                  style={{ background: '#0c0a08', border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
+                >
+                  {/* Search bar */}
+                  <div className="px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div className="relative w-full max-w-sm">
+                      <Search size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: '#4a4238' }} />
                       <input
-                        className="h-12 w-full rounded-2xl bg-white/[0.06] pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-[#7e776f] focus:bg-white/[0.09]"
+                        className="h-10 w-full rounded-xl pl-9 pr-4 text-sm text-white outline-none transition"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', '::placeholder': { color: '#4a4238' } }}
                         value={searchTerm}
                         onChange={event => setSearchTerm(event.target.value)}
                         placeholder="Buscar empresa..."
@@ -1497,34 +1542,45 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="hidden px-6 py-4 text-[11px] uppercase tracking-[0.2em] text-[#8d867c] lg:grid lg:grid-cols-[2fr_1.2fr_1fr_1fr_240px]">
+                  {/* Table header */}
+                  <div
+                    className="hidden px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] lg:grid lg:grid-cols-[2fr_1.2fr_1fr_1fr_240px]"
+                    style={{ color: '#3a332c', borderBottom: '1px solid rgba(255,255,255,0.03)' }}
+                  >
                     <span>Empresa</span>
                     <span>Slug</span>
                     <span>Status</span>
                     <span>Criada em</span>
-                    <span className="text-right">Acoes</span>
+                    <span className="text-right">Ações</span>
                   </div>
 
-                  <div className="space-y-3 px-3 pb-3">
+                  {/* Company rows */}
+                  <div>
                     {filteredCompanies.length === 0 ? (
-                      <div className="mx-3 mb-3 rounded-[24px] bg-white/[0.045] px-6 py-16 text-center text-sm text-[#b7b0a6]">
+                      <div className="px-5 py-16 text-center text-sm" style={{ color: '#4a4238' }}>
                         Nenhuma empresa encontrada para esse termo.
                       </div>
                     ) : null}
 
-                    {filteredCompanies.map(company => (
-                      <div key={company.id} className="rounded-[24px] bg-white/[0.04] px-5 py-5 sm:px-6">
+                    {filteredCompanies.map((company, idx) => (
+                      <div
+                        key={company.id}
+                        className="px-5 py-4 transition-colors"
+                        style={{
+                          borderBottom: idx < filteredCompanies.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none',
+                        }}
+                      >
                         <div className="grid gap-4 lg:grid-cols-[2fr_1.2fr_1fr_1fr_240px] lg:items-center">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="truncate text-base font-semibold text-white">{company.name}</p>
+                              <p className="truncate text-sm font-semibold text-white">{company.name}</p>
                               {company.isPremiumLab ? <span className="portal-pill">Premium Lab</span> : null}
                             </div>
-                            <p className="mt-1 truncate text-sm text-[#a79f93]">{company.email}</p>
+                            <p className="mt-0.5 truncate text-xs" style={{ color: '#4a4238' }}>{company.email}</p>
                           </div>
 
                           <div className="min-w-0">
-                            <p className="truncate text-sm text-white">/{company.slug}</p>
+                            <p className="truncate text-sm" style={{ color: '#6b6358' }}>/{company.slug}</p>
                           </div>
 
                           <div>
@@ -1532,16 +1588,16 @@ export default function AdminPage() {
                           </div>
 
                           <div>
-                            <p className="text-sm text-[#d6cfc3]">{formatCompanyDate(company.createdAt)}</p>
+                            <p className="text-sm" style={{ color: '#5c554e' }}>{formatCompanyDate(company.createdAt)}</p>
                           </div>
 
                           <div className="flex justify-start gap-2 lg:justify-end">
                             <button type="button" className="portal-ghost-button" onClick={() => openPortalPreviewModal(company)}>
                               Portal
-                              <SquareArrowOutUpRight size={15} />
+                              <SquareArrowOutUpRight size={13} />
                             </button>
                             <button type="button" className="portal-ghost-button" onClick={() => handleEditCompany(company)}>
-                              <Pencil size={15} />
+                              <Pencil size={13} />
                               Editar
                             </button>
                             {!company.isPremiumLab ? (
@@ -1549,9 +1605,10 @@ export default function AdminPage() {
                                 type="button"
                                 onClick={() => handleDeleteCompany(company)}
                                 disabled={deletingCompanyId === company.id}
-                                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-red-500/12 px-4 text-sm font-medium text-red-200 transition hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60"
+                                style={{ background: 'rgba(220,38,38,0.08)', color: '#f87171', border: '1px solid rgba(220,38,38,0.15)' }}
                               >
-                                <Trash2 size={15} />
+                                <Trash2 size={13} />
                               </button>
                             ) : null}
                           </div>
@@ -1563,58 +1620,42 @@ export default function AdminPage() {
               </>
             ) : (
               <>
-                <header className="mb-5 flex items-end justify-between gap-4">
+                <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <h2 className="text-3xl font-semibold">Sugestoes</h2>
-                    <p className="mt-2 text-sm text-[#b7b0a6]">Solicitacoes enviadas pelos usuarios das empresas.</p>
+                    <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#4a4238' }}>Feedback</p>
+                    <h2 className="text-2xl font-bold tracking-tight text-white">Sugestões</h2>
+                    <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>Solicitações enviadas pelos usuários das empresas.</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className={`portal-ghost-button ${feedbackFilterStatus === 'all' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
-                      onClick={() => setFeedbackFilterStatus('all')}
-                    >
-                      Todas
-                    </button>
-                    <button
-                      type="button"
-                      className={`portal-ghost-button ${feedbackFilterStatus === 'lido' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
-                      onClick={() => setFeedbackFilterStatus('lido')}
-                    >
-                      Lido
-                    </button>
-                    <button
-                      type="button"
-                      className={`portal-ghost-button ${feedbackFilterStatus === 'em_progresso' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
-                      onClick={() => setFeedbackFilterStatus('em_progresso')}
-                    >
-                      Em progresso
-                    </button>
-                    <button
-                      type="button"
-                      className={`portal-ghost-button ${feedbackFilterStatus === 'concluido' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
-                      onClick={() => setFeedbackFilterStatus('concluido')}
-                    >
-                      Concluido
-                    </button>
-                    <button type="button" className="portal-ghost-button" onClick={loadFeedbackItems} disabled={feedbackLoading}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {['all', 'lido', 'em_progresso', 'concluido'].map(status => (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => setFeedbackFilterStatus(status)}
+                        className="portal-ghost-button h-9 px-4 text-xs"
+                        style={feedbackFilterStatus === status ? { borderColor: 'rgba(227,173,90,0.35)', color: '#e3ad5a' } : {}}
+                      >
+                        {status === 'all' ? 'Todas' : status === 'lido' ? 'Lido' : status === 'em_progresso' ? 'Em progresso' : 'Concluído'}
+                      </button>
+                    ))}
+                    <button type="button" className="portal-ghost-button h-9 px-4 text-xs" onClick={loadFeedbackItems} disabled={feedbackLoading}>
                       Atualizar
                     </button>
                   </div>
                 </header>
 
                 {feedbackError ? (
-                  <div className="mb-4 rounded-2xl bg-red-500/12 px-4 py-3 text-sm text-red-200">{feedbackError}</div>
+                  <div className="mb-4 rounded-xl px-4 py-3 text-sm text-red-300" style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.15)' }}>{feedbackError}</div>
                 ) : null}
 
-                <section className="rounded-[28px] bg-[#171418] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.2)] sm:p-5">
+                <section className="rounded-2xl p-4" style={{ background: '#0c0a08', border: '1px solid rgba(255,255,255,0.05)' }}>
                   {feedbackLoading ? (
-                    <div className="rounded-2xl bg-white/[0.04] px-5 py-10 text-center text-sm text-[#b7b0a6]">
-                      Carregando sugestoes...
+                    <div className="rounded-xl px-5 py-10 text-center text-sm" style={{ background: 'rgba(255,255,255,0.03)', color: '#5c554e' }}>
+                      Carregando sugestões...
                     </div>
                   ) : feedbackItems.filter(item => feedbackFilterStatus === 'all' || item.status === feedbackFilterStatus).length === 0 ? (
-                    <div className="rounded-2xl bg-white/[0.04] px-5 py-10 text-center text-sm text-[#b7b0a6]">
-                      Nenhuma sugestao nesse grupo.
+                    <div className="rounded-xl px-5 py-10 text-center text-sm" style={{ background: 'rgba(255,255,255,0.03)', color: '#5c554e' }}>
+                      Nenhuma sugestão nesse grupo.
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -1683,7 +1724,7 @@ export default function AdminPage() {
                               className={getFeedbackStatusButtonClassName(item.status, 'concluido')}
                               style={getFeedbackStatusButtonStyle(item.status, 'concluido')}
                             >
-                              Concluido
+                              Concluído
                             </button>
                           </div>
                         </article>
@@ -1698,23 +1739,25 @@ export default function AdminPage() {
       </div>
 
       {isCompanyModalOpen ? (
-        <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-4 sm:items-center sm:py-8">
-          <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-[880px] flex-col overflow-hidden rounded-[28px] bg-[#171418] shadow-[0_28px_120px_rgba(0,0,0,0.45)] sm:max-h-[92vh]">
-            <div className="flex items-center justify-between px-6 py-5">
+        <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto px-4 py-4 sm:items-center sm:py-8" style={{ background: 'rgba(0,0,0,0.75)' }}>
+          <div
+            className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-[880px] flex-col overflow-hidden rounded-2xl sm:max-h-[92vh]"
+            style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(0,0,0,0.6)' }}
+          >
+            <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div>
-                <h3 className="text-2xl font-semibold">{form.id ? 'Editar empresa' : 'Nova empresa'}</h3>
-                <p className="mt-1 text-sm text-[#b7b0a6]">
+                <h3 className="text-xl font-bold text-white">{form.id ? 'Editar empresa' : 'Nova empresa'}</h3>
+                <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
                   Ajuste os dados principais da empresa e o comportamento do portal a partir daqui.
                 </p>
               </div>
-
               <button type="button" className="portal-ghost-button" onClick={closeCompanyModal}>
-                <X size={16} />
+                <X size={15} />
                 Fechar
               </button>
             </div>
 
-            <form className="flex min-h-0 flex-1 flex-col bg-[#191510]" onSubmit={handleSaveCompany}>
+            <form className="flex min-h-0 flex-1 flex-col" style={{ background: '#110f0d' }} onSubmit={handleSaveCompany}>
               <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 py-6">
                 <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
@@ -1774,16 +1817,16 @@ export default function AdminPage() {
                         <div>
                           <h4 className="text-sm font-semibold text-white">Filtros gerais dos dashboards</h4>
                           <p className="mt-1 text-sm text-[#b7b0a6]">
-                            Aplique filtros fixos para toda a empresa no PPS e na Analise de Dados.
+                            Aplique filtros fixos para toda a empresa no PPS e na Análise de Dados.
                           </p>
                         </div>
-                        <span className="portal-pill">Retraivel</span>
+                        <span className="portal-pill">Retrável</span>
                       </div>
                     </summary>
 
                     <div className="mt-4 space-y-4">
                       {dashboardFilterOptionsLoading ? (
-                        <p className="text-sm text-[#b7b0a6]">Carregando filtros disponiveis...</p>
+                        <p className="text-sm text-[#b7b0a6]">Carregando filtros disponíveis...</p>
                       ) : null}
                       {dashboardFilterOptionsError ? (
                         <p className="text-sm text-amber-200">{dashboardFilterOptionsError}</p>
@@ -1797,10 +1840,10 @@ export default function AdminPage() {
                             <div className="flex items-center justify-between gap-3">
                               <div>
                                 <h5 className="text-sm font-semibold text-white">
-                                  {mode === 'pps' ? 'PPS' : 'Analise de Dados'}
+                                  {mode === 'pps' ? 'PPS' : 'Análise de Dados'}
                                 </h5>
                                 <p className="mt-1 text-xs text-[#8d867c]">
-                                  {filters.length === 0 ? 'Sem filtro geral neste modulo.' : `${filters.length} filtro(s) aplicado(s).`}
+                                  {filters.length === 0 ? 'Sem filtro geral neste módulo.' : `${filters.length} filtro(s) aplicado(s).`}
                                 </p>
                               </div>
                               <button type="button" className="portal-ghost-button" onClick={() => addCompanyDashboardFilter(mode)}>
@@ -1853,7 +1896,7 @@ export default function AdminPage() {
                                               {!filter.field
                                                 ? 'Escolha o filtro primeiro'
                                                 : fieldOptions.length === 0
-                                                  ? 'Sem opcoes disponiveis'
+                                                  ? 'Sem opções disponíveis'
                                                   : 'Selecione um valor'}
                                             </option>
                                             {fieldOptions.map(option => (
@@ -1886,7 +1929,7 @@ export default function AdminPage() {
 
                                         <div className="portal-input flex items-center border-dashed text-sm text-[#b7b0a6]">
                                           {getDashboardFilterDefinition(filter.field)?.inputType === 'select'
-                                            ? 'Valor definido por selecao'
+                                            ? 'Valor definido por seleção'
                                             : 'Valor digitado livremente'}
                                         </div>
                                       </div>
@@ -1909,16 +1952,16 @@ export default function AdminPage() {
                         <div>
                           <h4 className="text-sm font-semibold text-white">Filtros por visual</h4>
                           <p className="mt-1 text-sm text-[#b7b0a6]">
-                            Aplique filtros fixos em graficos ou tabelas especificas do PPS e da Analise de Dados.
+                            Aplique filtros fixos em gráficos ou tabelas específicas do PPS e da Análise de Dados.
                           </p>
                         </div>
-                        <span className="portal-pill">Retraivel</span>
+                        <span className="portal-pill">Retrável</span>
                       </div>
                     </summary>
 
                     <div className="mt-4 space-y-4">
                       {dashboardFilterOptionsLoading ? (
-                        <p className="text-sm text-[#b7b0a6]">Carregando valores dos filtros padrao...</p>
+                        <p className="text-sm text-[#b7b0a6]">Carregando valores dos filtros padrão...</p>
                       ) : null}
                       {dashboardFilterOptionsError ? (
                         <p className="text-sm text-amber-200">{dashboardFilterOptionsError}</p>
@@ -1927,7 +1970,7 @@ export default function AdminPage() {
                       {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode, sections]) => (
                         <div key={mode} className="rounded-[20px] bg-white/[0.04] p-4">
                           <h5 className="text-sm font-semibold text-white">
-                            {mode === 'pps' ? 'PPS' : 'Analise de Dados'}
+                            {mode === 'pps' ? 'PPS' : 'Análise de Dados'}
                           </h5>
 
                           <div className="mt-4 space-y-3">
@@ -1978,7 +2021,7 @@ export default function AdminPage() {
                                                 value={source}
                                                 onChange={event => updateCompanyVisualFilterSource(mode, section.key, filter.id, event.target.value)}
                                               >
-                                                <option value="standard">Filtro padrao do site</option>
+                                                <option value="standard">Filtro padrão do site</option>
                                                 <option value="table">Tabela e coluna</option>
                                               </select>
 
@@ -2050,7 +2093,7 @@ export default function AdminPage() {
                                                     {!filter.field
                                                       ? 'Escolha o filtro primeiro'
                                                       : fieldOptions.length === 0
-                                                        ? 'Sem opcoes disponiveis'
+                                                        ? 'Sem opções disponíveis'
                                                         : 'Selecione um valor'}
                                                   </option>
                                                   {fieldOptions.map(option => (
@@ -2109,7 +2152,7 @@ export default function AdminPage() {
                         <div className="space-y-3 md:col-span-2">
                           <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
-                              <label className="portal-label">Modelo de alimentacao do dashboard</label>
+                              <label className="portal-label">Modelo de alimentação do dashboard</label>
                               <select
                                 className="portal-input"
                                 value={form.dashboardFeedingModel}
@@ -2136,12 +2179,12 @@ export default function AdminPage() {
                             </div>
 
                             <div className="space-y-2">
-                              <label className="portal-label">Identificacao do banco</label>
+                              <label className="portal-label">Identificação do banco</label>
                               <input
                                 className="portal-input"
                                 value={form.supabaseLabel}
                                 onChange={event => setForm(previous => ({ ...previous, supabaseLabel: event.target.value }))}
-                                placeholder="Ex.: sincronizado em Supabase producao"
+                                placeholder="Ex.: sincronizado em Supabase produção"
                               />
                             </div>
 
@@ -2180,7 +2223,7 @@ export default function AdminPage() {
                             </div>
                           ) : null}
                           <p className="text-xs text-[#8d867c]">
-                            Quando ligado, o portal filtra PPS e Analise de Dados por PEDID.EMPCODIGO.
+                            Quando ligado, o portal filtra PPS e Análise de Dados por PEDID.EMPCODIGO.
                           </p>
                         </div>
 
@@ -2200,9 +2243,9 @@ export default function AdminPage() {
                         <div className="space-y-3 md:col-span-2">
                           <div className="flex items-center justify-between gap-3">
                             <div>
-                              <label className="portal-label">Pedido concluido quando</label>
+                              <label className="portal-label">Pedido concluído quando</label>
                               <p className="mt-1 text-xs text-[#8d867c]">
-                                O pedido tambem sera tratado como concluido quando bater qualquer condicao abaixo.
+                                O pedido também será tratado como concluído quando bater qualquer condição abaixo.
                               </p>
                             </div>
                             <button
@@ -2274,7 +2317,7 @@ export default function AdminPage() {
                             </div>
                           ) : (
                             <div className="rounded-[16px] border border-dashed border-white/10 px-4 py-3 text-sm text-[#8d867c]">
-                              Sem condicao adicional. A data de saida continua concluindo o pedido normalmente.
+                              Sem condição adicional. A data de saída continua concluindo o pedido normalmente.
                             </div>
                           )}
                         </div>
@@ -2299,7 +2342,7 @@ export default function AdminPage() {
                     <div>
                       <h4 className="text-sm font-semibold text-white">Power BI hospedado no portal</h4>
                       <p className="mt-1 text-sm text-[#b7b0a6]">
-                        Cadastre um ou mais modelos de Power BI para esta empresa e controle os acessos por usuario.
+                        Cadastre um ou mais modelos de Power BI para esta empresa e controle os acessos por usuário.
                       </p>
                     </div>
 
@@ -2408,7 +2451,7 @@ export default function AdminPage() {
                                 className="portal-input"
                                 value={report.effectiveIdentityUsername || ''}
                                 onChange={event => updatePowerBiReportField(report.id, 'effectiveIdentityUsername', event.target.value)}
-                                placeholder="Opcional: email, usuario ou object id"
+                                placeholder="Opcional: email, usuário ou object id"
                               />
                             </div>
 
@@ -2456,7 +2499,7 @@ export default function AdminPage() {
                     <>
                       <button type="button" className="portal-ghost-button" onClick={() => editingCompany && openUserModal(editingCompany)}>
                         <Users size={15} />
-                        Gerenciar usuarios
+                        Gerenciar usuários
                       </button>
                       <button type="button" className="portal-ghost-button" onClick={() => editingCompany && openPortalPreviewModal(editingCompany)}>
                         Portal
@@ -2471,7 +2514,7 @@ export default function AdminPage() {
                     Cancelar
                   </button>
                   <button type="submit" className="portal-primary-button">
-                    {form.id ? 'Salvar alteracoes' : 'Salvar empresa'}
+                    {form.id ? 'Salvar alterações' : 'Salvar empresa'}
                   </button>
                 </div>
               </div>
@@ -2481,45 +2524,50 @@ export default function AdminPage() {
       ) : null}
 
       {portalPreviewCompany ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#09080b]/80 px-4 py-8 backdrop-blur-sm">
-          <div className="flex max-h-[78vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[26px] bg-[#171418] shadow-[0_32px_120px_rgba(0,0,0,0.45)]">
-            <div className="flex shrink-0 items-start justify-between gap-4 px-5 py-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" style={{ background: 'rgba(0,0,0,0.8)' }}>
+          <div
+            className="flex max-h-[78vh] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl"
+            style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(0,0,0,0.7)' }}
+          >
+            <div className="flex shrink-0 items-start justify-between gap-4 px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.22em] text-[#bca27a]">Entrar no portal</p>
-                <h3 className="mt-2 truncate text-xl font-semibold">{portalPreviewCompany.name}</h3>
-                <p className="mt-1 text-sm leading-6 text-[#b7b0a6]">
-                  Escolha como deseja visualizar esta empresa. A opcao de usuario replica paginas, visuais e filtros liberados para ele.
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#4a4238' }}>Entrar no portal</p>
+                <h3 className="mt-2 truncate text-lg font-bold text-white">{portalPreviewCompany.name}</h3>
+                <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
+                  Escolha como deseja visualizar esta empresa.
                 </p>
               </div>
               <button type="button" className="portal-ghost-button" onClick={closePortalPreviewModal}>
-                <X size={16} />
+                <X size={14} />
                 Fechar
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-[#121015] px-5 py-4">
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-4" style={{ background: '#110f0d' }}>
               <button
                 type="button"
-                className="flex w-full items-center justify-between gap-4 rounded-[18px] border border-[#e3ad5a]/25 bg-[#e3ad5a]/10 px-4 py-3 text-left transition hover:border-[#e3ad5a]/45 hover:bg-[#e3ad5a]/15"
+                className="flex w-full items-center justify-between gap-4 rounded-xl px-4 py-3 text-left transition"
+                style={{ background: 'rgba(227,173,90,0.07)', border: '1px solid rgba(227,173,90,0.2)', color: '#e3ad5a' }}
                 onClick={() => enterCompanyPortal(null)}
               >
                 <div>
                   <p className="text-sm font-semibold text-white">Entrar como admin</p>
-                  <p className="mt-1 text-xs text-[#b7b0a6]">Visualiza a empresa sem restricoes de usuario.</p>
+                  <p className="mt-0.5 text-xs" style={{ color: '#5c554e' }}>Visualiza a empresa sem restrições de usuário.</p>
                 </div>
-                <Eye size={18} className="text-[#e3ad5a]" />
+                <Eye size={16} />
               </button>
 
               {getCompanyUserList(companyUsers, portalPreviewCompany).length === 0 ? (
-                <div className="rounded-[18px] border border-dashed border-white/10 px-4 py-3 text-sm text-[#b7b0a6]">
-                  Nenhum usuario cadastrado para esta empresa.
+                <div className="rounded-xl px-4 py-3 text-sm" style={{ border: '1px dashed rgba(255,255,255,0.07)', color: '#4a4238' }}>
+                  Nenhum usuário cadastrado para esta empresa.
                 </div>
               ) : (
                 getCompanyUserList(companyUsers, portalPreviewCompany).map(user => (
                   <button
                     key={user.uid}
                     type="button"
-                    className="flex w-full items-center justify-between gap-4 rounded-[18px] bg-white/[0.05] px-4 py-3 text-left transition hover:bg-white/[0.08]"
+                    className="flex w-full items-center justify-between gap-4 rounded-xl px-4 py-3 text-left transition"
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)' }}
                     onClick={() => enterCompanyPortal(user)}
                   >
                     <div className="min-w-0">
@@ -2527,9 +2575,9 @@ export default function AdminPage() {
                         <p className="truncate text-sm font-semibold text-white">{user.name || user.email}</p>
                         {user.uid === portalPreviewCompany.authUid ? <span className="portal-pill">Principal</span> : null}
                       </div>
-                      <p className="mt-1 truncate text-sm text-[#b7b0a6]">{user.email}</p>
+                      <p className="mt-0.5 truncate text-xs" style={{ color: '#4a4238' }}>{user.email}</p>
                     </div>
-                    <SquareArrowOutUpRight size={16} className="shrink-0 text-[#8f877d]" />
+                    <SquareArrowOutUpRight size={14} style={{ color: '#4a4238' }} />
                   </button>
                 ))
               )}
@@ -2539,26 +2587,29 @@ export default function AdminPage() {
       ) : null}
 
       {isUserModalOpen && managingCompany ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#09080b]/80 px-4 py-8 backdrop-blur-sm">
-          <div className="flex max-h-[92vh] w-full max-w-[1360px] flex-col overflow-hidden rounded-[32px] bg-[#171418] shadow-[0_32px_120px_rgba(0,0,0,0.45)]">
-            <div className="flex items-center justify-between px-6 py-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" style={{ background: 'rgba(0,0,0,0.8)' }}>
+          <div
+            className="flex max-h-[92vh] w-full max-w-[1360px] flex-col overflow-hidden rounded-2xl"
+            style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(0,0,0,0.7)' }}
+          >
+            <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div>
-                <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Usuarios da empresa</p>
-                <h2 className="mt-2 text-2xl font-semibold">{managingCompany.name}</h2>
-                <p className="mt-1 text-sm text-[#b7b0a6]">
-                  Edite paginas liberadas, esconda visuais especificos e mantenha o acesso principal da empresa sob controle.
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#4a4238' }}>Usuários da empresa</p>
+                <h2 className="mt-2 text-xl font-bold text-white">{managingCompany.name}</h2>
+                <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
+                  Edite páginas liberadas, esconda visuais específicos e mantenha o acesso principal da empresa sob controle.
                 </p>
               </div>
               <button type="button" className="portal-ghost-button" onClick={closeUserModal}>
-                <X size={16} />
+                <X size={14} />
                 Fechar
               </button>
             </div>
 
             <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="overflow-y-auto bg-[#121015] p-6">
+              <div className="overflow-y-auto p-6" style={{ background: '#0f0d0b' }}>
                 <div className="mb-4 flex items-center justify-between gap-3">
-                  <h3 className="text-lg font-semibold">Lista de usuarios</h3>
+                  <h3 className="text-lg font-semibold">Lista de usuários</h3>
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     <button type="button" className="portal-ghost-button" onClick={openPasswordListModal}>
                       <FileDown size={14} />
@@ -2566,7 +2617,7 @@ export default function AdminPage() {
                     </button>
                     <button type="button" className="portal-primary-button" onClick={startCreateUser}>
                       <UserPlus size={16} />
-                      Novo usuario
+                      Novo usuário
                     </button>
                   </div>
                 </div>
@@ -2608,11 +2659,11 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="overflow-y-auto p-6">
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold">{editingUserId ? 'Editar usuario' : 'Novo usuario'}</h3>
-                  <p className="mt-1 text-sm text-[#b7b0a6]">
-                    Controle quais paginas ele acessa e quais blocos de PPS ou Analise de Dados ficam visiveis para esse usuario.
+              <div className="overflow-y-auto p-6" style={{ background: '#110f0d' }}>
+                <div className="mb-5">
+                  <h3 className="text-base font-bold text-white">{editingUserId ? 'Editar usuário' : 'Novo usuário'}</h3>
+                  <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
+                    Controle quais páginas ele acessa e quais blocos de PPS ou Análise de Dados ficam visíveis para esse usuário.
                   </p>
                 </div>
 
@@ -2651,7 +2702,7 @@ export default function AdminPage() {
                   </div>
 
                   <div className="rounded-[24px] bg-white/[0.05] p-4">
-                    <h4 className="text-sm font-semibold text-white">Paginas liberadas</h4>
+                    <h4 className="text-sm font-semibold text-white">Páginas liberadas</h4>
                     <div className="mt-3 grid gap-3 md:grid-cols-3">
                       <label className="portal-checkbox">
                         <input
@@ -2660,7 +2711,7 @@ export default function AdminPage() {
                           onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.ANALYSIS)}
                           disabled={!managingCompany.supabaseEnabled}
                         />
-                        <span>Analise de Dados</span>
+                        <span>Análise de Dados</span>
                       </label>
                       <label className="portal-checkbox">
                         <input
@@ -2698,12 +2749,12 @@ export default function AdminPage() {
                         <div>
                           <h4 className="text-sm font-semibold text-white">Modelos de Power BI</h4>
                           <p className="mt-1 text-sm text-[#b7b0a6]">
-                            Controle quais modelos o usuario enxerga, quais paginas de cada relatorio ficam acessiveis e quais filtros devem ser aplicados.
+                            Controle quais modelos o usuário enxerga, quais páginas de cada relatório ficam acessíveis e quais filtros devem ser aplicados.
                           </p>
                         </div>
 
                         {powerBiCatalogLoading ? (
-                          <p className="mt-4 text-sm text-[#b7b0a6]">Carregando modelos do relatorio...</p>
+                          <p className="mt-4 text-sm text-[#b7b0a6]">Carregando modelos do relatório...</p>
                         ) : powerBiCatalogError ? (
                           <p className="mt-4 text-sm text-[#f0b8b8]">{powerBiCatalogError}</p>
                         ) : powerBiCatalog.length === 0 ? (
@@ -2742,9 +2793,9 @@ export default function AdminPage() {
                                     <div className="rounded-[18px] bg-white/[0.04] p-4">
                                       <div className="flex items-center justify-between gap-3">
                                         <div>
-                                          <p className="text-sm font-semibold text-white">Paginas liberadas</p>
+                                          <p className="text-sm font-semibold text-white">Páginas liberadas</p>
                                           <p className="mt-1 text-sm text-[#b7b0a6]">
-                                            Deixe sem marcar para liberar todas ou selecione somente as paginas permitidas.
+                                            Deixe sem marcar para liberar todas ou selecione somente as páginas permitidas.
                                           </p>
                                         </div>
                                         <button
@@ -2771,7 +2822,7 @@ export default function AdminPage() {
                                       </div>
 
                                       <p className="mt-3 text-xs uppercase tracking-[0.18em] text-[#8d867c]">
-                                        {allowAllPages ? 'Todas as paginas estao liberadas.' : 'Paginas escolhidas manualmente.'}
+                                        {allowAllPages ? 'Todas as páginas estão liberadas.' : 'Páginas escolhidas manualmente.'}
                                       </p>
 
                                       <div className="mt-4 grid gap-2 md:grid-cols-2">
@@ -2797,7 +2848,7 @@ export default function AdminPage() {
                                     <div className="rounded-[18px] bg-white/[0.04] p-4">
                                       <div className="flex items-center justify-between gap-3">
                                         <div>
-                                          <p className="text-sm font-semibold text-white">Filtros do usuario</p>
+                                          <p className="text-sm font-semibold text-white">Filtros do usuário</p>
                                           <p className="mt-1 text-sm text-[#b7b0a6]">
                                             Aplique filtros permanentes neste modelo para restringir dados por tabela, coluna e valor.
                                           </p>
@@ -2825,7 +2876,7 @@ export default function AdminPage() {
                                               </div>
                                               {!hasSchemaTables ? (
                                                 <p className="mb-3 text-xs text-[#b7b0a6]">
-                                                  Este modelo ainda nao expôs a estrutura de tabelas e colunas. Você pode preencher manualmente por enquanto.
+                                                  Este modelo ainda não expôs a estrutura de tabelas e colunas. Você pode preencher manualmente por enquanto.
                                                 </p>
                                               ) : null}
                                               <div className="grid gap-3 md:grid-cols-2">
@@ -2909,7 +2960,7 @@ export default function AdminPage() {
                     {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode, sections]) => (
                       <div key={mode} className="rounded-[24px] bg-white/[0.05] p-4">
                         <h4 className="text-sm font-semibold text-white">
-                          {mode === 'pps' ? 'Visuais do PPS' : 'Visuais da Analise de Dados'}
+                          {mode === 'pps' ? 'Visuais do PPS' : 'Visuais da Análise de Dados'}
                         </h4>
                         <div className="mt-3 space-y-2">
                           {sections.map(section => (
@@ -2928,9 +2979,9 @@ export default function AdminPage() {
                         <div className="mt-5 rounded-[18px] bg-white/[0.04] p-4">
                           <div className="flex items-center justify-between gap-3">
                             <div>
-                              <p className="text-sm font-semibold text-white">Filtros do usuario</p>
+                              <p className="text-sm font-semibold text-white">Filtros do usuário</p>
                               <p className="mt-1 text-sm text-[#b7b0a6]">
-                                Aplique filtros permanentes usando os mesmos campos visiveis no dashboard deste modulo.
+                                Aplique filtros permanentes usando os mesmos campos visíveis no dashboard deste módulo.
                               </p>
                             </div>
                             <button type="button" className="portal-ghost-button" onClick={() => addUserDashboardFilter(mode)}>
@@ -2940,7 +2991,7 @@ export default function AdminPage() {
                           </div>
 
                           {dashboardFilterOptionsLoading ? (
-                            <p className="mt-3 text-sm text-[#b7b0a6]">Carregando filtros disponiveis...</p>
+                            <p className="mt-3 text-sm text-[#b7b0a6]">Carregando filtros disponíveis...</p>
                           ) : null}
                           {dashboardFilterOptionsError ? (
                             <p className="mt-3 text-sm text-amber-200">{dashboardFilterOptionsError}</p>
@@ -2990,7 +3041,7 @@ export default function AdminPage() {
                                               {!filter.field
                                                 ? 'Escolha o filtro primeiro'
                                                 : fieldOptions.length === 0
-                                                  ? 'Sem opcoes disponiveis'
+                                                  ? 'Sem opções disponíveis'
                                                   : 'Selecione um valor'}
                                             </option>
                                             {fieldOptions.map(option => (
@@ -3025,7 +3076,7 @@ export default function AdminPage() {
                                   </select>
                                     <div className="portal-input flex items-center border-dashed text-sm text-[#b7b0a6]">
                                       {getDashboardFilterDefinition(filter.field)?.inputType === 'select'
-                                        ? 'Valor definido por selecao'
+                                        ? 'Valor definido por seleção'
                                         : 'Valor digitado livremente'}
                                     </div>
                                   </div>
@@ -3041,7 +3092,7 @@ export default function AdminPage() {
                   <div className="flex flex-wrap items-center gap-3">
                     <button type="submit" className="portal-primary-button">
                       <UserPlus size={16} />
-                      {editingUserId ? 'Salvar usuario' : 'Criar usuario'}
+                      {editingUserId ? 'Salvar usuário' : 'Criar usuário'}
                     </button>
                     {editingUserId ? (
                       <button type="button" className="portal-ghost-button" onClick={startCreateUser}>
@@ -3054,13 +3105,16 @@ export default function AdminPage() {
             </div>
           </div>
           {isPasswordListModalOpen ? (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#09080b]/75 px-4 py-8 backdrop-blur-sm">
-              <div className="flex max-h-[88vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[28px] bg-[#19161c] shadow-[0_32px_120px_rgba(0,0,0,0.55)]">
-                <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
+            <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-8" style={{ background: 'rgba(0,0,0,0.82)' }}>
+              <div
+                className="flex max-h-[88vh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl"
+                style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(0,0,0,0.7)' }}
+              >
+                <div className="flex items-start justify-between gap-4 px-6 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                   <div>
-                    <h3 className="text-xl font-semibold text-white">Gerar lista de usuarios</h3>
-                    <p className="mt-1 text-sm text-[#b7b0a6]">
-                      Informe a nova senha de cada usuario. Ao concluir, o portal atualiza as senhas e baixa um TXT com nome, email e senha.
+                    <h3 className="text-lg font-bold text-white">Gerar lista de usuários</h3>
+                    <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
+                      Informe a nova senha de cada usuário. Ao concluir, o portal atualiza as senhas e baixa um TXT com nome, email e senha.
                     </p>
                   </div>
                   <button type="button" className="portal-ghost-button" onClick={closePasswordListModal} disabled={isGeneratingPasswordList}>
@@ -3069,20 +3123,20 @@ export default function AdminPage() {
                   </button>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5" style={{ background: '#110f0d' }}>
                   <div className="space-y-3">
                     {getCompanyUserList(companyUsers, managingCompany).map(user => (
-                      <div key={user.uid} className="rounded-2xl bg-white/[0.04] p-4">
+                      <div key={user.uid} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)' }}>
                         <p className="text-sm font-semibold text-white">{user.name || 'Sem nome'}</p>
-                        <p className="mt-1 text-sm text-[#b7b0a6]">{user.email}</p>
-                        <div className="mt-3 space-y-2">
+                        <p className="mt-0.5 text-xs" style={{ color: '#4a4238' }}>{user.email}</p>
+                        <div className="mt-3 space-y-1.5">
                           <label className="portal-label">Nova senha</label>
                           <input
                             className="portal-input"
                             type="text"
                             value={passwordBatchMap[user.uid] || ''}
                             onChange={event => updatePasswordBatchValue(user.uid, event.target.value)}
-                            placeholder="Minimo 6 caracteres"
+                            placeholder="Mínimo 6 caracteres"
                             disabled={isGeneratingPasswordList}
                           />
                         </div>
@@ -3091,7 +3145,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-end gap-3 border-t border-white/10 px-6 py-5">
+                <div className="flex flex-wrap items-center justify-end gap-3 px-6 py-5" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                   <button type="button" className="portal-ghost-button" onClick={closePasswordListModal} disabled={isGeneratingPasswordList}>
                     Cancelar
                   </button>

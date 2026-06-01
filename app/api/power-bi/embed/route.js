@@ -32,11 +32,11 @@ export async function GET(request) {
 
     const permissions = normalizeUserPermissions(profile.permissions, company)
     if (profile.role !== 'admin' && !permissions.pages[PORTAL_PAGE_KEYS.POWER_BI]) {
-      return NextResponse.json({ error: 'Usuario sem acesso ao Power BI desta empresa.' }, { status: 403 })
+      return NextResponse.json({ error: 'Usuário sem acesso ao Power BI desta empresa.' }, { status: 403 })
     }
 
     if (profile.role !== 'admin' && !canAccessPowerBiReport(company, permissions, reportKey)) {
-      return NextResponse.json({ error: 'Usuario sem acesso a este modelo de Power BI.' }, { status: 403 })
+      return NextResponse.json({ error: 'Usuário sem acesso a este modelo de Power BI.' }, { status: 403 })
     }
 
     const embedConfig = await generatePowerBiEmbedConfig(
@@ -56,7 +56,7 @@ export async function GET(request) {
         : navigablePages.filter(page => allowedPageNames.includes(page.name))
 
     if (profile.role !== 'admin' && allowedPageNames.length > 0 && visiblePages.length === 0) {
-      return NextResponse.json({ error: 'Nenhuma pagina do Power BI foi liberada para este usuario.' }, { status: 403 })
+      return NextResponse.json({ error: 'Nenhuma página do Power BI foi liberada para este usuário.' }, { status: 403 })
     }
 
     return NextResponse.json({
@@ -72,6 +72,6 @@ export async function GET(request) {
     })
   } catch (error) {
     console.error('[power-bi-embed:get]', error)
-    return NextResponse.json({ error: error.message || 'Falha ao gerar configuracao do Power BI Embedded.' }, { status: getErrorStatus(error) })
+    return NextResponse.json({ error: error.message || 'Falha ao gerar configuração do Power BI Embedded.' }, { status: getErrorStatus(error) })
   }
 }

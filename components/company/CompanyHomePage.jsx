@@ -21,22 +21,22 @@ const TOOL_CARDS = [
   {
     key: 'analysis',
     href: slug => `/empresa/${slug}/dashboard`,
-    title: 'Analise de Dados',
-    description: 'Indicadores, historico, rastreabilidade e exportacao das tabelas em Excel.',
+    title: 'Análise de Dados',
+    description: 'Indicadores, histórico, rastreabilidade e exportação das tabelas em Excel.',
     icon: BarChart3,
   },
   {
     key: 'pps',
     href: slug => `/empresa/${slug}/pps`,
     title: 'PPS',
-    description: 'Modo enxuto com foco operacional no historico de pedidos e leitura rapida da producao.',
+    description: 'Modo enxuto com foco operacional no histórico de pedidos e leitura rápida da produção.',
     icon: LayoutPanelTop,
   },
   {
     key: 'powerBi',
     href: slug => `/empresa/${slug}/power-bi`,
     title: 'Power BI',
-    description: 'Acesso interno ao painel Power BI publicado para esta empresa dentro do proprio portal.',
+    description: 'Acesso interno ao painel Power BI publicado para esta empresa dentro do próprio portal.',
     icon: PieChart,
   },
 ]
@@ -107,7 +107,7 @@ export default function CompanyHomePage({ slug }) {
 
     const text = String(feedbackMessage || '').trim()
     if (!text) {
-      setFeedbackStatus('Digite uma sugestao antes de enviar.')
+      setFeedbackStatus('Digite uma sugestão antes de enviar.')
       return
     }
 
@@ -151,16 +151,16 @@ export default function CompanyHomePage({ slug }) {
 
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(payload?.error || 'Falha ao registrar sua sugestao.')
+        throw new Error(payload?.error || 'Falha ao registrar sua sugestão.')
       }
 
       setFeedbackMessage('')
       setFeedbackFiles([])
-      setFeedbackStatus('Sugestao enviada com sucesso. Obrigado!')
+      setFeedbackStatus('Sugestão enviada com sucesso. Obrigado!')
       await loadFeedbackHistory()
     } catch (error) {
       console.error(error)
-      setFeedbackStatus(error?.message || 'Falha ao enviar sugestao.')
+      setFeedbackStatus(error?.message || 'Falha ao enviar sugestão.')
     } finally {
       setIsSendingFeedback(false)
     }
@@ -168,7 +168,7 @@ export default function CompanyHomePage({ slug }) {
 
   const getFeedbackStatusLabel = status => {
     if (status === 'new') return 'Novo'
-    if (status === 'concluido') return 'Concluido'
+    if (status === 'concluido') return 'Concluído'
     if (status === 'em_progresso') return 'Em progresso'
     return 'Lido'
   }
@@ -180,9 +180,9 @@ export default function CompanyHomePage({ slug }) {
   }
 
   const formatDateTime = value => {
-    if (!value) return 'Nao informado'
+    if (!value) return 'Não informado'
     const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) return 'Nao informado'
+    if (Number.isNaN(parsed.getTime())) return 'Não informado'
     return new Intl.DateTimeFormat('pt-BR', {
       day: '2-digit',
       month: '2-digit',
@@ -203,7 +203,7 @@ export default function CompanyHomePage({ slug }) {
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(payload?.error || 'Falha ao carregar historico.')
+        throw new Error(payload?.error || 'Falha ao carregar histórico.')
       }
       setFeedbackHistory(Array.isArray(payload.feedback) ? payload.feedback : [])
     } catch (error) {
@@ -236,7 +236,7 @@ export default function CompanyHomePage({ slug }) {
 
   const handlePasteFromClipboard = async () => {
     if (!navigator?.clipboard?.read) {
-      setFeedbackStatus('Seu navegador nao permite colar arquivos por botao. Use Ctrl+V no campo de texto ou selecione no input.')
+      setFeedbackStatus('Seu navegador não permite colar arquivos por botão. Use Ctrl+V no campo de texto ou selecione no input.')
       return
     }
 
@@ -263,15 +263,15 @@ export default function CompanyHomePage({ slug }) {
       }
 
       if (collectedFiles.length === 0) {
-        setFeedbackStatus('Nenhuma imagem ou video encontrada na area de transferencia.')
+        setFeedbackStatus('Nenhuma imagem ou vídeo encontrada na área de transferência.')
         return
       }
 
       appendFeedbackFiles(collectedFiles)
-      setFeedbackStatus(`${collectedFiles.length} arquivo(s) colado(s) da area de transferencia.`)
+      setFeedbackStatus(`${collectedFiles.length} arquivo(s) colado(s) da área de transferência.`)
     } catch (error) {
       console.error(error)
-      setFeedbackStatus('Nao foi possivel colar da area de transferencia.')
+      setFeedbackStatus('Não foi possível colar da área de transferência.')
     } finally {
       setIsPastingFromClipboard(false)
     }
@@ -313,84 +313,130 @@ export default function CompanyHomePage({ slug }) {
     canAccessPortalPage(company, userPermissions, PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)
 
   return (
-    <main className="min-h-screen bg-[#141216] px-6 py-6 text-white">
-      <div className="mx-auto max-w-[1380px]">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[30px] border border-white/8 bg-[#1c191d] px-6 py-5">
-          <div className="flex items-center gap-4">
-            <Image src="/gs-logo.png" alt="GS Consultoria & Gestao" width={220} height={124} className="h-14 w-auto" />
-            <div className="h-12 w-px bg-white/10" />
-            <div>
-              <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Portal da empresa</p>
-              <h1 className="mt-1 text-3xl font-semibold">{company.name}</h1>
-            </div>
-          </div>
+    <main
+      className="min-h-screen text-white"
+      style={{ background: 'radial-gradient(ellipse 120% 35% at 50% 0%, rgba(227,173,90,0.04) 0%, transparent 60%), #0f0d0b' }}
+    >
+      <div className="mx-auto max-w-[1380px] px-5 py-5">
 
-          <div className="flex items-center gap-3">
+        {/* Top bar — minimal */}
+        <header className="mb-12 flex items-center justify-between gap-4">
+          <Image src="/gs-logo.png" alt="GS Consultoria & Gestao" width={180} height={100} className="h-8 w-auto" style={{ opacity: 0.7 }} />
+          <div className="flex items-center gap-2">
             <Link href="/" className="portal-ghost-button">
-              <ArrowLeft size={16} />
+              <ArrowLeft size={14} />
               Home
             </Link>
             {session.type === 'admin' ? (
               <Link href="/admin" className="portal-ghost-button">
-                <Settings2 size={16} />
-                Administracao
+                <Settings2 size={14} />
+                Admin
               </Link>
             ) : null}
             <button onClick={handleLogout} className="portal-ghost-button">
-              <LogOut size={16} />
+              <LogOut size={14} />
               Sair
             </button>
           </div>
         </header>
 
-        <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {/* Hero */}
+        <section className="mb-10">
+          <p
+            className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.22em]"
+            style={{ color: '#c9924a' }}
+          >
+            Portal da empresa
+          </p>
+          <h1 className="text-4xl font-bold tracking-tight text-white lg:text-5xl">{company.name}</h1>
+          <div
+            className="mt-4 h-px w-12"
+            style={{ background: 'linear-gradient(90deg, rgba(227,173,90,0.6), transparent)' }}
+          />
+        </section>
+
+        {/* Tool cards */}
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {enabledInternalTools.length > 0 || canUseExternalDashboard ? (
             <>
               {canUseExternalDashboard ? (
                 <Link
                   href={`/empresa/${company.slug}/dashboard`}
-                  className="group rounded-[28px] border border-white/8 bg-[#1c191d] p-6 transition hover:border-[#e3ad5a]/40 hover:bg-[#221e22]"
+                  className="group relative overflow-hidden rounded-2xl p-6 transition-all duration-200 hover:scale-[1.01]"
+                  style={{
+                    background: '#181410',
+                    border: '1px solid rgba(255,255,255,0.055)',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                  }}
                 >
-                  <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e3ad5a]/15 text-[#e3ad5a]">
-                    <SquareArrowOutUpRight size={22} />
+                  <div
+                    className="absolute inset-x-0 top-0 h-px"
+                    style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(227,173,90,0.45) 50%, transparent 100%)' }}
+                  />
+                  <div
+                    className="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-xl"
+                    style={{ background: 'rgba(227,173,90,0.09)', color: '#d4984d' }}
+                  >
+                    <SquareArrowOutUpRight size={18} />
                   </div>
-                  <h3 className="text-2xl font-semibold">Dashboard</h3>
-                  <p className="mt-3 text-sm leading-7 text-[#bdb7ae]">
+                  <h3 className="text-base font-semibold text-white">Dashboard</h3>
+                  <p className="mt-2 text-sm leading-6" style={{ color: '#6b6358' }}>
                     Acesso ao dashboard externo encapsulado dentro do portal desta empresa.
                   </p>
-                  <div className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[#f1b867]">
-                    Abrir dashboard
-                    <ArrowLeft size={15} className="rotate-180 transition group-hover:translate-x-1" />
+                  <div
+                    className="mt-5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                    style={{ color: '#c9924a' }}
+                  >
+                    Abrir ferramenta
+                    <ArrowLeft size={10} className="rotate-180" />
                   </div>
                 </Link>
               ) : null}
 
               {enabledInternalTools.map(tool => {
-              const Icon = tool.icon
-              return (
-                <Link
-                  key={tool.key}
-                  href={tool.href(company.slug)}
-                  className="group rounded-[28px] border border-white/8 bg-[#1c191d] p-6 transition hover:border-[#e3ad5a]/40 hover:bg-[#221e22]"
-                >
-                  <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e3ad5a]/15 text-[#e3ad5a]">
-                    <Icon size={22} />
-                  </div>
-                  <h3 className="text-2xl font-semibold">{tool.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-[#bdb7ae]">{tool.description}</p>
-                  <div className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[#f1b867]">
-                    Abrir ferramenta
-                    <ArrowLeft size={15} className="rotate-180 transition group-hover:translate-x-1" />
-                  </div>
-                </Link>
-              )
-            })}
+                const Icon = tool.icon
+                return (
+                  <Link
+                    key={tool.key}
+                    href={tool.href(company.slug)}
+                    className="group relative overflow-hidden rounded-2xl p-6 transition-all duration-200 hover:scale-[1.01]"
+                    style={{
+                      background: '#181410',
+                      border: '1px solid rgba(255,255,255,0.055)',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                    }}
+                  >
+                    <div
+                      className="absolute inset-x-0 top-0 h-px"
+                      style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(227,173,90,0.45) 50%, transparent 100%)' }}
+                    />
+                    <div
+                      className="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-xl"
+                      style={{ background: 'rgba(227,173,90,0.09)', color: '#d4984d' }}
+                    >
+                      <Icon size={18} />
+                    </div>
+                    <h3 className="text-base font-semibold text-white">{tool.title}</h3>
+                    <p className="mt-2 text-sm leading-6" style={{ color: '#6b6358' }}>{tool.description}</p>
+                    <div
+                      className="mt-5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                      style={{ color: '#c9924a' }}
+                    >
+                      Abrir ferramenta
+                      <ArrowLeft size={10} className="rotate-180" />
+                    </div>
+                  </Link>
+                )
+              })}
             </>
           ) : (
-            <div className="rounded-[28px] border border-dashed border-white/10 bg-[#1c191d] p-6">
-              <h3 className="text-2xl font-semibold">Sem ferramentas liberadas</h3>
-              <p className="mt-3 text-sm leading-7 text-[#bdb7ae]">
-                A administracao da GS ainda nao liberou modulos para este tenant.
+            <div
+              className="rounded-2xl p-6"
+              style={{ background: '#181410', border: '1px dashed rgba(255,255,255,0.08)' }}
+            >
+              <h3 className="text-base font-semibold">Sem ferramentas liberadas</h3>
+              <p className="mt-2 text-sm leading-6" style={{ color: '#6b6358' }}>
+                A administração da GS ainda não liberou módulos para este tenant.
               </p>
             </div>
           )}
@@ -398,29 +444,46 @@ export default function CompanyHomePage({ slug }) {
 
       </div>
 
+      {/* Floating feedback button */}
       <button
         type="button"
-        aria-label="Abrir chat de sugestoes"
+        aria-label="Abrir chat de sugestões"
         onClick={() => setIsFeedbackPopupOpen(true)}
-        className="fixed bottom-5 right-5 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full border border-[#e3ad5a]/45 bg-[#1c191d] text-[#e3ad5a] shadow-[0_10px_25px_rgba(0,0,0,0.35)] transition hover:bg-[#252026]"
+        className="fixed bottom-6 right-6 z-30 inline-flex h-11 w-11 items-center justify-center rounded-full transition-all duration-200"
+        style={{
+          background: '#1a1612',
+          border: '1px solid rgba(227,173,90,0.25)',
+          color: '#c9924a',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+        }}
       >
-        <MessageSquareText size={21} />
+        <MessageSquareText size={17} />
       </button>
 
       {isFeedbackPopupOpen ? (
-        <div className="fixed inset-0 z-40 flex items-end justify-end bg-black/40 p-4 sm:items-center sm:justify-center">
-          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-[860px] flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#1c191d] p-5 shadow-[0_28px_90px_rgba(0,0,0,0.45)]">
+        <div className="fixed inset-0 z-40 flex items-end justify-end bg-black/60 p-4 sm:items-center sm:justify-center">
+          <div
+            className="flex max-h-[calc(100vh-2rem)] w-full max-w-[860px] flex-col overflow-hidden rounded-2xl p-5"
+            style={{
+              background: 'linear-gradient(150deg, #1a1714 0%, #121009 100%)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              boxShadow: '0 40px 100px rgba(0,0,0,0.6)',
+            }}
+          >
             <div className="mb-4 flex items-start justify-between gap-4 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e3ad5a]/15 text-[#e3ad5a]">
-                  <MessageSquareText size={18} />
+                <div
+                  className="flex h-9 w-9 items-center justify-center rounded-xl"
+                  style={{ background: 'rgba(227,173,90,0.09)', color: '#d4984d' }}
+                >
+                  <MessageSquareText size={16} />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Solicitar melhoria</h2>
-                  <p className="text-sm text-[#bdb7ae]">Envie sugestoes ou necessidades para a equipe da GS.</p>
+                  <h2 className="text-sm font-semibold text-white">Solicitar melhoria</h2>
+                  <p className="text-xs" style={{ color: '#5c554e' }}>Envie sugestões ou necessidades para a equipe da GS.</p>
                 </div>
               </div>
-              <button type="button" className="portal-ghost-button h-10 px-3 py-1 text-xs" onClick={() => setIsFeedbackPopupOpen(false)}>
+              <button type="button" className="portal-ghost-button h-9 px-3 text-xs" onClick={() => setIsFeedbackPopupOpen(false)}>
                 Fechar
               </button>
             </div>
@@ -429,13 +492,13 @@ export default function CompanyHomePage({ slug }) {
             <form className="space-y-3" onSubmit={handleSendFeedback}>
               <textarea
                 className="portal-input min-h-[120px] w-full resize-y"
-                placeholder="Descreva sua solicitacao ou sugestao..."
+                placeholder="Descreva sua solicitação ou sugestão..."
                 value={feedbackMessage}
                 onChange={event => setFeedbackMessage(event.target.value)}
                 maxLength={3000}
               />
               <div className="space-y-2">
-                <label className="text-xs text-[#bdb7ae]">Anexar fotos/videos (maximo 4 arquivos, 30MB cada)</label>
+                <label className="text-xs text-[#bdb7ae]">Anexar fotos/vídeos (máximo 4 arquivos, 30MB cada)</label>
                 <input
                   type="file"
                   accept="image/*,video/*"
@@ -452,7 +515,7 @@ export default function CompanyHomePage({ slug }) {
                   className="portal-ghost-button h-9 px-3 py-1 text-xs"
                   disabled={isPastingFromClipboard}
                 >
-                  {isPastingFromClipboard ? 'Colando...' : 'Colar da area de transferencia'}
+                  {isPastingFromClipboard ? 'Colando...' : 'Colar da área de transferência'}
                 </button>
                 {feedbackFiles.length > 0 ? (
                   <div className="flex flex-wrap gap-2 text-xs text-[#b8b0a6]">
@@ -467,18 +530,18 @@ export default function CompanyHomePage({ slug }) {
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-[#9f968a]">{feedbackMessage.length}/3000</p>
                 <button type="submit" className="portal-primary-button" disabled={isSendingFeedback}>
-                  {isSendingFeedback ? 'Enviando...' : 'Enviar sugestao'}
+                  {isSendingFeedback ? 'Enviando...' : 'Enviar sugestão'}
                 </button>
               </div>
               {feedbackStatus ? (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[#d6cfc3]">{feedbackStatus}</div>
+                <div className="rounded-xl px-4 py-3 text-sm text-[#d6cfc3]" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>{feedbackStatus}</div>
               ) : null}
             </form>
 
-            <div className="mt-5 rounded-[22px] bg-white/[0.03] p-4">
+            <div className="mt-5 rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.025)' }}>
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold text-white">Historico de sugestoes</h3>
-                <button type="button" className="portal-ghost-button h-9 px-3 py-1 text-xs" onClick={loadFeedbackHistory} disabled={feedbackHistoryLoading}>
+                <h3 className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: '#6b6358' }}>Histórico de sugestões</h3>
+                <button type="button" className="portal-ghost-button h-8 px-3 text-xs" onClick={loadFeedbackHistory} disabled={feedbackHistoryLoading}>
                   Atualizar
                 </button>
               </div>
@@ -486,7 +549,7 @@ export default function CompanyHomePage({ slug }) {
               {feedbackHistoryLoading ? (
                 <p className="text-sm text-[#bdb7ae]">Carregando...</p>
               ) : feedbackHistory.length === 0 ? (
-                <p className="text-sm text-[#bdb7ae]">Voce ainda nao enviou sugestoes.</p>
+                <p className="text-sm text-[#bdb7ae]">Você ainda não enviou sugestões.</p>
               ) : (
                 <div className="max-h-[260px] space-y-2 overflow-y-auto pr-1">
                   {feedbackHistory.map(item => (
@@ -531,3 +594,4 @@ export default function CompanyHomePage({ slug }) {
     </main>
   )
 }
+

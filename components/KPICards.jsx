@@ -34,9 +34,9 @@ export default function KPICards({ data, loading }) {
     <div className="grid grid-cols-2 gap-3 mb-4 md:grid-cols-4 xl:grid-cols-8">
       <KPICard icon={Package} label="Total de Pedidos" value={d.totalOrders ?? '-'} sub="no periodo" color="#3b82f6" loading={loading} />
       <KPICard icon={TrendingUp} label="Pontualidade" value={d.pontualidade != null ? formatPercentage(d.pontualidade) : '-'} sub="no prazo" color="#22c55e" loading={loading} />
-      <KPICard icon={Activity} label="Em Producao" value={d.emProducao ?? '-'} sub="pedidos ativos" color="#06b6d4" loading={loading} />
-      <KPICard icon={AlertTriangle} label="Em Producao (atraso)" value={d.emProducaoAtraso ?? '-'} sub="ainda em aberto" color="#f59e0b" loading={loading} />
-      <KPICard icon={CheckCircle2} label="Concluidos" value={d.concluidos ?? '-'} sub="no periodo" color="#a78bfa" loading={loading} />
+      <KPICard icon={Activity} label="Em Produção" value={d.emProducao ?? '-'} sub="pedidos ativos" color="#06b6d4" loading={loading} />
+      <KPICard icon={AlertTriangle} label="Em Produção (atraso)" value={d.emProducaoAtraso ?? '-'} sub="ainda em aberto" color="#f59e0b" loading={loading} />
+      <KPICard icon={CheckCircle2} label="Concluídos" value={d.concluidos ?? '-'} sub="no periodo" color="#a78bfa" loading={loading} />
       <KPICard icon={CheckCircle2} label="Entregue no Prazo" value={d.entregueNoPrazo ?? '-'} sub="entregues no prazo" color="#22c55e" loading={loading} />
       <KPICard icon={Truck} label="Entregue (atraso)" value={d.entregueAtraso ?? d.atrasados ?? '-'} sub="entregues fora do prazo" color="#fb7185" loading={loading} />
       <KPICard icon={TrendingUp} label="% Perdas" value={d.perdas != null ? formatPercentage(d.perdas) : '-'} sub="em quantidade" color="#ef4444" loading={loading} />
@@ -53,7 +53,7 @@ export function CompactPpsKpis({ data, loading }) {
     <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-6 xl:grid-cols-7">
       <KPICard icon={Package} label="Total" value={d.totalOrders ?? '-'} sub="pedidos" color="#3b82f6" loading={loading} />
       <KPICard icon={TrendingUp} label="Pontualidade" value={d.pontualidade != null ? formatPercentage(d.pontualidade) : '-'} sub="no prazo" color="#22c55e" loading={loading} />
-      <KPICard icon={Activity} label="Em Producao" value={d.emProducao ?? '-'} sub="ativos" color="#06b6d4" loading={loading} />
+      <KPICard icon={Activity} label="Em Produção" value={d.emProducao ?? '-'} sub="ativos" color="#06b6d4" loading={loading} />
       <KPICard icon={AlertTriangle} label="Prod. atraso" value={d.emProducaoAtraso ?? '-'} sub="em aberto" color="#f59e0b" loading={loading} />
       <KPICard icon={CheckCircle2} label="Entregue no Prazo" value={d.entregueNoPrazo ?? '-'} sub="no prazo" color="#22c55e" loading={loading} />
       <KPICard icon={Truck} label="Entregue atraso" value={d.entregueAtraso ?? d.atrasados ?? '-'} sub="fora do prazo" color="#fb7185" loading={loading} />
