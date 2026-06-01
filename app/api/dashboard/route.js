@@ -2478,27 +2478,29 @@ async function resolveApiCachePpsAnchorDate(supabase, company) {
 }
 
 async function resolveLegacyPpsAnchorDate(supabase, companyCodeFilter) {
-  const baseQuery = () =>
-    supabase
-      .from('pedido_dashboard_cache')
-      .select('emissao')
-      .not('emissao', 'is', null)
-      .order('emissao', { ascending: false })
-      .limit(1)
-
-  const runQuery = async withCompanyCode => {
-    let query = baseQuery()
-    if (withCompanyCode && companyCodeFilter?.enabled && companyCodeFilter?.code) {
-      query = query.eq('empcodigo', companyCodeFilter.code)
-    }
-    return query
+  const code = asSqlNumber(companyCodeFilter?.code)
+  if (companyCodeFilter?.enabled && Number.isFinite(code)) {
+    const rows = await execOptionalSql(
+      supabase,
+      `
+        select pdc.emissao
+        from pedido_dashboard_cache pdc
+        join pedid ped on ped.id_pedido = pdc.id_pedido
+        where pdc.emissao is not null
+          and ped.empcodigo = ${code}
+        order by pdc.emissao desc
+        limit 1
+      `
+    )
+    return extractDatePart(rows?.[0]?.emissao) || ''
   }
 
-  let { data, error } = await runQuery(true)
-
-  if (error && /empcodigo|column .* does not exist/i.test(String(error.message || ''))) {
-    ;({ data, error } = await runQuery(false))
-  }
+  const { data, error } = await supabase
+    .from('pedido_dashboard_cache')
+    .select('emissao')
+    .not('emissao', 'is', null)
+    .order('emissao', { ascending: false })
+    .limit(1)
 
   if (error) throw new Error(`pedido_dashboard_cache: ${error.message}`)
   return extractDatePart(data?.[0]?.emissao) || ''
