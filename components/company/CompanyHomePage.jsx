@@ -49,6 +49,7 @@ export default function CompanyHomePage({ slug }) {
   const [feedbackStatus, setFeedbackStatus] = useState('')
   const [isSendingFeedback, setIsSendingFeedback] = useState(false)
   const [feedbackFiles, setFeedbackFiles] = useState([])
+  const [isPastingFromClipboard, setIsPastingFromClipboard] = useState(false)
   const [feedbackHistory, setFeedbackHistory] = useState([])
   const [feedbackHistoryLoading, setFeedbackHistoryLoading] = useState(false)
   const [isFeedbackPopupOpen, setIsFeedbackPopupOpen] = useState(false)
@@ -217,6 +218,65 @@ export default function CompanyHomePage({ slug }) {
     loadFeedbackHistory()
   }, [company?.slug])
 
+  const appendFeedbackFiles = files => {
+    const merged = [...feedbackFiles, ...files]
+    const unique = []
+    const seen = new Set()
+
+    for (const file of merged) {
+      const key = `${file.name || 'arquivo'}-${file.size || 0}-${file.type || ''}-${file.lastModified || 0}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      unique.push(file)
+      if (unique.length >= 4) break
+    }
+
+    setFeedbackFiles(unique)
+  }
+
+  const handlePasteFromClipboard = async () => {
+    if (!navigator?.clipboard?.read) {
+      setFeedbackStatus('Seu navegador nao permite colar arquivos por botao. Use Ctrl+V no campo de texto ou selecione no input.')
+      return
+    }
+
+    setFeedbackStatus('')
+    setIsPastingFromClipboard(true)
+
+    try {
+      const clipboardItems = await navigator.clipboard.read()
+      const collectedFiles = []
+
+      for (const item of clipboardItems) {
+        for (const mimeType of item.types || []) {
+          if (!mimeType.startsWith('image/') && !mimeType.startsWith('video/')) continue
+          const blob = await item.getType(mimeType)
+          const extension = mimeType.split('/')[1] || 'bin'
+          const fileName = `clipboard-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${extension}`
+          collectedFiles.push(
+            new File([blob], fileName, {
+              type: mimeType,
+              lastModified: Date.now(),
+            })
+          )
+        }
+      }
+
+      if (collectedFiles.length === 0) {
+        setFeedbackStatus('Nenhuma imagem ou video encontrada na area de transferencia.')
+        return
+      }
+
+      appendFeedbackFiles(collectedFiles)
+      setFeedbackStatus(`${collectedFiles.length} arquivo(s) colado(s) da area de transferencia.`)
+    } catch (error) {
+      console.error(error)
+      setFeedbackStatus('Nao foi possivel colar da area de transferencia.')
+    } finally {
+      setIsPastingFromClipboard(false)
+    }
+  }
+
   if (!state || !session || !company) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#171416] text-white">
@@ -380,11 +440,19 @@ export default function CompanyHomePage({ slug }) {
                   accept="image/*,video/*"
                   multiple
                   onChange={event => {
-                    const selected = Array.from(event.target.files || []).slice(0, 4)
-                    setFeedbackFiles(selected)
+                    const selected = Array.from(event.target.files || [])
+                    appendFeedbackFiles(selected)
                   }}
                   className="block w-full text-sm text-[#d6cfc3] file:mr-3 file:rounded-xl file:border file:border-white/15 file:bg-white/[0.05] file:px-3 file:py-2 file:text-xs file:text-[#e6dfd5] hover:file:bg-white/[0.08]"
                 />
+                <button
+                  type="button"
+                  onClick={handlePasteFromClipboard}
+                  className="portal-ghost-button h-9 px-3 py-1 text-xs"
+                  disabled={isPastingFromClipboard}
+                >
+                  {isPastingFromClipboard ? 'Colando...' : 'Colar da area de transferencia'}
+                </button>
                 {feedbackFiles.length > 0 ? (
                   <div className="flex flex-wrap gap-2 text-xs text-[#b8b0a6]">
                     {feedbackFiles.map(file => (
