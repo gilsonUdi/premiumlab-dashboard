@@ -9,6 +9,7 @@ import {
   Eye,
   FileDown,
   LogOut,
+  MessageSquareText,
   Pencil,
   Plus,
   Search,
@@ -176,6 +177,10 @@ export default function AdminPage() {
   const [isPasswordListModalOpen, setIsPasswordListModalOpen] = useState(false)
   const [passwordBatchMap, setPasswordBatchMap] = useState({})
   const [isGeneratingPasswordList, setIsGeneratingPasswordList] = useState(false)
+  const [activePanel, setActivePanel] = useState('companies')
+  const [feedbackItems, setFeedbackItems] = useState([])
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [feedbackError, setFeedbackError] = useState('')
 
   useEffect(() => {
     let active = true
@@ -361,6 +366,44 @@ export default function AdminPage() {
   const handleLogout = async () => {
     await clearPortalSession()
     router.push('/login')
+  }
+
+  const loadFeedbackItems = async () => {
+    setFeedbackLoading(true)
+    setFeedbackError('')
+    try {
+      const token = await getPortalAccessToken()
+      const response = await fetch('/api/admin/feedback', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Falha ao carregar sugestoes.')
+      }
+      setFeedbackItems(Array.isArray(payload.feedback) ? payload.feedback : [])
+    } catch (error) {
+      console.error(error)
+      setFeedbackError(error?.message || 'Falha ao carregar sugestoes.')
+      setFeedbackItems([])
+    } finally {
+      setFeedbackLoading(false)
+    }
+  }
+
+  const formatDateTime = value => {
+    if (!value) return 'Nao informado'
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return 'Nao informado'
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(parsed)
   }
 
   const closeCompanyModal = () => {
@@ -1263,9 +1306,30 @@ export default function AdminPage() {
           </div>
 
           <div className="px-5 py-5">
-            <div className="flex items-center gap-3 rounded-2xl bg-white/[0.06] px-4 py-3 text-sm font-medium text-white">
-              <Building2 size={16} className="text-[#e3ad5a]" />
-              <span>Empresas</span>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setActivePanel('companies')}
+                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                  activePanel === 'companies' ? 'bg-white/[0.06] text-white' : 'text-[#c6bfb4] hover:bg-white/[0.04]'
+                }`}
+              >
+                <Building2 size={16} className="text-[#e3ad5a]" />
+                <span>Empresas</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActivePanel('feedback')
+                  loadFeedbackItems()
+                }}
+                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                  activePanel === 'feedback' ? 'bg-white/[0.06] text-white' : 'text-[#c6bfb4] hover:bg-white/[0.04]'
+                }`}
+              >
+                <MessageSquareText size={16} className="text-[#e3ad5a]" />
+                <span>Sugestoes</span>
+              </button>
             </div>
           </div>
 
@@ -1283,100 +1347,146 @@ export default function AdminPage() {
 
         <section className="bg-[#1e1914] px-4 py-5 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-[1320px]">
-            <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <h2 className="text-3xl font-semibold">Empresas</h2>
-                <p className="mt-2 text-sm text-[#b7b0a6]">{state.companies.length} empresas cadastradas no portal.</p>
-              </div>
+            {activePanel === 'companies' ? (
+              <>
+                <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h2 className="text-3xl font-semibold">Empresas</h2>
+                    <p className="mt-2 text-sm text-[#b7b0a6]">{state.companies.length} empresas cadastradas no portal.</p>
+                  </div>
 
-              <button type="button" className="portal-primary-button" onClick={openCreateCompanyModal}>
-                <Plus size={16} />
-                Nova empresa
-              </button>
-            </header>
+                  <button type="button" className="portal-primary-button" onClick={openCreateCompanyModal}>
+                    <Plus size={16} />
+                    Nova empresa
+                  </button>
+                </header>
 
-            {message ? (
-              <div className="mb-4 rounded-2xl bg-[#9ed3a9]/12 px-4 py-3 text-sm text-[#c8f0d0]">
-                {message}
-              </div>
-            ) : null}
-
-            <section className="rounded-[28px] bg-[#171418] shadow-[0_18px_60px_rgba(0,0,0,0.2)]">
-              <div className="px-5 py-5 sm:px-6">
-                <div className="relative w-full max-w-lg">
-                  <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#81796f]" />
-                  <input
-                    className="h-12 w-full rounded-2xl bg-white/[0.06] pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-[#7e776f] focus:bg-white/[0.09]"
-                    value={searchTerm}
-                    onChange={event => setSearchTerm(event.target.value)}
-                    placeholder="Buscar empresa..."
-                  />
-                </div>
-              </div>
-
-              <div className="hidden px-6 py-4 text-[11px] uppercase tracking-[0.2em] text-[#8d867c] lg:grid lg:grid-cols-[2fr_1.2fr_1fr_1fr_240px]">
-                <span>Empresa</span>
-                <span>Slug</span>
-                <span>Status</span>
-                <span>Criada em</span>
-                <span className="text-right">Acoes</span>
-              </div>
-
-              <div className="space-y-3 px-3 pb-3">
-                {filteredCompanies.length === 0 ? (
-                  <div className="mx-3 mb-3 rounded-[24px] bg-white/[0.045] px-6 py-16 text-center text-sm text-[#b7b0a6]">
-                    Nenhuma empresa encontrada para esse termo.
+                {message ? (
+                  <div className="mb-4 rounded-2xl bg-[#9ed3a9]/12 px-4 py-3 text-sm text-[#c8f0d0]">
+                    {message}
                   </div>
                 ) : null}
 
-                {filteredCompanies.map(company => (
-                  <div key={company.id} className="rounded-[24px] bg-white/[0.04] px-5 py-5 sm:px-6">
-                    <div className="grid gap-4 lg:grid-cols-[2fr_1.2fr_1fr_1fr_240px] lg:items-center">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-base font-semibold text-white">{company.name}</p>
-                          {company.isPremiumLab ? <span className="portal-pill">Premium Lab</span> : null}
-                        </div>
-                        <p className="mt-1 truncate text-sm text-[#a79f93]">{company.email}</p>
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="truncate text-sm text-white">/{company.slug}</p>
-                      </div>
-
-                      <div>
-                        <span className="portal-pill">{formatCompanyStatus(company)}</span>
-                      </div>
-
-                      <div>
-                        <p className="text-sm text-[#d6cfc3]">{formatCompanyDate(company.createdAt)}</p>
-                      </div>
-
-                      <div className="flex justify-start gap-2 lg:justify-end">
-                        <button type="button" className="portal-ghost-button" onClick={() => openPortalPreviewModal(company)}>
-                          Portal
-                          <SquareArrowOutUpRight size={15} />
-                        </button>
-                        <button type="button" className="portal-ghost-button" onClick={() => handleEditCompany(company)}>
-                          <Pencil size={15} />
-                          Editar
-                        </button>
-                        {!company.isPremiumLab ? (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCompany(company)}
-                            disabled={deletingCompanyId === company.id}
-                            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-red-500/12 px-4 text-sm font-medium text-red-200 transition hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        ) : null}
-                      </div>
+                <section className="rounded-[28px] bg-[#171418] shadow-[0_18px_60px_rgba(0,0,0,0.2)]">
+                  <div className="px-5 py-5 sm:px-6">
+                    <div className="relative w-full max-w-lg">
+                      <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#81796f]" />
+                      <input
+                        className="h-12 w-full rounded-2xl bg-white/[0.06] pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-[#7e776f] focus:bg-white/[0.09]"
+                        value={searchTerm}
+                        onChange={event => setSearchTerm(event.target.value)}
+                        placeholder="Buscar empresa..."
+                      />
                     </div>
                   </div>
-                ))}
-              </div>
-            </section>
+
+                  <div className="hidden px-6 py-4 text-[11px] uppercase tracking-[0.2em] text-[#8d867c] lg:grid lg:grid-cols-[2fr_1.2fr_1fr_1fr_240px]">
+                    <span>Empresa</span>
+                    <span>Slug</span>
+                    <span>Status</span>
+                    <span>Criada em</span>
+                    <span className="text-right">Acoes</span>
+                  </div>
+
+                  <div className="space-y-3 px-3 pb-3">
+                    {filteredCompanies.length === 0 ? (
+                      <div className="mx-3 mb-3 rounded-[24px] bg-white/[0.045] px-6 py-16 text-center text-sm text-[#b7b0a6]">
+                        Nenhuma empresa encontrada para esse termo.
+                      </div>
+                    ) : null}
+
+                    {filteredCompanies.map(company => (
+                      <div key={company.id} className="rounded-[24px] bg-white/[0.04] px-5 py-5 sm:px-6">
+                        <div className="grid gap-4 lg:grid-cols-[2fr_1.2fr_1fr_1fr_240px] lg:items-center">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-base font-semibold text-white">{company.name}</p>
+                              {company.isPremiumLab ? <span className="portal-pill">Premium Lab</span> : null}
+                            </div>
+                            <p className="mt-1 truncate text-sm text-[#a79f93]">{company.email}</p>
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="truncate text-sm text-white">/{company.slug}</p>
+                          </div>
+
+                          <div>
+                            <span className="portal-pill">{formatCompanyStatus(company)}</span>
+                          </div>
+
+                          <div>
+                            <p className="text-sm text-[#d6cfc3]">{formatCompanyDate(company.createdAt)}</p>
+                          </div>
+
+                          <div className="flex justify-start gap-2 lg:justify-end">
+                            <button type="button" className="portal-ghost-button" onClick={() => openPortalPreviewModal(company)}>
+                              Portal
+                              <SquareArrowOutUpRight size={15} />
+                            </button>
+                            <button type="button" className="portal-ghost-button" onClick={() => handleEditCompany(company)}>
+                              <Pencil size={15} />
+                              Editar
+                            </button>
+                            {!company.isPremiumLab ? (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCompany(company)}
+                                disabled={deletingCompanyId === company.id}
+                                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-red-500/12 px-4 text-sm font-medium text-red-200 transition hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </>
+            ) : (
+              <>
+                <header className="mb-5 flex items-end justify-between gap-4">
+                  <div>
+                    <h2 className="text-3xl font-semibold">Sugestoes</h2>
+                    <p className="mt-2 text-sm text-[#b7b0a6]">Solicitacoes enviadas pelos usuarios das empresas.</p>
+                  </div>
+                  <button type="button" className="portal-ghost-button" onClick={loadFeedbackItems} disabled={feedbackLoading}>
+                    Atualizar
+                  </button>
+                </header>
+
+                {feedbackError ? (
+                  <div className="mb-4 rounded-2xl bg-red-500/12 px-4 py-3 text-sm text-red-200">{feedbackError}</div>
+                ) : null}
+
+                <section className="rounded-[28px] bg-[#171418] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.2)] sm:p-5">
+                  {feedbackLoading ? (
+                    <div className="rounded-2xl bg-white/[0.04] px-5 py-10 text-center text-sm text-[#b7b0a6]">
+                      Carregando sugestoes...
+                    </div>
+                  ) : feedbackItems.length === 0 ? (
+                    <div className="rounded-2xl bg-white/[0.04] px-5 py-10 text-center text-sm text-[#b7b0a6]">
+                      Nenhuma sugestao registrada ate o momento.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {feedbackItems.map(item => (
+                        <article key={item.id} className="rounded-2xl bg-white/[0.04] p-4">
+                          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[#b8b0a6]">
+                            <span className="portal-pill">{item.companyName || item.tenantSlug}</span>
+                            <span>{item.userName || item.userEmail}</span>
+                            <span>•</span>
+                            <span>{formatDateTime(item.createdAt)}</span>
+                          </div>
+                          <p className="whitespace-pre-wrap text-sm leading-6 text-[#e8e1d8]">{item.message}</p>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </>
+            )}
           </div>
         </section>
       </div>

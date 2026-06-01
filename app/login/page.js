@@ -66,7 +66,7 @@ export default function LoginPage() {
               <p className="text-sm uppercase tracking-[0.24em] text-[#b8aa98]">Login</p>
               <h2 className="mt-3 text-4xl font-semibold text-[#f7f5f2]">Entrar no portal</h2>
               <p className="mt-3 text-base leading-7 text-[#bdb7ae]">
-                Use o acesso da empresa ou o login administrativo da GS para entrar nas telas de gestao.
+                Use o acesso da empresa ou o login administrativo da GS para entrar nas telas de gestão.
               </p>
             </div>
 

@@ -3,12 +3,13 @@ import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BarChart3, LayoutPanelTop, LogOut, PieChart, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { ArrowLeft, BarChart3, LayoutPanelTop, LogOut, MessageSquareText, PieChart, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import {
   clearPortalSession,
   getCompanyById,
   getCompanyBySlug,
   getCurrentPortalSession,
+  getPortalAuthHeaders,
   loadCompanyState,
 } from '@/lib/portal-store'
 import { canAccessPortalPage, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
@@ -42,6 +43,9 @@ export default function CompanyHomePage({ slug }) {
   const router = useRouter()
   const [state, setState] = useState(null)
   const [session, setSession] = useState(null)
+  const [feedbackMessage, setFeedbackMessage] = useState('')
+  const [feedbackStatus, setFeedbackStatus] = useState('')
+  const [isSendingFeedback, setIsSendingFeedback] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -88,6 +92,46 @@ export default function CompanyHomePage({ slug }) {
   const handleLogout = async () => {
     await clearPortalSession()
     router.push('/login')
+  }
+
+  const handleSendFeedback = async event => {
+    event.preventDefault()
+    setFeedbackStatus('')
+
+    const text = String(feedbackMessage || '').trim()
+    if (!text) {
+      setFeedbackStatus('Digite uma sugestao antes de enviar.')
+      return
+    }
+
+    setIsSendingFeedback(true)
+
+    try {
+      const response = await fetch('/api/company/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(await getPortalAuthHeaders()),
+        },
+        body: JSON.stringify({
+          tenant: company.slug,
+          message: text,
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Falha ao registrar sua sugestao.')
+      }
+
+      setFeedbackMessage('')
+      setFeedbackStatus('Sugestao enviada com sucesso. Obrigado!')
+    } catch (error) {
+      console.error(error)
+      setFeedbackStatus(error?.message || 'Falha ao enviar sugestao.')
+    } finally {
+      setIsSendingFeedback(false)
+    }
   }
 
   if (!state || !session || !company) {
@@ -207,6 +251,37 @@ export default function CompanyHomePage({ slug }) {
               </p>
             </div>
           )}
+        </section>
+
+        <section className="mt-5 rounded-[28px] border border-white/8 bg-[#1c191d] p-6">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e3ad5a]/15 text-[#e3ad5a]">
+              <MessageSquareText size={18} />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Solicitar melhoria</h2>
+              <p className="text-sm text-[#bdb7ae]">Envie sugestoes ou necessidades para a equipe da GS.</p>
+            </div>
+          </div>
+
+          <form className="space-y-3" onSubmit={handleSendFeedback}>
+            <textarea
+              className="portal-input min-h-[120px] w-full resize-y"
+              placeholder="Descreva sua solicitacao ou sugestao..."
+              value={feedbackMessage}
+              onChange={event => setFeedbackMessage(event.target.value)}
+              maxLength={3000}
+            />
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-[#9f968a]">{feedbackMessage.length}/3000</p>
+              <button type="submit" className="portal-primary-button" disabled={isSendingFeedback}>
+                {isSendingFeedback ? 'Enviando...' : 'Enviar sugestao'}
+              </button>
+            </div>
+            {feedbackStatus ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[#d6cfc3]">{feedbackStatus}</div>
+            ) : null}
+          </form>
         </section>
       </div>
     </main>
