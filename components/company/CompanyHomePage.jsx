@@ -409,8 +409,8 @@ export default function CompanyHomePage({ slug }) {
 
       {isFeedbackPopupOpen ? (
         <div className="fixed inset-0 z-40 flex items-end justify-end bg-black/40 p-4 sm:items-center sm:justify-center">
-          <div className="w-full max-w-[860px] rounded-[28px] border border-white/10 bg-[#1c191d] p-5 shadow-[0_28px_90px_rgba(0,0,0,0.45)]">
-            <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-[860px] flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#1c191d] p-5 shadow-[0_28px_90px_rgba(0,0,0,0.45)]">
+            <div className="mb-4 flex items-start justify-between gap-4 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e3ad5a]/15 text-[#e3ad5a]">
                   <MessageSquareText size={18} />
@@ -425,6 +425,7 @@ export default function CompanyHomePage({ slug }) {
               </button>
             </div>
 
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             <form className="space-y-3" onSubmit={handleSendFeedback}>
               <textarea
                 className="portal-input min-h-[120px] w-full resize-y"
@@ -522,6 +523,7 @@ export default function CompanyHomePage({ slug }) {
                   ))}
                 </div>
               )}
+            </div>
             </div>
           </div>
         </div>
