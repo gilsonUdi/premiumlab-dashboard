@@ -2478,18 +2478,28 @@ async function resolveApiCachePpsAnchorDate(supabase, company) {
 }
 
 async function resolveLegacyPpsAnchorDate(supabase, companyCodeFilter) {
-  let query = supabase
-    .from('pedido_dashboard_cache')
-    .select('emissao')
-    .not('emissao', 'is', null)
-    .order('emissao', { ascending: false })
-    .limit(1)
+  const baseQuery = () =>
+    supabase
+      .from('pedido_dashboard_cache')
+      .select('emissao')
+      .not('emissao', 'is', null)
+      .order('emissao', { ascending: false })
+      .limit(1)
 
-  if (companyCodeFilter?.enabled && companyCodeFilter?.code) {
-    query = query.eq('empcodigo', companyCodeFilter.code)
+  const runQuery = async withCompanyCode => {
+    let query = baseQuery()
+    if (withCompanyCode && companyCodeFilter?.enabled && companyCodeFilter?.code) {
+      query = query.eq('empcodigo', companyCodeFilter.code)
+    }
+    return query
   }
 
-  const { data, error } = await query
+  let { data, error } = await runQuery(true)
+
+  if (error && /empcodigo|column .* does not exist/i.test(String(error.message || ''))) {
+    ;({ data, error } = await runQuery(false))
+  }
+
   if (error) throw new Error(`pedido_dashboard_cache: ${error.message}`)
   return extractDatePart(data?.[0]?.emissao) || ''
 }
