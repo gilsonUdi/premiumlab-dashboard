@@ -23,16 +23,23 @@ function normalizeTimestamp(value) {
 export async function GET(request) {
   try {
     await requireAdmin(request)
+    const { searchParams } = new URL(request.url)
+    const countOnly = searchParams.get('countOnly') === '1'
     const db = getFirebaseAdminDb()
     const snapshot = await db.collection(FEEDBACK_COLLECTION).orderBy('createdAt', 'desc').limit(500).get()
 
     const rows = snapshot.docs.map(document => ({ id: document.id, ...document.data() }))
-    const unreadIds = rows.filter(row => row.viewedByAdmin === false).map(row => row.id)
+    const newIds = rows.filter(row => String(row.status || 'new') === 'new').map(row => row.id)
 
-    if (unreadIds.length > 0) {
+    if (countOnly) {
+      return NextResponse.json({ newCount: newIds.length })
+    }
+
+    if (newIds.length > 0) {
       const batch = db.batch()
-      for (const id of unreadIds) {
+      for (const id of newIds) {
         batch.update(db.collection(FEEDBACK_COLLECTION).doc(id), {
+          status: 'lido',
           viewedByAdmin: true,
           viewedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
@@ -49,6 +56,7 @@ export async function GET(request) {
         userName: row.userName || '',
         userEmail: row.userEmail || '',
         message: row.message || '',
+        status: String(row.status || (row.viewedByAdmin ? 'lido' : 'new')),
         viewedByAdmin: Boolean(row.viewedByAdmin),
         createdAt: normalizeTimestamp(row.createdAt),
         viewedAt: normalizeTimestamp(row.viewedAt),
@@ -57,5 +65,38 @@ export async function GET(request) {
   } catch (error) {
     console.error('[admin-feedback:get]', error)
     return NextResponse.json({ error: error?.message || 'Falha ao carregar sugestoes.' }, { status: getErrorStatus(error) })
+  }
+}
+
+export async function PUT(request) {
+  try {
+    await requireAdmin(request)
+    const payload = await request.json()
+    const id = String(payload?.id || '').trim()
+    const status = String(payload?.status || '').trim()
+    const allowed = new Set(['lido', 'em_progresso', 'concluido'])
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID da sugestao nao informado.' }, { status: 400 })
+    }
+    if (!allowed.has(status)) {
+      return NextResponse.json({ error: 'Status invalido.' }, { status: 400 })
+    }
+
+    const db = getFirebaseAdminDb()
+    await db.collection(FEEDBACK_COLLECTION).doc(id).set(
+      {
+        status,
+        viewedByAdmin: true,
+        viewedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    )
+
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error('[admin-feedback:put]', error)
+    return NextResponse.json({ error: error?.message || 'Falha ao atualizar status.' }, { status: getErrorStatus(error) })
   }
 }

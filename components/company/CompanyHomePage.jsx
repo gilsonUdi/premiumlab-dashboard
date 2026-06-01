@@ -46,6 +46,8 @@ export default function CompanyHomePage({ slug }) {
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [feedbackStatus, setFeedbackStatus] = useState('')
   const [isSendingFeedback, setIsSendingFeedback] = useState(false)
+  const [feedbackHistory, setFeedbackHistory] = useState([])
+  const [feedbackHistoryLoading, setFeedbackHistoryLoading] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -126,6 +128,7 @@ export default function CompanyHomePage({ slug }) {
 
       setFeedbackMessage('')
       setFeedbackStatus('Sugestao enviada com sucesso. Obrigado!')
+      await loadFeedbackHistory()
     } catch (error) {
       console.error(error)
       setFeedbackStatus(error?.message || 'Falha ao enviar sugestao.')
@@ -133,6 +136,51 @@ export default function CompanyHomePage({ slug }) {
       setIsSendingFeedback(false)
     }
   }
+
+  const getFeedbackStatusLabel = status => {
+    if (status === 'concluido') return 'Concluido'
+    if (status === 'em_progresso') return 'Em progresso'
+    return 'Lido'
+  }
+
+  const formatDateTime = value => {
+    if (!value) return 'Nao informado'
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return 'Nao informado'
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(parsed)
+  }
+
+  const loadFeedbackHistory = async () => {
+    setFeedbackHistoryLoading(true)
+    try {
+      const response = await fetch(`/api/company/feedback?tenant=${encodeURIComponent(company.slug)}`, {
+        method: 'GET',
+        headers: {
+          ...(await getPortalAuthHeaders()),
+        },
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Falha ao carregar historico.')
+      }
+      setFeedbackHistory(Array.isArray(payload.feedback) ? payload.feedback : [])
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setFeedbackHistoryLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!company?.slug) return
+    loadFeedbackHistory()
+  }, [company?.slug])
 
   if (!state || !session || !company) {
     return (
@@ -282,6 +330,33 @@ export default function CompanyHomePage({ slug }) {
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[#d6cfc3]">{feedbackStatus}</div>
             ) : null}
           </form>
+
+          <div className="mt-5 rounded-[22px] bg-white/[0.03] p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-white">Historico de sugestoes</h3>
+              <button type="button" className="portal-ghost-button h-9 px-3 py-1 text-xs" onClick={loadFeedbackHistory} disabled={feedbackHistoryLoading}>
+                Atualizar
+              </button>
+            </div>
+
+            {feedbackHistoryLoading ? (
+              <p className="text-sm text-[#bdb7ae]">Carregando...</p>
+            ) : feedbackHistory.length === 0 ? (
+              <p className="text-sm text-[#bdb7ae]">Voce ainda nao enviou sugestoes.</p>
+            ) : (
+              <div className="space-y-2">
+                {feedbackHistory.map(item => (
+                  <article key={item.id} className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                    <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-[#b8b0a6]">
+                      <span className="portal-pill">{getFeedbackStatusLabel(item.status)}</span>
+                      <span>{formatDateTime(item.createdAt)}</span>
+                    </div>
+                    <p className="whitespace-pre-wrap text-sm leading-6 text-[#e8e1d8]">{item.message}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
         </section>
       </div>
     </main>

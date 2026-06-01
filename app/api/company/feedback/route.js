@@ -43,6 +43,7 @@ export async function POST(request) {
       userEmail: String(profile?.email || decoded?.email || '').trim().toLowerCase(),
       userName: String(profile?.name || '').trim() || String(profile?.email || decoded?.email || '').trim().toLowerCase(),
       message,
+      status: 'new',
       viewedByAdmin: false,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -52,5 +53,47 @@ export async function POST(request) {
   } catch (error) {
     console.error('[company-feedback:post]', error)
     return NextResponse.json({ error: error?.message || 'Falha ao registrar sugestao.' }, { status: getErrorStatus(error) })
+  }
+}
+
+function normalizeTimestamp(value) {
+  if (!value) return null
+  if (typeof value?.toDate === 'function') return value.toDate().toISOString()
+  if (value?.seconds) return new Date(value.seconds * 1000).toISOString()
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+}
+
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const tenant = String(searchParams.get('tenant') || '').trim()
+    if (!tenant) {
+      return NextResponse.json({ error: 'Tenant nao informado.' }, { status: 400 })
+    }
+
+    const { decoded, company } = await resolveAuthorizedCompany(request, tenant)
+    const db = getFirebaseAdminDb()
+    const snapshot = await db
+      .collection(FEEDBACK_COLLECTION)
+      .where('tenantSlug', '==', company.slug)
+      .where('userUid', '==', decoded.uid)
+      .orderBy('createdAt', 'desc')
+      .limit(200)
+      .get()
+
+    const rows = snapshot.docs.map(document => ({ id: document.id, ...document.data() }))
+    return NextResponse.json({
+      feedback: rows.map(row => ({
+        id: row.id,
+        message: row.message || '',
+        status: String(row.status || (row.viewedByAdmin ? 'lido' : 'new')),
+        createdAt: normalizeTimestamp(row.createdAt),
+        updatedAt: normalizeTimestamp(row.updatedAt),
+      })),
+    })
+  } catch (error) {
+    console.error('[company-feedback:get]', error)
+    return NextResponse.json({ error: error?.message || 'Falha ao carregar historico.' }, { status: getErrorStatus(error) })
   }
 }

@@ -181,6 +181,8 @@ export default function AdminPage() {
   const [feedbackItems, setFeedbackItems] = useState([])
   const [feedbackLoading, setFeedbackLoading] = useState(false)
   const [feedbackError, setFeedbackError] = useState('')
+  const [feedbackNewCount, setFeedbackNewCount] = useState(0)
+  const [feedbackFilterStatus, setFeedbackFilterStatus] = useState('all')
 
   useEffect(() => {
     let active = true
@@ -213,6 +215,10 @@ export default function AdminPage() {
       active = false
     }
   }, [router])
+
+  useEffect(() => {
+    loadFeedbackNewCount()
+  }, [])
 
   const hasPremiumLab = useMemo(
     () => (state?.companies || []).some(company => company.isPremiumLab),
@@ -384,12 +390,62 @@ export default function AdminPage() {
         throw new Error(payload?.error || 'Falha ao carregar sugestoes.')
       }
       setFeedbackItems(Array.isArray(payload.feedback) ? payload.feedback : [])
+      setFeedbackNewCount(0)
     } catch (error) {
       console.error(error)
       setFeedbackError(error?.message || 'Falha ao carregar sugestoes.')
       setFeedbackItems([])
     } finally {
       setFeedbackLoading(false)
+    }
+  }
+
+  const loadFeedbackNewCount = async () => {
+    try {
+      const token = await getPortalAccessToken()
+      const response = await fetch('/api/admin/feedback?countOnly=1', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) return
+      setFeedbackNewCount(Number(payload?.newCount) || 0)
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  const updateFeedbackStatus = async (id, status) => {
+    try {
+      const token = await getPortalAccessToken()
+      const response = await fetch('/api/admin/feedback', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id, status }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Falha ao atualizar status.')
+      }
+      setFeedbackItems(previous =>
+        previous.map(item =>
+          item.id === id
+            ? {
+                ...item,
+                status,
+                viewedByAdmin: true,
+              }
+            : item
+        )
+      )
+    } catch (error) {
+      console.error(error)
+      setFeedbackError(error?.message || 'Falha ao atualizar status.')
     }
   }
 
@@ -1328,7 +1384,14 @@ export default function AdminPage() {
                 }`}
               >
                 <MessageSquareText size={16} className="text-[#e3ad5a]" />
-                <span>Sugestoes</span>
+                <span className="flex items-center gap-2">
+                  Sugestoes
+                  {feedbackNewCount > 0 ? (
+                    <span className="inline-flex min-w-[22px] items-center justify-center rounded-full bg-[#e3ad5a]/20 px-2 py-0.5 text-[11px] font-semibold text-[#f3cb89]">
+                      {feedbackNewCount}
+                    </span>
+                  ) : null}
+                </span>
               </button>
             </div>
           </div>
@@ -1451,9 +1514,39 @@ export default function AdminPage() {
                     <h2 className="text-3xl font-semibold">Sugestoes</h2>
                     <p className="mt-2 text-sm text-[#b7b0a6]">Solicitacoes enviadas pelos usuarios das empresas.</p>
                   </div>
-                  <button type="button" className="portal-ghost-button" onClick={loadFeedbackItems} disabled={feedbackLoading}>
-                    Atualizar
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className={`portal-ghost-button ${feedbackFilterStatus === 'all' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
+                      onClick={() => setFeedbackFilterStatus('all')}
+                    >
+                      Todas
+                    </button>
+                    <button
+                      type="button"
+                      className={`portal-ghost-button ${feedbackFilterStatus === 'lido' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
+                      onClick={() => setFeedbackFilterStatus('lido')}
+                    >
+                      Lido
+                    </button>
+                    <button
+                      type="button"
+                      className={`portal-ghost-button ${feedbackFilterStatus === 'em_progresso' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
+                      onClick={() => setFeedbackFilterStatus('em_progresso')}
+                    >
+                      Em progresso
+                    </button>
+                    <button
+                      type="button"
+                      className={`portal-ghost-button ${feedbackFilterStatus === 'concluido' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
+                      onClick={() => setFeedbackFilterStatus('concluido')}
+                    >
+                      Concluido
+                    </button>
+                    <button type="button" className="portal-ghost-button" onClick={loadFeedbackItems} disabled={feedbackLoading}>
+                      Atualizar
+                    </button>
+                  </div>
                 </header>
 
                 {feedbackError ? (
@@ -1465,13 +1558,15 @@ export default function AdminPage() {
                     <div className="rounded-2xl bg-white/[0.04] px-5 py-10 text-center text-sm text-[#b7b0a6]">
                       Carregando sugestoes...
                     </div>
-                  ) : feedbackItems.length === 0 ? (
+                  ) : feedbackItems.filter(item => feedbackFilterStatus === 'all' || item.status === feedbackFilterStatus).length === 0 ? (
                     <div className="rounded-2xl bg-white/[0.04] px-5 py-10 text-center text-sm text-[#b7b0a6]">
-                      Nenhuma sugestao registrada ate o momento.
+                      Nenhuma sugestao nesse grupo.
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {feedbackItems.map(item => (
+                      {feedbackItems
+                        .filter(item => feedbackFilterStatus === 'all' || item.status === feedbackFilterStatus)
+                        .map(item => (
                         <article key={item.id} className="rounded-2xl bg-white/[0.04] p-4">
                           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[#b8b0a6]">
                             <span className="portal-pill">{item.companyName || item.tenantSlug}</span>
@@ -1480,6 +1575,30 @@ export default function AdminPage() {
                             <span>{formatDateTime(item.createdAt)}</span>
                           </div>
                           <p className="whitespace-pre-wrap text-sm leading-6 text-[#e8e1d8]">{item.message}</p>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <span className="text-xs text-[#b8b0a6]">Status:</span>
+                            <button
+                              type="button"
+                              onClick={() => updateFeedbackStatus(item.id, 'lido')}
+                              className={`portal-ghost-button h-9 px-3 py-1 text-xs ${item.status === 'lido' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
+                            >
+                              Lido
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateFeedbackStatus(item.id, 'em_progresso')}
+                              className={`portal-ghost-button h-9 px-3 py-1 text-xs ${item.status === 'em_progresso' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
+                            >
+                              Em progresso
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateFeedbackStatus(item.id, 'concluido')}
+                              className={`portal-ghost-button h-9 px-3 py-1 text-xs ${item.status === 'concluido' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
+                            >
+                              Concluido
+                            </button>
+                          </div>
                         </article>
                       ))}
                     </div>
