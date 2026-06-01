@@ -2145,6 +2145,8 @@ async function buildApiCacheDashboardPayload({
   supabase,
   company,
   searchParams,
+  dateStart: forcedDateStart = '',
+  dateEnd: forcedDateEnd = '',
   dashboardScopedFilters = [],
   dashboardVisualFilters = {},
   orderCompletionRules = [],
@@ -2153,8 +2155,8 @@ async function buildApiCacheDashboardPayload({
 }) {
   const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
   const fallbackEnd = format(new Date(), 'yyyy-MM-dd')
-  const dateStart = asSqlDate(searchParams.get('dateStart'), fallbackStart)
-  const dateEnd = asSqlDate(searchParams.get('dateEnd'), fallbackEnd)
+  const dateStart = forcedDateStart || asSqlDate(searchParams.get('dateStart'), fallbackStart)
+  const dateEnd = forcedDateEnd || asSqlDate(searchParams.get('dateEnd'), fallbackEnd)
   const tenantSlug = await resolveApiCacheTenantSlug(supabase, company)
 
   const pedcodigoValues = parseCsvParam(searchParams, 'pedcodigo').map(normalizeOrderCode)
@@ -2459,6 +2461,78 @@ async function buildApiCacheDashboardPayload({
   }
 }
 
+async function resolveApiCachePpsAnchorDate(supabase, company) {
+  const tenantSlug = await resolveApiCacheTenantSlug(supabase, company)
+  if (!tenantSlug) return ''
+
+  const { data, error } = await supabase
+    .from('gradual_cache_orders')
+    .select('issue_date')
+    .eq('tenant_slug', tenantSlug)
+    .not('issue_date', 'is', null)
+    .order('issue_date', { ascending: false })
+    .limit(1)
+
+  if (error) throw new Error(`gradual_cache_orders: ${error.message}`)
+  return extractDatePart(data?.[0]?.issue_date) || ''
+}
+
+async function resolveLegacyPpsAnchorDate(supabase, companyCodeFilter) {
+  let query = supabase
+    .from('pedido_dashboard_cache')
+    .select('emissao')
+    .not('emissao', 'is', null)
+    .order('emissao', { ascending: false })
+    .limit(1)
+
+  if (companyCodeFilter?.enabled && companyCodeFilter?.code) {
+    query = query.eq('empcodigo', companyCodeFilter.code)
+  }
+
+  const { data, error } = await query
+  if (error) throw new Error(`pedido_dashboard_cache: ${error.message}`)
+  return extractDatePart(data?.[0]?.emissao) || ''
+}
+
+async function resolveDashboardDateWindow({
+  dashboardMode,
+  dashboardFeedingModel,
+  supabase,
+  company,
+  companyCodeFilter,
+  searchParams,
+}) {
+  const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
+  const fallbackEnd = format(new Date(), 'yyyy-MM-dd')
+  const requestedStart = asSqlDate(searchParams.get('dateStart'), fallbackStart)
+  const requestedEnd = asSqlDate(searchParams.get('dateEnd'), fallbackEnd)
+
+  if (dashboardMode !== 'pps') {
+    return { dateStart: requestedStart, dateEnd: requestedEnd }
+  }
+
+  let anchorDate = ''
+  if (dashboardFeedingModel === 'api_cache') {
+    anchorDate = await resolveApiCachePpsAnchorDate(supabase, company)
+  } else {
+    anchorDate = await resolveLegacyPpsAnchorDate(supabase, companyCodeFilter)
+  }
+
+  if (!anchorDate) {
+    return { dateStart: requestedStart, dateEnd: requestedEnd }
+  }
+
+  const anchor = parseLocalDateTime(`${anchorDate}T00:00:00`)
+  if (!anchor) {
+    return { dateStart: requestedStart, dateEnd: requestedEnd }
+  }
+
+  return {
+    dateEnd: format(anchor, 'yyyy-MM-dd'),
+    dateStart: format(addDays(anchor, -30), 'yyyy-MM-dd'),
+  }
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -2490,12 +2564,22 @@ export async function GET(request) {
       return createTenantSupabase(supabaseUrl, supabaseServiceRoleKey)
     })()
     const now = nowInProductionTimeZone()
+    const { dateStart, dateEnd } = await resolveDashboardDateWindow({
+      dashboardMode,
+      dashboardFeedingModel,
+      supabase,
+      company,
+      companyCodeFilter,
+      searchParams,
+    })
 
     if (dashboardFeedingModel === 'api_cache') {
       const payload = await buildApiCacheDashboardPayload({
         supabase,
         company,
         searchParams,
+        dateStart,
+        dateEnd,
         dashboardScopedFilters,
         dashboardVisualFilters,
         orderCompletionRules,
@@ -2505,10 +2589,6 @@ export async function GET(request) {
       return NextResponse.json(payload, { headers: NO_STORE_HEADERS })
     }
 
-    const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
-    const fallbackEnd = format(new Date(), 'yyyy-MM-dd')
-    const dateStart = asSqlDate(searchParams.get('dateStart'), fallbackStart)
-    const dateEnd = asSqlDate(searchParams.get('dateEnd'), fallbackEnd)
     const pedcodigoValues = parseCsvParam(searchParams, 'pedcodigo').map(normalizeOrderCode)
     const statusFilters = parseCsvParam(searchParams, 'status')
     const clicodigoValues = parseCsvParam(searchParams, 'clicodigo')
