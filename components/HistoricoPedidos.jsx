@@ -21,6 +21,12 @@ function isDelayedStatus(status) {
   return status === 'delayed' || status === 'delayed_completed'
 }
 
+function getOperationalPriority(row) {
+  if (isDelayedStatus(row?.status)) return 3
+  if (row?.rowTone === 'warning') return 2
+  return 1
+}
+
 const ROW_STYLES = {
   danger: {
     background: 'rgba(127, 29, 29, 0.34)',
@@ -129,8 +135,8 @@ export default function HistoricoPedidos({
       const sortDataKey = getSortDataKey(sort.col)
 
       if (sort.col === 'diasAtraso') {
-        const delayedDiff = Number(isDelayedStatus(b.status)) - Number(isDelayedStatus(a.status))
-        if (delayedDiff !== 0) return delayedDiff
+        const priorityDiff = getOperationalPriority(b) - getOperationalPriority(a)
+        if (priorityDiff !== 0) return priorityDiff
         const delayDiff =
           sort.dir === 'asc'
             ? Number(a.delayRank || 0) - Number(b.delayRank || 0)
