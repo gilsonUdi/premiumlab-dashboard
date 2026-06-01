@@ -138,9 +138,16 @@ export default function CompanyHomePage({ slug }) {
   }
 
   const getFeedbackStatusLabel = status => {
+    if (status === 'new') return 'Novo'
     if (status === 'concluido') return 'Concluido'
     if (status === 'em_progresso') return 'Em progresso'
     return 'Lido'
+  }
+
+  const getFeedbackCardClassName = status => {
+    if (status === 'concluido') return 'border border-emerald-400/20 bg-emerald-500/10'
+    if (status === 'em_progresso') return 'border border-sky-400/20 bg-sky-500/10'
+    return 'border border-white/8 bg-white/[0.03]'
   }
 
   const formatDateTime = value => {
@@ -346,7 +353,7 @@ export default function CompanyHomePage({ slug }) {
             ) : (
               <div className="space-y-2">
                 {feedbackHistory.map(item => (
-                  <article key={item.id} className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                  <article key={item.id} className={`rounded-xl p-3 ${getFeedbackCardClassName(item.status)}`}>
                     <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-[#b8b0a6]">
                       <span className="portal-pill">{getFeedbackStatusLabel(item.status)}</span>
                       <span>{formatDateTime(item.createdAt)}</span>

@@ -462,6 +462,19 @@ export default function AdminPage() {
     }).format(parsed)
   }
 
+  const getFeedbackStatusRank = status => {
+    if (status === 'lido') return 0
+    if (status === 'em_progresso') return 1
+    if (status === 'concluido') return 2
+    return 3
+  }
+
+  const getFeedbackCardClassName = status => {
+    if (status === 'concluido') return 'bg-emerald-500/10 border border-emerald-400/20'
+    if (status === 'em_progresso') return 'bg-sky-500/10 border border-sky-400/20'
+    return 'bg-white/[0.04]'
+  }
+
   const closeCompanyModal = () => {
     setIsCompanyModalOpen(false)
     setForm(emptyForm)
@@ -1564,10 +1577,17 @@ export default function AdminPage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {feedbackItems
+                      {[...feedbackItems]
                         .filter(item => feedbackFilterStatus === 'all' || item.status === feedbackFilterStatus)
+                        .sort((left, right) => {
+                          const statusOrder = getFeedbackStatusRank(left.status) - getFeedbackStatusRank(right.status)
+                          if (statusOrder !== 0) return statusOrder
+                          const leftTs = new Date(left.createdAt || 0).getTime()
+                          const rightTs = new Date(right.createdAt || 0).getTime()
+                          return rightTs - leftTs
+                        })
                         .map(item => (
-                        <article key={item.id} className="rounded-2xl bg-white/[0.04] p-4">
+                        <article key={item.id} className={`rounded-2xl p-4 ${getFeedbackCardClassName(item.status)}`}>
                           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[#b8b0a6]">
                             <span className="portal-pill">{item.companyName || item.tenantSlug}</span>
                             <span>{item.userName || item.userEmail}</span>

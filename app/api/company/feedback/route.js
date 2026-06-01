@@ -78,11 +78,16 @@ export async function GET(request) {
       .collection(FEEDBACK_COLLECTION)
       .where('tenantSlug', '==', company.slug)
       .where('userUid', '==', decoded.uid)
-      .orderBy('createdAt', 'desc')
-      .limit(200)
+      .limit(400)
       .get()
 
-    const rows = snapshot.docs.map(document => ({ id: document.id, ...document.data() }))
+    const rows = snapshot.docs
+      .map(document => ({ id: document.id, ...document.data() }))
+      .sort((left, right) => {
+        const leftTs = new Date(normalizeTimestamp(left.createdAt) || 0).getTime()
+        const rightTs = new Date(normalizeTimestamp(right.createdAt) || 0).getTime()
+        return rightTs - leftTs
+      })
     return NextResponse.json({
       feedback: rows.map(row => ({
         id: row.id,
