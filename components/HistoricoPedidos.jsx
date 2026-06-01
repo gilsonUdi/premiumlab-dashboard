@@ -124,7 +124,7 @@ export default function HistoricoPedidos({
   showDelayDays = false,
   largerText = false,
 }) {
-  const [sort, setSort] = useState({ col: 'delayRank', dir: 'desc' })
+  const [sort, setSort] = useState(() => ({ col: showDelayDays ? 'diasAtraso' : 'delayRank', dir: 'desc' }))
 
   const toggleSort = col => {
     setSort(previous => ({ col, dir: previous.col === col && previous.dir === 'asc' ? 'desc' : 'asc' }))
@@ -151,9 +151,6 @@ export default function HistoricoPedidos({
       }
 
       if (sortDataKey === 'delayRank') {
-        const priorityDiff = getOperationalPriority(b) - getOperationalPriority(a)
-        if (priorityDiff !== 0) return priorityDiff
-
         const statusDiff = (STATUS_SORT_WEIGHT[b.status] || 0) - (STATUS_SORT_WEIGHT[a.status] || 0)
         if (statusDiff !== 0) return statusDiff
 
