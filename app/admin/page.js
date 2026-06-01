@@ -1636,6 +1636,29 @@ export default function AdminPage() {
                             <span>{formatDateTime(item.createdAt)}</span>
                           </div>
                           <p className="whitespace-pre-wrap text-sm leading-6 text-[#e8e1d8]">{item.message}</p>
+                          {Array.isArray(item.attachments) && item.attachments.length > 0 ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {item.attachments.map((attachment, index) => {
+                                const url = String(attachment?.url || '')
+                                const type = String(attachment?.type || '').toLowerCase()
+                                const name = String(attachment?.name || `Anexo ${index + 1}`)
+                                if (!url) return null
+                                return (
+                                  <a
+                                    key={`${item.id}-${index}`}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="portal-pill max-w-[360px] truncate"
+                                    title={name}
+                                  >
+                                    {type.startsWith('video/') ? 'Video: ' : 'Foto: '}
+                                    {name}
+                                  </a>
+                                )
+                              })}
+                            </div>
+                          ) : null}
                           <div className="mt-3 flex flex-wrap items-center gap-2">
                             <span className="text-xs text-[#b8b0a6]">Status:</span>
                             <button

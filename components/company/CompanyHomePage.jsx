@@ -4,8 +4,10 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, BarChart3, LayoutPanelTop, LogOut, MessageSquareText, PieChart, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import {
   clearPortalSession,
+  getFirebaseServices,
   getCompanyById,
   getCompanyBySlug,
   getCurrentPortalSession,
@@ -46,6 +48,7 @@ export default function CompanyHomePage({ slug }) {
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [feedbackStatus, setFeedbackStatus] = useState('')
   const [isSendingFeedback, setIsSendingFeedback] = useState(false)
+  const [feedbackFiles, setFeedbackFiles] = useState([])
   const [feedbackHistory, setFeedbackHistory] = useState([])
   const [feedbackHistoryLoading, setFeedbackHistoryLoading] = useState(false)
   const [isFeedbackPopupOpen, setIsFeedbackPopupOpen] = useState(false)
@@ -110,6 +113,28 @@ export default function CompanyHomePage({ slug }) {
     setIsSendingFeedback(true)
 
     try {
+      const uploadedAttachments = []
+      if (feedbackFiles.length > 0) {
+        const { storage } = getFirebaseServices()
+        const now = Date.now()
+
+        for (let index = 0; index < feedbackFiles.length; index += 1) {
+          const file = feedbackFiles[index]
+          const safeName = String(file.name || `anexo-${index + 1}`).replace(/[^A-Za-z0-9._-]/g, '_')
+          const path = `portal-feedback/${company.slug}/${session.uid}/${now}-${index}-${safeName}`
+          const fileRef = ref(storage, path)
+          await uploadBytes(fileRef, file, { contentType: file.type || 'application/octet-stream' })
+          const url = await getDownloadURL(fileRef)
+          uploadedAttachments.push({
+            name: file.name || safeName,
+            type: String(file.type || '').toLowerCase(),
+            size: Number(file.size) || 0,
+            url,
+            path,
+          })
+        }
+      }
+
       const response = await fetch('/api/company/feedback', {
         method: 'POST',
         headers: {
@@ -119,6 +144,7 @@ export default function CompanyHomePage({ slug }) {
         body: JSON.stringify({
           tenant: company.slug,
           message: text,
+          attachments: uploadedAttachments,
         }),
       })
 
@@ -128,6 +154,7 @@ export default function CompanyHomePage({ slug }) {
       }
 
       setFeedbackMessage('')
+      setFeedbackFiles([])
       setFeedbackStatus('Sugestao enviada com sucesso. Obrigado!')
       await loadFeedbackHistory()
     } catch (error) {
@@ -346,6 +373,28 @@ export default function CompanyHomePage({ slug }) {
                 onChange={event => setFeedbackMessage(event.target.value)}
                 maxLength={3000}
               />
+              <div className="space-y-2">
+                <label className="text-xs text-[#bdb7ae]">Anexar fotos/videos (maximo 4 arquivos, 30MB cada)</label>
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  onChange={event => {
+                    const selected = Array.from(event.target.files || []).slice(0, 4)
+                    setFeedbackFiles(selected)
+                  }}
+                  className="block w-full text-sm text-[#d6cfc3] file:mr-3 file:rounded-xl file:border file:border-white/15 file:bg-white/[0.05] file:px-3 file:py-2 file:text-xs file:text-[#e6dfd5] hover:file:bg-white/[0.08]"
+                />
+                {feedbackFiles.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 text-xs text-[#b8b0a6]">
+                    {feedbackFiles.map(file => (
+                      <span key={`${file.name}-${file.size}`} className="portal-pill">
+                        {file.name}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-[#9f968a]">{feedbackMessage.length}/3000</p>
                 <button type="submit" className="portal-primary-button" disabled={isSendingFeedback}>
@@ -378,6 +427,29 @@ export default function CompanyHomePage({ slug }) {
                         <span>{formatDateTime(item.createdAt)}</span>
                       </div>
                       <p className="whitespace-pre-wrap text-sm leading-6 text-[#e8e1d8]">{item.message}</p>
+                      {Array.isArray(item.attachments) && item.attachments.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {item.attachments.map((attachment, index) => {
+                            const url = String(attachment?.url || '')
+                            const type = String(attachment?.type || '').toLowerCase()
+                            const name = String(attachment?.name || `Anexo ${index + 1}`)
+                            if (!url) return null
+                            return (
+                              <a
+                                key={`${url}-${index}`}
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="portal-pill max-w-[280px] truncate"
+                                title={name}
+                              >
+                                {type.startsWith('video/') ? 'Video: ' : 'Foto: '}
+                                {name}
+                              </a>
+                            )
+                          })}
+                        </div>
+                      ) : null}
                     </article>
                   ))}
                 </div>

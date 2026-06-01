@@ -56,6 +56,7 @@ export async function GET(request) {
         userName: row.userName || '',
         userEmail: row.userEmail || '',
         message: row.message || '',
+        attachments: Array.isArray(row.attachments) ? row.attachments : [],
         status: String(row.status || (row.viewedByAdmin ? 'lido' : 'new')),
         viewedByAdmin: Boolean(row.viewedByAdmin),
         createdAt: normalizeTimestamp(row.createdAt),
