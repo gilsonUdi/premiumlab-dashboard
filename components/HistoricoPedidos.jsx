@@ -12,6 +12,15 @@ const STATUS_SORT_WEIGHT = {
   completed: 1,
 }
 
+function getSortDataKey(columnKey) {
+  if (columnKey === 'diasAtraso') return 'delayRank'
+  return columnKey
+}
+
+function isDelayedStatus(status) {
+  return status === 'delayed' || status === 'delayed_completed'
+}
+
 const ROW_STYLES = {
   danger: {
     background: 'rgba(127, 29, 29, 0.34)',
@@ -117,16 +126,26 @@ export default function HistoricoPedidos({
 
   const rows = useMemo(() => {
     return [...(data || [])].sort((a, b) => {
-      if (sort.col === 'delayRank') {
+      const sortDataKey = getSortDataKey(sort.col)
+
+      if (sort.col === 'diasAtraso') {
+        const delayedDiff = Number(isDelayedStatus(b.status)) - Number(isDelayedStatus(a.status))
+        if (delayedDiff !== 0) return delayedDiff
+      }
+
+      if (sortDataKey === 'delayRank') {
         const statusDiff = (STATUS_SORT_WEIGHT[b.status] || 0) - (STATUS_SORT_WEIGHT[a.status] || 0)
         if (statusDiff !== 0) return statusDiff
 
-        const delayDiff = Number(b.delayRank || 0) - Number(a.delayRank || 0)
+        const delayDiff =
+          sort.dir === 'asc'
+            ? Number(a.delayRank || 0) - Number(b.delayRank || 0)
+            : Number(b.delayRank || 0) - Number(a.delayRank || 0)
         if (delayDiff !== 0) return delayDiff
       }
 
-      let valueA = a[sort.col]
-      let valueB = b[sort.col]
+      let valueA = a[sortDataKey]
+      let valueB = b[sortDataKey]
 
       if (typeof valueA === 'string') valueA = valueA.toLowerCase()
       if (typeof valueB === 'string') valueB = valueB.toLowerCase()
