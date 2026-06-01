@@ -131,6 +131,17 @@ export default function HistoricoPedidos({
       if (sort.col === 'diasAtraso') {
         const delayedDiff = Number(isDelayedStatus(b.status)) - Number(isDelayedStatus(a.status))
         if (delayedDiff !== 0) return delayedDiff
+        const delayDiff =
+          sort.dir === 'asc'
+            ? Number(a.delayRank || 0) - Number(b.delayRank || 0)
+            : Number(b.delayRank || 0) - Number(a.delayRank || 0)
+        if (delayDiff !== 0) return delayDiff
+
+        const emissaoA = String(a.emissao || '')
+        const emissaoB = String(b.emissao || '')
+        if (emissaoA < emissaoB) return sort.dir === 'asc' ? -1 : 1
+        if (emissaoA > emissaoB) return sort.dir === 'asc' ? 1 : -1
+        return 0
       }
 
       if (sortDataKey === 'delayRank') {
