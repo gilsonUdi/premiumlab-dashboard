@@ -2523,6 +2523,54 @@ async function resolveDashboardDateWindow({
     return { dateStart: requestedStart, dateEnd: requestedEnd }
   }
 
+  const shouldAnchorToLastData = async () => {
+    if (dashboardFeedingModel === 'api_cache') {
+      const tenantSlug = await resolveApiCacheTenantSlug(supabase, company)
+      if (!tenantSlug) return true
+
+      const { count, error } = await supabase
+        .from('gradual_cache_orders')
+        .select('order_id', { count: 'exact', head: true })
+        .eq('tenant_slug', tenantSlug)
+        .gte('issue_date', requestedStart)
+        .lte('issue_date', requestedEnd)
+
+      if (error) return true
+      return !Number.isFinite(Number(count)) || Number(count) <= 0
+    }
+
+    const code = asSqlNumber(companyCodeFilter?.code)
+    if (companyCodeFilter?.enabled && Number.isFinite(code)) {
+      const rows = await execOptionalSql(
+        supabase,
+        `
+          select count(*) as total
+          from pedido_dashboard_cache pdc
+          join pedid ped on ped.id_pedido = pdc.id_pedido
+          where pdc.emissao is not null
+            and pdc.emissao >= '${requestedStart}T00:00:00'
+            and pdc.emissao <= '${requestedEnd}T23:59:59'
+            and ped.empcodigo = ${code}
+        `
+      )
+      return Number(rows?.[0]?.total || 0) <= 0
+    }
+
+    const { count, error } = await supabase
+      .from('pedido_dashboard_cache')
+      .select('id_pedido', { count: 'exact', head: true })
+      .gte('emissao', `${requestedStart}T00:00:00`)
+      .lte('emissao', `${requestedEnd}T23:59:59`)
+
+    if (error) return true
+    return !Number.isFinite(Number(count)) || Number(count) <= 0
+  }
+
+  const needsAnchor = await shouldAnchorToLastData()
+  if (!needsAnchor) {
+    return { dateStart: requestedStart, dateEnd: requestedEnd }
+  }
+
   let anchorDate = ''
   if (dashboardFeedingModel === 'api_cache') {
     anchorDate = await resolveApiCachePpsAnchorDate(supabase, company)
