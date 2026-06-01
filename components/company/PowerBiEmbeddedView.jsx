@@ -171,44 +171,69 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const sidebarPages = config?.pages || []
 
   return (
-    <main className="relative h-screen overflow-hidden bg-[#0f0d11] text-white">
+    <main className="relative h-screen overflow-hidden text-white" style={{ background: '#0c0a08' }}>
       <Link
         href={`/empresa/${company.slug}`}
         aria-label="Voltar ao portal"
-        className="absolute left-4 top-4 z-30 hidden h-12 w-12 items-center justify-center rounded-full bg-[#1f1b20]/88 text-2xl text-white shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-[#2a242b] md:inline-flex md:left-6 md:top-6"
+        className="absolute left-4 top-4 z-30 hidden h-11 w-11 items-center justify-center rounded-full text-white transition md:inline-flex md:left-6 md:top-6"
+        style={{
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.07)',
+          backdropFilter: 'blur(12px)',
+        }}
       >
-        <span aria-hidden="true">{'\u2190'}</span>
+        <ArrowLeft size={18} />
       </Link>
 
-      <section className={`grid h-screen grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[290px_minmax(0,1fr)]'}`}>
-        <aside className="hidden bg-[#141216] pt-24 lg:flex lg:min-h-0 lg:flex-col">
-          <div className={`${sidebarCollapsed ? 'px-2 pb-4' : 'px-6 pb-5'}`}>
+      <section className={`grid h-screen grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[64px_minmax(0,1fr)]' : 'lg:grid-cols-[272px_minmax(0,1fr)]'}`}>
+        <aside
+          className="hidden pt-20 lg:flex lg:min-h-0 lg:flex-col"
+          style={{ background: '#0f0d0b', borderRight: '1px solid rgba(255,255,255,0.05)' }}
+        >
+          <div className={`${sidebarCollapsed ? 'px-2 pb-4' : 'px-5 pb-5'}`}>
             <div className={`flex items-start ${sidebarCollapsed ? 'justify-center' : 'justify-between gap-3'}`}>
               {sidebarCollapsed ? null : (
-                <h1 className="text-2xl font-semibold text-white">{config?.reportName || company.powerBiLabel || company.name}</h1>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#c9924a' }}>Power BI</p>
+                  <h1 className="mt-1 text-lg font-semibold text-white leading-tight">{config?.reportName || company.powerBiLabel || company.name}</h1>
+                </div>
               )}
               <button
                 type="button"
                 aria-label={sidebarCollapsed ? 'Expandir páginas' : 'Recolher páginas'}
-                className={`${sidebarCollapsed ? 'h-10 w-10' : 'h-11 w-11'} inline-flex items-center justify-center rounded-full bg-white/[0.05] text-[#d9d1c7] transition hover:bg-white/[0.1]`}
+                className={`${sidebarCollapsed ? 'h-9 w-9' : 'h-9 w-9'} inline-flex shrink-0 items-center justify-center rounded-xl transition`}
+                style={{ background: 'rgba(255,255,255,0.05)', color: '#8a8278' }}
                 onClick={() => setSidebarCollapsed(previous => !previous)}
               >
-                {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+                {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
               </button>
             </div>
           </div>
 
-          <div className={`min-h-0 flex-1 overflow-y-auto ${sidebarCollapsed ? 'px-2 pb-6' : 'px-4 pb-6'}`}>
+          <div className={`min-h-0 flex-1 overflow-y-auto ${sidebarCollapsed ? 'px-2 pb-6' : 'px-3 pb-6'}`}>
             {loading ? (
-              <div className="rounded-[22px] bg-white/[0.05] px-4 py-4 text-sm text-[#d8d2c8]">Carregando páginas...</div>
+              <div
+                className="rounded-xl px-4 py-3 text-sm"
+                style={{ background: 'rgba(255,255,255,0.03)', color: '#5c554e' }}
+              >
+                Carregando páginas...
+              </div>
             ) : error ? (
-              <div className="rounded-[22px] bg-red-500/10 px-4 py-4 text-sm text-[#f3c6c6]">{error}</div>
+              <div
+                className="rounded-xl px-4 py-3 text-sm"
+                style={{ background: 'rgba(220,38,38,0.07)', color: '#f0c3c3' }}
+              >
+                {error}
+              </div>
             ) : sidebarPages.length === 0 ? (
-              <div className="rounded-[22px] bg-white/[0.05] px-4 py-4 text-sm text-[#d8d2c8]">
+              <div
+                className="rounded-xl px-4 py-3 text-sm"
+                style={{ background: 'rgba(255,255,255,0.03)', color: '#5c554e' }}
+              >
                 Nenhuma página disponível neste relatório.
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {sidebarPages.map(page => {
                   const isActive = activePageName === page.name
                   return (
@@ -217,11 +242,20 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       type="button"
                       onClick={() => handleSelectPage(page.name)}
                       title={page.displayName || page.name}
-                      className={`flex w-full items-center ${sidebarCollapsed ? 'justify-center px-1 py-3' : 'justify-between px-4 py-3'} rounded-[18px] text-left text-sm transition ${
+                      className={`flex w-full items-center ${sidebarCollapsed ? 'justify-center px-1 py-3' : 'justify-between px-4 py-3'} rounded-xl text-left text-sm transition`}
+                      style={
                         isActive
-                          ? 'bg-[#e3ad5a] text-[#17120c] shadow-[0_12px_30px_rgba(227,173,90,0.24)]'
-                          : 'bg-white/[0.04] text-[#ddd5c8] hover:bg-white/[0.08]'
-                      }`}
+                          ? {
+                              background: 'rgba(227,173,90,0.12)',
+                              border: '1px solid rgba(227,173,90,0.22)',
+                              color: '#e3ad5a',
+                            }
+                          : {
+                              background: 'rgba(255,255,255,0.03)',
+                              border: '1px solid transparent',
+                              color: '#8a8278',
+                            }
+                      }
                     >
                       {sidebarCollapsed ? (
                         <span className="text-[11px] font-medium uppercase tracking-[0.18em]">
@@ -233,8 +267,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                         </span>
                       ) : (
                         <>
-                          <span className="pr-3">{page.displayName || page.name}</span>
-                          <ChevronRight size={16} className={isActive ? 'text-[#17120c]' : 'text-[#8f877d]'} />
+                          <span className="pr-3 font-medium">{page.displayName || page.name}</span>
+                          <ChevronRight size={14} style={{ color: isActive ? '#e3ad5a' : '#4a4238', flexShrink: 0 }} />
                         </>
                       )}
                     </button>
@@ -245,44 +279,56 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
           </div>
         </aside>
 
-        <div className="min-w-0 pt-0 lg:pt-0">
-          <div className="h-full w-full bg-[#0f0d11]">
+        <div className="min-w-0">
+          <div className="h-full w-full" style={{ background: '#0c0a08' }}>
             {loading ? (
-              <div className="flex h-full items-center justify-center px-6 text-sm text-[#d8d2c8]">Preparando Power BI...</div>
+              <div className="flex h-full items-center justify-center px-6 text-sm" style={{ color: '#5c554e' }}>
+                Preparando Power BI...
+              </div>
             ) : error ? (
               <div className="flex h-full items-center justify-center px-6">
-                <div className="max-w-[720px] rounded-[30px] border border-white/8 bg-[#1c191d] p-8">
-                  <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Falha no Power BI</p>
-                  <p className="mt-4 text-base leading-8 text-[#c6c0b7]">{error}</p>
+                <div
+                  className="max-w-[600px] rounded-2xl p-8"
+                  style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.07)' }}
+                >
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: '#c9924a' }}>Falha no Power BI</p>
+                  <p className="mt-4 text-sm leading-7" style={{ color: '#6b6358' }}>{error}</p>
                 </div>
               </div>
             ) : embedConfig ? (
               <div
                 ref={embedShellRef}
-                className={`relative h-full w-full overflow-hidden bg-[#0f0d11] ${
-                  isFullscreen ? 'fixed inset-0 z-[80] h-[100dvh]' : ''
-                }`}
+                className={`relative h-full w-full overflow-hidden ${isFullscreen ? 'fixed inset-0 z-[80] h-[100dvh]' : ''}`}
+                style={{ background: '#0c0a08' }}
               >
-                <div className="absolute inset-x-0 top-0 z-20 bg-[#141216]/95 shadow-[0_10px_28px_rgba(0,0,0,0.32)] backdrop-blur">
+                <div
+                  className="absolute inset-x-0 top-0 z-20 backdrop-blur"
+                  style={{
+                    background: 'rgba(12,10,8,0.9)',
+                    borderBottom: '1px solid rgba(255,255,255,0.05)',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                  }}
+                >
                   <div className="flex h-12 items-center justify-between gap-3 px-3 sm:px-5">
                     <div className="flex min-w-0 items-center gap-3">
                       <Link
                         href={`/empresa/${company.slug}`}
                         aria-label="Voltar ao portal"
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-white transition hover:bg-white/[0.1] md:hidden"
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-white transition md:hidden"
+                        style={{ background: 'rgba(255,255,255,0.05)', color: '#8a8278' }}
                       >
-                        <ArrowLeft size={20} />
+                        <ArrowLeft size={16} />
                       </Link>
-                      <span className="truncate text-[11px] font-medium uppercase tracking-[0.24em] text-[#e3ad5a]">
+                      <span className="truncate text-[11px] font-bold uppercase tracking-[0.24em]" style={{ color: '#c9924a' }}>
                         GSControladoria
                       </span>
                     </div>
                     <button
                       type="button"
-                      className="pointer-events-auto inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-[#efe9df] transition hover:border-white/20 hover:bg-white/[0.1]"
+                      className="portal-ghost-button h-8 gap-1.5 px-3 text-xs"
                       onClick={toggleFullscreen}
                     >
-                      <Maximize2 size={14} />
+                      <Maximize2 size={13} />
                       {isFullscreen ? 'Sair' : 'Tela cheia'}
                     </button>
                   </div>
@@ -329,7 +375,14 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                   }
                 />
                 {isMobileLayout && sidebarPages.length > 0 ? (
-                  <div className="absolute inset-x-0 bottom-0 z-20 border-t border-white/8 bg-[#141216]/95 px-3 py-2 shadow-[0_-10px_28px_rgba(0,0,0,0.32)] backdrop-blur">
+                  <div
+                    className="absolute inset-x-0 bottom-0 z-20 px-3 py-2 backdrop-blur"
+                    style={{
+                      background: 'rgba(12,10,8,0.92)',
+                      borderTop: '1px solid rgba(255,255,255,0.05)',
+                      boxShadow: '0 -4px 20px rgba(0,0,0,0.3)',
+                    }}
+                  >
                     <div className="flex gap-2 overflow-x-auto overscroll-x-contain">
                       {sidebarPages.map(page => {
                         const isActive = activePageName === page.name
@@ -338,11 +391,12 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                             key={page.name}
                             type="button"
                             onClick={() => handleSelectPage(page.name)}
-                            className={`shrink-0 rounded-full px-3 py-2 text-xs font-medium transition ${
+                            className="shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition"
+                            style={
                               isActive
-                                ? 'bg-[#e3ad5a] text-[#17120c]'
-                                : 'bg-white/[0.06] text-[#ddd5c8] hover:bg-white/[0.1]'
-                            }`}
+                                ? { background: 'rgba(227,173,90,0.15)', color: '#e3ad5a', border: '1px solid rgba(227,173,90,0.25)' }
+                                : { background: 'rgba(255,255,255,0.05)', color: '#8a8278', border: '1px solid transparent' }
+                            }
                           >
                             {page.displayName || page.name}
                           </button>

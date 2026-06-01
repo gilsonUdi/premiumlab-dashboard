@@ -112,8 +112,11 @@ export default function PowerBiCatalogPage({ slug }) {
 
   if (!state || !session || !company) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#141216] text-white">
-        <div className="rounded-[28px] border border-white/8 bg-[#1c191d] px-6 py-5 text-sm text-[#d8d2c8]">
+      <main className="flex min-h-screen items-center justify-center text-white" style={{ background: '#0f0d0b' }}>
+        <div
+          className="rounded-2xl px-6 py-4 text-sm"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#6b6358' }}
+        >
           Carregando modelos do Power BI...
         </div>
       </main>
@@ -122,11 +125,14 @@ export default function PowerBiCatalogPage({ slug }) {
 
   if (!canAccessPortalPage(company, session.permissions, PORTAL_PAGE_KEYS.POWER_BI)) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#141216] px-6 text-white">
-        <div className="max-w-[720px] rounded-[30px] border border-white/8 bg-[#1c191d] p-8">
-          <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Acesso restrito</p>
-          <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
-          <p className="mt-4 text-base leading-8 text-[#c6c0b7]">
+      <main className="flex min-h-screen items-center justify-center px-6 text-white" style={{ background: '#0f0d0b' }}>
+        <div
+          className="max-w-[600px] rounded-2xl p-8"
+          style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: '#c9924a' }}>Acesso restrito</p>
+          <h1 className="mt-3 text-3xl font-bold text-white">{company.name}</h1>
+          <p className="mt-3 text-sm leading-7" style={{ color: '#5c554e' }}>
             Este usuário não possui permissão para acessar os modelos de Power BI desta empresa.
           </p>
         </div>
@@ -135,53 +141,94 @@ export default function PowerBiCatalogPage({ slug }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#141216] px-6 py-6 text-white">
-      <div className="mx-auto max-w-[1380px]">
-        <div className="mb-6 flex items-center justify-between gap-4">
+    <main
+      className="min-h-screen text-white"
+      style={{ background: 'radial-gradient(ellipse 120% 35% at 50% 0%, rgba(227,173,90,0.04) 0%, transparent 60%), #0f0d0b' }}
+    >
+      <div className="mx-auto max-w-[1380px] px-5 py-5">
+
+        {/* Top bar */}
+        <header className="mb-10 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link
               href={`/empresa/${company.slug}`}
-              className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.05] text-white transition hover:bg-white/[0.1]"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl transition"
+              style={{ background: 'rgba(255,255,255,0.05)', color: '#6b6358' }}
             >
-              <ArrowLeft size={18} />
+              <ArrowLeft size={16} />
             </Link>
             <div>
-              <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Power BI</p>
-              <h1 className="mt-1 text-3xl font-semibold">{company.name}</h1>
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: '#c9924a' }}>Power BI</p>
+              <h1 className="text-xl font-bold text-white">{company.name}</h1>
             </div>
           </div>
-        </div>
+        </header>
 
         {loading ? (
-          <div className="rounded-[28px] border border-white/8 bg-[#1c191d] px-6 py-10 text-sm text-[#d8d2c8]">
+          <div
+            className="rounded-2xl px-6 py-10 text-sm"
+            style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)', color: '#5c554e' }}
+          >
             Carregando modelos do Power BI...
           </div>
         ) : error ? (
-          <div className="rounded-[28px] border border-red-500/20 bg-red-500/10 px-6 py-10 text-sm text-[#f0c3c3]">{error}</div>
+          <div
+            className="rounded-2xl px-6 py-10 text-sm"
+            style={{ background: 'rgba(220,38,38,0.07)', border: '1px solid rgba(220,38,38,0.15)', color: '#f0c3c3' }}
+          >
+            {error}
+          </div>
         ) : !hasReports ? (
-          <div className="rounded-[28px] border border-white/8 bg-[#1c191d] px-6 py-10 text-sm text-[#d8d2c8]">
+          <div
+            className="rounded-2xl px-6 py-10 text-sm"
+            style={{ background: '#181410', border: '1px dashed rgba(255,255,255,0.07)', color: '#5c554e' }}
+          >
             Nenhum modelo de Power BI foi configurado para esta empresa ainda.
           </div>
         ) : (
-          <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {reports.map(report => (
-              <div key={report.id} className="rounded-[28px] border border-white/8 bg-[#1c191d] p-6">
-                <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e3ad5a]/15 text-[#e3ad5a]">
-                  <PieChart size={22} />
+              <div
+                key={report.id}
+                className="relative overflow-hidden rounded-2xl p-6"
+                style={{
+                  background: '#181410',
+                  border: '1px solid rgba(255,255,255,0.055)',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                }}
+              >
+                <div
+                  className="absolute inset-x-0 top-0 h-px"
+                  style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(227,173,90,0.45) 50%, transparent 100%)' }}
+                />
+
+                <div
+                  className="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-xl"
+                  style={{ background: 'rgba(227,173,90,0.09)', color: '#d4984d' }}
+                >
+                  <PieChart size={18} />
                 </div>
 
-                <h2 className="text-2xl font-semibold">{report.label || report.reportName}</h2>
-                <p className="mt-2 line-clamp-2 text-sm text-[#bdb7ae]">{report.reportName || 'Relatorio Power BI incorporado no portal.'}</p>
+                <h2 className="text-base font-semibold text-white">{report.label || report.reportName}</h2>
+                <p className="mt-1.5 line-clamp-2 text-sm" style={{ color: '#6b6358' }}>
+                  {report.reportName || 'Relatório Power BI incorporado no portal.'}
+                </p>
 
-                <div className="mt-5 rounded-[22px] bg-white/[0.04] p-4 text-sm text-[#d8d2c8]">
-                  <div className="flex items-center gap-2 text-[#e8ddcf]">
-                    <Clock3 size={15} className="text-[#e3ad5a]" />
-                    <span>Última atualização</span>
+                <div
+                  className="mt-4 rounded-xl p-3 text-sm"
+                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}
+                >
+                  <div className="flex items-center gap-2" style={{ color: '#8a8278' }}>
+                    <Clock3 size={13} style={{ color: '#c9924a' }} />
+                    <span className="text-xs">Última atualização</span>
                   </div>
-                  <p className="mt-2">{formatRefreshDate(report.lastRefreshAt)}</p>
+                  <p className="mt-1.5 text-xs" style={{ color: '#6b6358' }}>{formatRefreshDate(report.lastRefreshAt)}</p>
                   {report.lastRefreshStatus ? (
-                    <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/[0.05] px-3 py-1 text-xs uppercase tracking-[0.16em] text-[#bca27a]">
-                      <RefreshCw size={12} />
+                    <div
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em]"
+                      style={{ background: 'rgba(227,173,90,0.08)', color: '#c9924a' }}
+                    >
+                      <RefreshCw size={10} />
                       {report.lastRefreshStatus}
                     </div>
                   ) : null}
@@ -189,7 +236,7 @@ export default function PowerBiCatalogPage({ slug }) {
 
                 <Link
                   href={`/empresa/${company.slug}/power-bi/${report.id}`}
-                  className="mt-6 inline-flex h-12 items-center justify-center rounded-2xl bg-[#e3ad5a] px-5 text-sm font-semibold text-[#1a140f] transition hover:brightness-105"
+                  className="portal-primary-button mt-5 w-full justify-center"
                 >
                   Acessar modelo
                 </Link>

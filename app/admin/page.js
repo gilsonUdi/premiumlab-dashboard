@@ -1804,14 +1804,17 @@ export default function AdminPage() {
                     type="text"
                     value={form.password}
                     onChange={event => setForm(previous => ({ ...previous, password: event.target.value }))}
-                    placeholder={form.id ? 'Preencha so se quiser trocar' : 'Senha de acesso'}
+                    placeholder={form.id ? 'Preencha só se quiser trocar' : 'Senha de acesso'}
                     required={!form.id}
                   />
                 </div>
                 </div>
 
                 {form.supabaseEnabled ? (
-                  <details className="rounded-[24px] bg-white/[0.05] p-4">
+                  <details
+                    className="rounded-2xl p-5"
+                    style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}
+                  >
                     <summary className="cursor-pointer list-none">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -1836,7 +1839,7 @@ export default function AdminPage() {
                         const filters = form.dashboardFilters?.[mode] || []
 
                         return (
-                          <div key={mode} className="rounded-[20px] bg-white/[0.04] p-4">
+                          <div key={mode} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
                             <div className="flex items-center justify-between gap-3">
                               <div>
                                 <h5 className="text-sm font-semibold text-white">
@@ -1861,7 +1864,7 @@ export default function AdminPage() {
                                   const fieldOptions = getDashboardFieldOptions(filter.field)
 
                                   return (
-                                    <div key={filter.id} className="rounded-[16px] bg-[#141216] p-3">
+                                    <div key={filter.id} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
                                       <div className="mb-3 flex justify-end">
                                         <button
                                           type="button"
@@ -1946,7 +1949,10 @@ export default function AdminPage() {
                 ) : null}
 
                 {form.supabaseEnabled ? (
-                  <details className="rounded-[24px] bg-white/[0.05] p-4">
+                  <details
+                    className="rounded-2xl p-5"
+                    style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}
+                  >
                     <summary className="cursor-pointer list-none">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -1968,7 +1974,7 @@ export default function AdminPage() {
                       ) : null}
 
                       {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode, sections]) => (
-                        <div key={mode} className="rounded-[20px] bg-white/[0.04] p-4">
+                        <div key={mode} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
                           <h5 className="text-sm font-semibold text-white">
                             {mode === 'pps' ? 'PPS' : 'Análise de Dados'}
                           </h5>
@@ -1978,7 +1984,7 @@ export default function AdminPage() {
                               const filters = form.dashboardVisualFilters?.[mode]?.[section.key] || []
 
                               return (
-                                <div key={section.key} className="rounded-[18px] bg-[#141216] p-3">
+                                <div key={section.key} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
                                   <div className="flex items-center justify-between gap-3">
                                     <div>
                                       <p className="text-sm font-semibold text-white">{section.label}</p>
@@ -2004,7 +2010,7 @@ export default function AdminPage() {
                                         const fieldOptions = getDashboardFieldOptions(filter.field)
 
                                         return (
-                                          <div key={filter.id} className="rounded-[16px] bg-white/[0.04] p-3">
+                                          <div key={filter.id} className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
                                             <div className="mb-3 flex justify-end">
                                               <button
                                                 type="button"
@@ -2127,7 +2133,7 @@ export default function AdminPage() {
                   </details>
                 ) : null}
 
-                <div className="rounded-[24px] bg-white/[0.05] p-4">
+                <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-semibold text-white">Tipo de portal</h4>
@@ -2195,7 +2201,7 @@ export default function AdminPage() {
                                 type="password"
                                 value={form.supabaseServiceRoleKey}
                                 onChange={event => setForm(previous => ({ ...previous, supabaseServiceRoleKey: event.target.value }))}
-                                placeholder={form.id ? 'Preencha so se quiser trocar a chave' : 'Cole a service_role_key do tenant'}
+                                placeholder={form.id ? 'Preencha só se quiser trocar a chave' : 'Cole a service_role_key do tenant'}
                               />
                             </div>
                           </div>
@@ -2264,7 +2270,7 @@ export default function AdminPage() {
                                 const supabaseTable = (dashboardFilterOptions?.supabaseTables || []).find(table => table.name === rule.table)
 
                                 return (
-                                  <div key={rule.id} className="rounded-[16px] bg-white/[0.04] p-3">
+                                  <div key={rule.id} className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
                                     <div className="mb-3 flex justify-end">
                                       <button
                                         type="button"
@@ -2316,7 +2322,7 @@ export default function AdminPage() {
                               })}
                             </div>
                           ) : (
-                            <div className="rounded-[16px] border border-dashed border-white/10 px-4 py-3 text-sm text-[#8d867c]">
+                            <div className="rounded-xl px-4 py-3 text-sm" style={{ border: '1px dashed rgba(255,255,255,0.07)', color: '#5c554e' }}>
                               Sem condição adicional. A data de saída continua concluindo o pedido normalmente.
                             </div>
                           )}
@@ -2337,7 +2343,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[24px] bg-white/[0.05] p-4">
+                <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-semibold text-white">Power BI hospedado no portal</h4>
@@ -2368,13 +2374,13 @@ export default function AdminPage() {
                   {form.powerBiEnabled ? (
                     <div className="mt-4 space-y-4">
                       {form.powerBiReports.length === 0 ? (
-                        <div className="rounded-2xl bg-white/[0.04] px-4 py-4 text-sm text-[#b7b0a6]">
-                          Nenhum modelo cadastrado ainda. Adicione o primeiro para liberar o catalogo de Power BI.
+                        <div className="rounded-xl px-4 py-4 text-sm" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.07)', color: '#5c554e' }}>
+                          Nenhum modelo cadastrado ainda. Adicione o primeiro para liberar o catálogo de Power BI.
                         </div>
                       ) : null}
 
                       {form.powerBiReports.map((report, index) => (
-                        <div key={report.id} className="rounded-[22px] bg-white/[0.04] p-4">
+                        <div key={report.id} className="rounded-xl p-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
                           <div className="mb-4 flex items-center justify-between gap-3">
                             <div>
                               <p className="text-sm font-semibold text-white">Modelo {index + 1}</p>
@@ -2392,7 +2398,7 @@ export default function AdminPage() {
                               </label>
                               <button
                                 type="button"
-                                className="inline-flex h-11 items-center justify-center rounded-2xl bg-red-500/10 px-4 text-sm font-medium text-red-200 transition hover:bg-red-500/15"
+                                className="inline-flex h-9 items-center justify-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
                                 onClick={() => removePowerBiReport(report.id)}
                               >
                                 <Trash2 size={15} />
@@ -2624,7 +2630,7 @@ export default function AdminPage() {
 
                 <div className="space-y-3">
                   {getCompanyUserList(companyUsers, managingCompany).map(user => (
-                    <div key={user.uid} className="rounded-[22px] bg-white/[0.05] p-4 shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
+                    <div key={user.uid} className="rounded-xl p-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
@@ -2645,7 +2651,7 @@ export default function AdminPage() {
                           {user.uid !== managingCompany.authUid ? (
                             <button
                               type="button"
-                              className="inline-flex h-11 items-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 text-sm font-medium text-red-200 transition hover:border-red-400/35 hover:bg-red-500/15"
+                              className="inline-flex h-9 items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:border-red-400/35 hover:bg-red-500/15"
                               onClick={() => handleDeleteUser(user)}
                             >
                               <Trash2 size={14} />
@@ -2701,7 +2707,7 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[24px] bg-white/[0.05] p-4">
+                  <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
                     <h4 className="text-sm font-semibold text-white">Páginas liberadas</h4>
                     <div className="mt-3 grid gap-3 md:grid-cols-3">
                       <label className="portal-checkbox">
@@ -2745,7 +2751,7 @@ export default function AdminPage() {
 
                   <div className="grid gap-4 xl:grid-cols-2">
                     {hasConfiguredPowerBi(managingCompany) ? (
-                      <div className="rounded-[24px] bg-white/[0.05] p-4 xl:col-span-2">
+                      <div className="rounded-2xl p-5 xl:col-span-2" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
                         <div>
                           <h4 className="text-sm font-semibold text-white">Modelos de Power BI</h4>
                           <p className="mt-1 text-sm text-[#b7b0a6]">
@@ -2772,7 +2778,7 @@ export default function AdminPage() {
                               const hasSchemaTables = schemaTables.length > 0
 
                               return (
-                                <div key={report.id} className="rounded-[22px] bg-white/[0.04] p-4">
+                                <div key={report.id} className="rounded-xl p-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
                                   <div className="flex flex-wrap items-center justify-between gap-3">
                                     <div>
                                       <p className="text-sm font-semibold text-white">{report.label || report.reportName}</p>
@@ -2790,7 +2796,7 @@ export default function AdminPage() {
                                   </div>
 
                                   <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
-                                    <div className="rounded-[18px] bg-white/[0.04] p-4">
+                                    <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
                                       <div className="flex items-center justify-between gap-3">
                                         <div>
                                           <p className="text-sm font-semibold text-white">Páginas liberadas</p>
@@ -2845,7 +2851,7 @@ export default function AdminPage() {
                                       </div>
                                     </div>
 
-                                    <div className="rounded-[18px] bg-white/[0.04] p-4">
+                                    <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
                                       <div className="flex items-center justify-between gap-3">
                                         <div>
                                           <p className="text-sm font-semibold text-white">Filtros do usuário</p>
@@ -2864,7 +2870,7 @@ export default function AdminPage() {
                                           <p className="text-sm text-[#b7b0a6]">Nenhum filtro configurado para este modelo.</p>
                                         ) : (
                                           (reportPermission.filters || []).map(filter => (
-                                            <div key={filter.id} className="rounded-[16px] bg-[#141216] p-3">
+                                            <div key={filter.id} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
                                               <div className="mb-3 flex justify-end">
                                                 <button
                                                   type="button"
@@ -2958,7 +2964,7 @@ export default function AdminPage() {
                     ) : null}
 
                     {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode, sections]) => (
-                      <div key={mode} className="rounded-[24px] bg-white/[0.05] p-4">
+                      <div key={mode} className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
                         <h4 className="text-sm font-semibold text-white">
                           {mode === 'pps' ? 'Visuais do PPS' : 'Visuais da Análise de Dados'}
                         </h4>
@@ -2976,7 +2982,7 @@ export default function AdminPage() {
                           ))}
                         </div>
 
-                        <div className="mt-5 rounded-[18px] bg-white/[0.04] p-4">
+                        <div className="mt-5 rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
                           <div className="flex items-center justify-between gap-3">
                             <div>
                               <p className="text-sm font-semibold text-white">Filtros do usuário</p>
@@ -3002,7 +3008,7 @@ export default function AdminPage() {
                               <p className="text-sm text-[#b7b0a6]">Nenhum filtro configurado para este modulo.</p>
                             ) : (
                               (userForm.permissions.dashboardFilters?.[mode] || []).map(filter => (
-                                <div key={filter.id} className="rounded-[16px] bg-[#141216] p-3">
+                                <div key={filter.id} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
                                   <div className="mb-3 flex justify-end">
                                     <button
                                       type="button"
