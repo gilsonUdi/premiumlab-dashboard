@@ -36,143 +36,189 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
 }
 
-/* Custom scrollbar */
+/* ── Scrollbar ───────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-primary);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--border-hover);
-  border-radius: 3px;
+  border-radius: 99px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent);
 }
 
-/* Table row hover */
+/* ── Table rows ──────────────────────────────────────────── */
 .table-row-hover {
-  transition: background-color 0.15s ease;
+  transition: background-color 0.12s ease;
 }
 .table-row-hover:hover {
-  background-color: #0a1628;
+  background-color: #0a1a30;
   cursor: pointer;
 }
 .table-row-active {
-  background-color: #0d2040 !important;
-  border-left: 3px solid #3b9fd4;
+  background-color: #0c1e3a !important;
+  border-left: 2px solid var(--accent-bright);
+  box-shadow: inset 3px 0 12px rgba(59, 159, 212, 0.06);
 }
 
-/* Filter chip */
+/* ── Filter chip ─────────────────────────────────────────── */
 .filter-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  background: #0d2040;
-  border: 1px solid #1d6fa4;
-  border-radius: 20px;
-  font-size: 12px;
-  color: #3b9fd4;
+  gap: 5px;
+  padding: 3px 11px;
+  background: rgba(29, 111, 164, 0.1);
+  border: 1px solid rgba(59, 159, 212, 0.3);
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--accent-bright);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  letter-spacing: 0.01em;
 }
 .filter-chip:hover {
-  background: #1a3355;
+  background: rgba(29, 111, 164, 0.18);
+  border-color: rgba(59, 159, 212, 0.5);
+  box-shadow: 0 0 0 3px rgba(59, 159, 212, 0.08);
 }
 
-/* Status badge */
+/* ── Status badges ───────────────────────────────────────── */
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 2px 9px;
+  border-radius: 6px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
+  letter-spacing: 0.02em;
 }
-.badge-success { background: rgba(5, 150, 105, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
-.badge-warning { background: rgba(217, 119, 6, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
-.badge-danger  { background: rgba(220, 38, 38, 0.15);  color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
-.badge-blue    { background: rgba(29, 111, 164, 0.15); color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.3); }
-.badge-gray    { background: rgba(74, 107, 138, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); }
-.badge-purple  { background: rgba(124, 58, 237, 0.15); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.3); }
+.badge-success {
+  background: rgba(5, 150, 105, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  box-shadow: inset 0 1px 0 rgba(52, 211, 153, 0.07);
+}
+.badge-warning {
+  background: rgba(217, 119, 6, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  box-shadow: inset 0 1px 0 rgba(251, 191, 36, 0.07);
+}
+.badge-danger {
+  background: rgba(220, 38, 38, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  box-shadow: inset 0 1px 0 rgba(248, 113, 113, 0.07);
+}
+.badge-blue {
+  background: rgba(29, 111, 164, 0.12);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.07);
+}
+.badge-gray {
+  background: rgba(74, 107, 138, 0.12);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+.badge-purple {
+  background: rgba(124, 58, 237, 0.12);
+  color: #a78bfa;
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  box-shadow: inset 0 1px 0 rgba(167, 139, 250, 0.07);
+}
 
-/* Card */
+/* ── Card ────────────────────────────────────────────────── */
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
 }
 
 .card-filters {
   overflow: visible;
 }
 
-/* Skeleton animation */
+/* ── Skeleton loading ────────────────────────────────────── */
 @keyframes shimmer {
-  0% { background-position: -1000px 0; }
-  100% { background-position: 1000px 0; }
+  0%   { background-position: -1200px 0; }
+  100% { background-position:  1200px 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, #071224 25%, #0d1f38 50%, #071224 75%);
-  background-size: 1000px 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    #071224 0%,
+    #0d1f38 40%,
+    #0e2244 50%,
+    #0d1f38 60%,
+    #071224 100%
+  );
+  background-size: 1200px 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  border-radius: 5px;
 }
 
-/* Sortable column */
+/* ── Sortable column ─────────────────────────────────────── */
 .col-sortable {
   cursor: pointer;
   user-select: none;
-  transition: color 0.15s;
+  transition: color 0.12s;
 }
 .col-sortable:hover {
-  color: #3b9fd4;
+  color: var(--accent-bright);
 }
 
-/* Input styles */
+/* ── Dashboard input ─────────────────────────────────────── */
 .dashboard-input {
   background: #071224;
   border: 1px solid #1a3355;
-  border-radius: 6px;
+  border-radius: 7px;
   color: #e2e8f0;
   padding: 6px 10px;
   font-size: 13px;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
   width: 100%;
 }
 .dashboard-input:focus {
-  border-color: #1d6fa4;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(29, 111, 164, 0.15);
 }
 .dashboard-input option {
   background: #071224;
 }
 
+/* ── Portal input ────────────────────────────────────────── */
 .portal-input {
   width: 100%;
-  border-radius: 18px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   color: #f7f5f2;
-  padding: 14px 16px;
+  padding: 13px 16px;
   font-size: 14px;
   outline: none;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .portal-input:focus {
-  border-color: rgba(227, 173, 90, 0.7);
+  border-color: rgba(227, 173, 90, 0.6);
   background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 0 3px rgba(227, 173, 90, 0.1);
 }
 
 .portal-input::placeholder {
-  color: #8b8378;
+  color: #6e665c;
 }
 
 select.portal-input {
@@ -191,91 +237,137 @@ select.portal-input:disabled {
   background: rgba(255, 255, 255, 0.02);
 }
 
+/* ── Portal label ────────────────────────────────────────── */
 .portal-label {
   display: block;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  color: #ddd4c9;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #c9bfb3;
 }
 
+/* ── Portal primary button ───────────────────────────────── */
 .portal-primary-button {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  height: 52px;
+  gap: 9px;
+  height: 50px;
   border-radius: 999px;
   border: none;
-  background: #e3ad5a;
-  color: #201814;
-  padding: 0 24px;
-  font-size: 15px;
+  background: linear-gradient(135deg, #e8b55e 0%, #d4993e 100%);
+  color: #1c1208;
+  padding: 0 26px;
+  font-size: 14.5px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 0.15s ease, filter 0.15s ease;
+  letter-spacing: 0.01em;
+  box-shadow: 0 4px 18px rgba(227, 173, 90, 0.3), 0 1px 0 rgba(255, 255, 255, 0.15) inset;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 
 .portal-primary-button:hover {
-  filter: brightness(1.04);
   transform: translateY(-1px);
+  box-shadow: 0 7px 24px rgba(227, 173, 90, 0.38), 0 1px 0 rgba(255, 255, 255, 0.15) inset;
+  filter: brightness(1.06);
 }
 
+.portal-primary-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(227, 173, 90, 0.2);
+}
+
+.portal-primary-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ── Portal ghost button ─────────────────────────────────── */
 .portal-ghost-button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 44px;
+  height: 42px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.03);
-  color: #f3eee8;
+  background: rgba(255, 255, 255, 0.04);
+  color: #ede7df;
   padding: 0 18px;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .portal-ghost-button:hover {
-  border-color: rgba(227, 173, 90, 0.45);
-  background: rgba(227, 173, 90, 0.08);
+  border-color: rgba(227, 173, 90, 0.4);
+  background: rgba(227, 173, 90, 0.07);
+  color: #f5e8d4;
 }
 
+.portal-ghost-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Portal stat / summary card ──────────────────────────── */
 .portal-stat-card,
 .portal-summary-card {
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
   background: rgba(255, 255, 255, 0.03);
-  padding: 20px;
+  padding: 18px 20px;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
+.portal-stat-card:hover,
+.portal-summary-card:hover {
+  border-color: rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+/* ── Portal checkbox ─────────────────────────────────────── */
 .portal-checkbox {
   display: flex;
   align-items: center;
   gap: 12px;
-  border-radius: 18px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
-  padding: 14px 16px;
+  padding: 13px 16px;
   color: #ddd4c9;
   font-size: 14px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  cursor: pointer;
+}
+
+.portal-checkbox:hover {
+  border-color: rgba(227, 173, 90, 0.25);
+  background: rgba(227, 173, 90, 0.04);
 }
 
 .portal-checkbox input {
   accent-color: #e3ad5a;
+  width: 15px;
+  height: 15px;
 }
 
+/* ── Portal pill ─────────────────────────────────────────── */
 .portal-pill {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  border: 1px solid rgba(227, 173, 90, 0.28);
-  background: rgba(227, 173, 90, 0.1);
-  color: #f1b867;
-  padding: 6px 10px;
+  border: 1px solid rgba(227, 173, 90, 0.25);
+  background: rgba(227, 173, 90, 0.08);
+  color: #f0b55e;
+  padding: 4px 11px;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
