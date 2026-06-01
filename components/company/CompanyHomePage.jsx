@@ -48,6 +48,7 @@ export default function CompanyHomePage({ slug }) {
   const [isSendingFeedback, setIsSendingFeedback] = useState(false)
   const [feedbackHistory, setFeedbackHistory] = useState([])
   const [feedbackHistoryLoading, setFeedbackHistoryLoading] = useState(false)
+  const [isFeedbackPopupOpen, setIsFeedbackPopupOpen] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -145,8 +146,8 @@ export default function CompanyHomePage({ slug }) {
   }
 
   const getFeedbackCardClassName = status => {
-    if (status === 'concluido') return 'border border-emerald-400/20 bg-emerald-500/10'
-    if (status === 'em_progresso') return 'border border-sky-400/20 bg-sky-500/10'
+    if (status === 'concluido') return 'border border-emerald-400/35 bg-white/[0.03]'
+    if (status === 'em_progresso') return 'border border-sky-400/35 bg-white/[0.03]'
     return 'border border-white/8 bg-white/[0.03]'
   }
 
@@ -308,64 +309,83 @@ export default function CompanyHomePage({ slug }) {
           )}
         </section>
 
-        <section className="mt-5 rounded-[28px] border border-white/8 bg-[#1c191d] p-6">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e3ad5a]/15 text-[#e3ad5a]">
-              <MessageSquareText size={18} />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-white">Solicitar melhoria</h2>
-              <p className="text-sm text-[#bdb7ae]">Envie sugestoes ou necessidades para a equipe da GS.</p>
-            </div>
-          </div>
-
-          <form className="space-y-3" onSubmit={handleSendFeedback}>
-            <textarea
-              className="portal-input min-h-[120px] w-full resize-y"
-              placeholder="Descreva sua solicitacao ou sugestao..."
-              value={feedbackMessage}
-              onChange={event => setFeedbackMessage(event.target.value)}
-              maxLength={3000}
-            />
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs text-[#9f968a]">{feedbackMessage.length}/3000</p>
-              <button type="submit" className="portal-primary-button" disabled={isSendingFeedback}>
-                {isSendingFeedback ? 'Enviando...' : 'Enviar sugestao'}
-              </button>
-            </div>
-            {feedbackStatus ? (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[#d6cfc3]">{feedbackStatus}</div>
-            ) : null}
-          </form>
-
-          <div className="mt-5 rounded-[22px] bg-white/[0.03] p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-white">Historico de sugestoes</h3>
-              <button type="button" className="portal-ghost-button h-9 px-3 py-1 text-xs" onClick={loadFeedbackHistory} disabled={feedbackHistoryLoading}>
-                Atualizar
-              </button>
-            </div>
-
-            {feedbackHistoryLoading ? (
-              <p className="text-sm text-[#bdb7ae]">Carregando...</p>
-            ) : feedbackHistory.length === 0 ? (
-              <p className="text-sm text-[#bdb7ae]">Voce ainda nao enviou sugestoes.</p>
-            ) : (
-              <div className="space-y-2">
-                {feedbackHistory.map(item => (
-                  <article key={item.id} className={`rounded-xl p-3 ${getFeedbackCardClassName(item.status)}`}>
-                    <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-[#b8b0a6]">
-                      <span className="portal-pill">{getFeedbackStatusLabel(item.status)}</span>
-                      <span>{formatDateTime(item.createdAt)}</span>
-                    </div>
-                    <p className="whitespace-pre-wrap text-sm leading-6 text-[#e8e1d8]">{item.message}</p>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
       </div>
+
+      <button
+        type="button"
+        aria-label="Abrir chat de sugestoes"
+        onClick={() => setIsFeedbackPopupOpen(true)}
+        className="fixed bottom-5 right-5 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full border border-[#e3ad5a]/45 bg-[#1c191d] text-[#e3ad5a] shadow-[0_10px_25px_rgba(0,0,0,0.35)] transition hover:bg-[#252026]"
+      >
+        <MessageSquareText size={21} />
+      </button>
+
+      {isFeedbackPopupOpen ? (
+        <div className="fixed inset-0 z-40 flex items-end justify-end bg-black/40 p-4 sm:items-center sm:justify-center">
+          <div className="w-full max-w-[860px] rounded-[28px] border border-white/10 bg-[#1c191d] p-5 shadow-[0_28px_90px_rgba(0,0,0,0.45)]">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e3ad5a]/15 text-[#e3ad5a]">
+                  <MessageSquareText size={18} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Solicitar melhoria</h2>
+                  <p className="text-sm text-[#bdb7ae]">Envie sugestoes ou necessidades para a equipe da GS.</p>
+                </div>
+              </div>
+              <button type="button" className="portal-ghost-button h-10 px-3 py-1 text-xs" onClick={() => setIsFeedbackPopupOpen(false)}>
+                Fechar
+              </button>
+            </div>
+
+            <form className="space-y-3" onSubmit={handleSendFeedback}>
+              <textarea
+                className="portal-input min-h-[120px] w-full resize-y"
+                placeholder="Descreva sua solicitacao ou sugestao..."
+                value={feedbackMessage}
+                onChange={event => setFeedbackMessage(event.target.value)}
+                maxLength={3000}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-[#9f968a]">{feedbackMessage.length}/3000</p>
+                <button type="submit" className="portal-primary-button" disabled={isSendingFeedback}>
+                  {isSendingFeedback ? 'Enviando...' : 'Enviar sugestao'}
+                </button>
+              </div>
+              {feedbackStatus ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[#d6cfc3]">{feedbackStatus}</div>
+              ) : null}
+            </form>
+
+            <div className="mt-5 rounded-[22px] bg-white/[0.03] p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-white">Historico de sugestoes</h3>
+                <button type="button" className="portal-ghost-button h-9 px-3 py-1 text-xs" onClick={loadFeedbackHistory} disabled={feedbackHistoryLoading}>
+                  Atualizar
+                </button>
+              </div>
+
+              {feedbackHistoryLoading ? (
+                <p className="text-sm text-[#bdb7ae]">Carregando...</p>
+              ) : feedbackHistory.length === 0 ? (
+                <p className="text-sm text-[#bdb7ae]">Voce ainda nao enviou sugestoes.</p>
+              ) : (
+                <div className="max-h-[260px] space-y-2 overflow-y-auto pr-1">
+                  {feedbackHistory.map(item => (
+                    <article key={item.id} className={`rounded-xl p-3 ${getFeedbackCardClassName(item.status)}`}>
+                      <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-[#b8b0a6]">
+                        <span className="portal-pill">{getFeedbackStatusLabel(item.status)}</span>
+                        <span>{formatDateTime(item.createdAt)}</span>
+                      </div>
+                      <p className="whitespace-pre-wrap text-sm leading-6 text-[#e8e1d8]">{item.message}</p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }
