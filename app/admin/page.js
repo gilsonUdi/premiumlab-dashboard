@@ -470,9 +470,24 @@ export default function AdminPage() {
   }
 
   const getFeedbackCardClassName = status => {
-    if (status === 'concluido') return 'bg-emerald-500/10 border border-emerald-400/20'
-    if (status === 'em_progresso') return 'bg-sky-500/10 border border-sky-400/20'
-    return 'bg-white/[0.04]'
+    if (status === 'concluido') return 'bg-white/[0.04] border border-emerald-400/35'
+    if (status === 'em_progresso') return 'bg-white/[0.04] border border-sky-400/35'
+    return 'bg-white/[0.04] border border-white/12'
+  }
+
+  const getFeedbackStatusButtonClassName = (currentStatus, targetStatus) => {
+    const isActive = currentStatus === targetStatus
+    if (!isActive) return 'portal-ghost-button h-9 px-3 py-1 text-xs'
+
+    if (targetStatus === 'concluido') {
+      return 'portal-ghost-button h-9 px-3 py-1 text-xs border-emerald-400/45 bg-emerald-500/10 text-emerald-200'
+    }
+
+    if (targetStatus === 'em_progresso') {
+      return 'portal-ghost-button h-9 px-3 py-1 text-xs border-sky-400/45 bg-sky-500/10 text-sky-200'
+    }
+
+    return 'portal-ghost-button h-9 px-3 py-1 text-xs border-[#e3ad5a]/40 bg-[#e3ad5a]/10 text-[#f3cb89]'
   }
 
   const closeCompanyModal = () => {
@@ -1600,21 +1615,21 @@ export default function AdminPage() {
                             <button
                               type="button"
                               onClick={() => updateFeedbackStatus(item.id, 'lido')}
-                              className={`portal-ghost-button h-9 px-3 py-1 text-xs ${item.status === 'lido' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
+                              className={getFeedbackStatusButtonClassName(item.status, 'lido')}
                             >
                               Lido
                             </button>
                             <button
                               type="button"
                               onClick={() => updateFeedbackStatus(item.id, 'em_progresso')}
-                              className={`portal-ghost-button h-9 px-3 py-1 text-xs ${item.status === 'em_progresso' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
+                              className={getFeedbackStatusButtonClassName(item.status, 'em_progresso')}
                             >
                               Em progresso
                             </button>
                             <button
                               type="button"
                               onClick={() => updateFeedbackStatus(item.id, 'concluido')}
-                              className={`portal-ghost-button h-9 px-3 py-1 text-xs ${item.status === 'concluido' ? 'border-[#e3ad5a]/40 text-white' : ''}`}
+                              className={getFeedbackStatusButtonClassName(item.status, 'concluido')}
                             >
                               Concluido
                             </button>
