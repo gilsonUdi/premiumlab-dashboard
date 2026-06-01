@@ -480,14 +480,40 @@ export default function AdminPage() {
     if (!isActive) return 'portal-ghost-button h-9 px-3 py-1 text-xs'
 
     if (targetStatus === 'concluido') {
-      return 'portal-ghost-button h-9 px-3 py-1 text-xs border-emerald-400/45 bg-emerald-500/10 text-emerald-200'
+      return 'portal-ghost-button h-9 px-3 py-1 text-xs font-semibold text-emerald-200'
     }
 
     if (targetStatus === 'em_progresso') {
-      return 'portal-ghost-button h-9 px-3 py-1 text-xs border-sky-400/45 bg-sky-500/10 text-sky-200'
+      return 'portal-ghost-button h-9 px-3 py-1 text-xs font-semibold text-sky-200'
     }
 
-    return 'portal-ghost-button h-9 px-3 py-1 text-xs border-[#e3ad5a]/40 bg-[#e3ad5a]/10 text-[#f3cb89]'
+    return 'portal-ghost-button h-9 px-3 py-1 text-xs font-semibold text-[#f3cb89]'
+  }
+
+  const getFeedbackStatusButtonStyle = (currentStatus, targetStatus) => {
+    if (currentStatus !== targetStatus) return undefined
+
+    if (targetStatus === 'concluido') {
+      return {
+        borderColor: 'rgba(52, 211, 153, 0.55)',
+        backgroundColor: 'rgba(16, 185, 129, 0.18)',
+        boxShadow: '0 0 0 1px rgba(16, 185, 129, 0.22) inset',
+      }
+    }
+
+    if (targetStatus === 'em_progresso') {
+      return {
+        borderColor: 'rgba(56, 189, 248, 0.55)',
+        backgroundColor: 'rgba(14, 165, 233, 0.18)',
+        boxShadow: '0 0 0 1px rgba(14, 165, 233, 0.22) inset',
+      }
+    }
+
+    return {
+      borderColor: 'rgba(227, 173, 90, 0.55)',
+      backgroundColor: 'rgba(227, 173, 90, 0.16)',
+      boxShadow: '0 0 0 1px rgba(227, 173, 90, 0.2) inset',
+    }
   }
 
   const closeCompanyModal = () => {
@@ -1616,6 +1642,7 @@ export default function AdminPage() {
                               type="button"
                               onClick={() => updateFeedbackStatus(item.id, 'lido')}
                               className={getFeedbackStatusButtonClassName(item.status, 'lido')}
+                              style={getFeedbackStatusButtonStyle(item.status, 'lido')}
                             >
                               Lido
                             </button>
@@ -1623,6 +1650,7 @@ export default function AdminPage() {
                               type="button"
                               onClick={() => updateFeedbackStatus(item.id, 'em_progresso')}
                               className={getFeedbackStatusButtonClassName(item.status, 'em_progresso')}
+                              style={getFeedbackStatusButtonStyle(item.status, 'em_progresso')}
                             >
                               Em progresso
                             </button>
@@ -1630,6 +1658,7 @@ export default function AdminPage() {
                               type="button"
                               onClick={() => updateFeedbackStatus(item.id, 'concluido')}
                               className={getFeedbackStatusButtonClassName(item.status, 'concluido')}
+                              style={getFeedbackStatusButtonStyle(item.status, 'concluido')}
                             >
                               Concluido
                             </button>
