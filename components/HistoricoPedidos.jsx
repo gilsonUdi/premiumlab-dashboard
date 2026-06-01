@@ -151,6 +151,9 @@ export default function HistoricoPedidos({
       }
 
       if (sortDataKey === 'delayRank') {
+        const priorityDiff = getOperationalPriority(b) - getOperationalPriority(a)
+        if (priorityDiff !== 0) return priorityDiff
+
         const statusDiff = (STATUS_SORT_WEIGHT[b.status] || 0) - (STATUS_SORT_WEIGHT[a.status] || 0)
         if (statusDiff !== 0) return statusDiff
 
