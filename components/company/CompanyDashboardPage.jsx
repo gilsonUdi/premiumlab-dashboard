@@ -74,7 +74,7 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
         }
 
         if (currentSession.type === 'company' && currentSession.companySlug !== slug) {
-          const targetMode = mode === 'pps' ? 'pps' : mode === 'power-bi' ? `power-bi${powerBiReportKey ? `/${powerBiReportKey}` : ''}` : 'dashboard'
+          const targetMode = mode === 'pps' ? 'pps' : mode === 'power-bi' ? `power-bi${powerBiReportKey ? `/${powerBiReportKey}` : ''}` : mode === 'external' ? 'externo' : 'dashboard'
           router.replace(`/empresa/${currentSession.companySlug}/${targetMode}`)
           return
         }
@@ -102,11 +102,11 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
     return getCompanyBySlug(state, slug) || (session?.companyId ? getCompanyById(state, session.companyId) : null)
   }, [session?.companyId, slug, state])
 
-  const isExternalDashboard = mode !== 'power-bi' && !company?.supabaseEnabled && Boolean(company?.externalDashboardUrl)
+  const isExternalDashboard = (mode === 'external' || (mode !== 'power-bi' && mode !== 'pps' && !company?.supabaseEnabled)) && Boolean(company?.externalDashboardUrl)
   const selectedPowerBiReport = mode === 'power-bi' ? getPowerBiConfigFromCompany(company || {}, powerBiReportKey) : null
   const isEmbeddedPowerBi = mode === 'power-bi' && Boolean(selectedPowerBiReport?.workspaceId) && Boolean(selectedPowerBiReport?.reportId)
   const isLegacyPowerBi = mode === 'power-bi' && Boolean(selectedPowerBiReport?.embedUrl) && !isEmbeddedPowerBi
-  const pageKey = isExternalDashboard
+  const pageKey = mode === 'external' || isExternalDashboard
     ? PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD
     : isEmbeddedPowerBi || isLegacyPowerBi
       ? PORTAL_PAGE_KEYS.POWER_BI
@@ -140,6 +140,10 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
 
   if (isExternalDashboard) {
     return <EmbeddedToolFrame company={company} src={company.externalDashboardUrl} backHref={`/empresa/${company.slug}`} />
+  }
+
+  if (mode === 'external') {
+    return <PlaceholderTool company={company} />
   }
 
   if (isEmbeddedPowerBi) {

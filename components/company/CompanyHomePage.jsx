@@ -308,7 +308,6 @@ export default function CompanyHomePage({ slug }) {
           })
       : []
   const canUseExternalDashboard =
-    !company.supabaseEnabled &&
     company.externalDashboardUrl &&
     canAccessPortalPage(company, userPermissions, PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)
 
@@ -361,7 +360,7 @@ export default function CompanyHomePage({ slug }) {
             <>
               {canUseExternalDashboard ? (
                 <Link
-                  href={`/empresa/${company.slug}/dashboard`}
+                  href={`/empresa/${company.slug}/externo`}
                   className="group relative overflow-hidden rounded-2xl p-6 transition-all duration-200 hover:scale-[1.01]"
                   style={{
                     background: '#181410',
@@ -379,7 +378,7 @@ export default function CompanyHomePage({ slug }) {
                   >
                     <SquareArrowOutUpRight size={18} />
                   </div>
-                  <h3 className="text-base font-semibold text-white">Dashboard</h3>
+                  <h3 className="text-base font-semibold text-white">Dashboard externo</h3>
                   <p className="mt-2 text-sm leading-6" style={{ color: '#6b6358' }}>
                     Acesso ao dashboard externo encapsulado dentro do portal desta empresa.
                   </p>

@@ -183,8 +183,7 @@ export async function POST(request) {
 
     ownerPermissions.pages[PORTAL_PAGE_KEYS.ANALYSIS] = company.supabaseEnabled
     ownerPermissions.pages[PORTAL_PAGE_KEYS.PPS] = company.supabaseEnabled
-    ownerPermissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD] =
-      !company.supabaseEnabled && Boolean(company.externalDashboardUrl)
+    ownerPermissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD] = Boolean(company.externalDashboardUrl)
     ownerPermissions.pages[PORTAL_PAGE_KEYS.POWER_BI] =
       company.powerBiEnabled && company.powerBiReports.length > 0
 

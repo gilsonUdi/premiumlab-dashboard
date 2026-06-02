@@ -142,9 +142,11 @@ function formatCompanyDate(value) {
 }
 
 function formatCompanyStatus(company) {
-  if (company.supabaseEnabled && company.powerBiEnabled) return 'Portal interno + Power BI'
-  if (!company.supabaseEnabled && company.powerBiEnabled) return 'Dashboard externo + Power BI'
-  return company.supabaseEnabled ? 'Portal interno' : 'Dashboard externo'
+  const enabled = []
+  if (company.supabaseEnabled) enabled.push('Portal interno')
+  if (company.externalDashboardUrl) enabled.push('Dashboard externo')
+  if (company.powerBiEnabled) enabled.push('Power BI')
+  return enabled.length > 0 ? enabled.join(' + ') : 'Sem ferramenta ativa'
 }
 
 function hasConfiguredPowerBi(company) {
@@ -1894,7 +1896,7 @@ export default function AdminPage() {
                           <div>
                             <h4 className="text-sm font-semibold text-white">Portal interno (Supabase)</h4>
                             <p className="mt-1 text-sm text-[#b7b0a6]">
-                              Defina se a empresa usa o portal interno ou um dashboard externo.
+                              Defina se a empresa usa o portal interno. O dashboard externo pode ser configurado separadamente.
                             </p>
                           </div>
                           <label className="portal-checkbox shrink-0">
@@ -1996,18 +1998,20 @@ export default function AdminPage() {
                               </p>
                             </div>
                           </div>
-                        ) : (
-                          <div className="mt-5 space-y-2">
-                            <label className="portal-label">Link do dashboard externo</label>
-                            <input
-                              className="portal-input"
-                              value={form.externalDashboardUrl}
-                              onChange={event => setForm(previous => ({ ...previous, externalDashboardUrl: event.target.value }))}
-                              placeholder="https://dashboard-da-empresa.com.br"
-                              required={!form.supabaseEnabled}
-                            />
-                          </div>
-                        )}
+                        ) : null}
+
+                        <div className="mt-5 space-y-2">
+                          <label className="portal-label">Link do dashboard externo</label>
+                          <input
+                            className="portal-input"
+                            value={form.externalDashboardUrl}
+                            onChange={event => setForm(previous => ({ ...previous, externalDashboardUrl: event.target.value }))}
+                            placeholder="https://dashboard-da-empresa.com.br"
+                          />
+                          <p className="text-xs text-[#8d867c]">
+                            Opcional. Quando preenchido, o portal mostra o dashboard externo mesmo se o portal interno tambem estiver ativo.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -2834,7 +2838,7 @@ export default function AdminPage() {
                               <span>PPS</span>
                             </label>
                             <label className="portal-checkbox">
-                              <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)} disabled={managingCompany.supabaseEnabled || !managingCompany.externalDashboardUrl} />
+                              <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)} disabled={!managingCompany.externalDashboardUrl} />
                               <span>Dashboard externo</span>
                             </label>
                             <label className="portal-checkbox">
@@ -3102,7 +3106,7 @@ export default function AdminPage() {
                         <span>PPS</span>
                       </label>
                       <label className="portal-checkbox">
-                        <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)} disabled={managingCompany.supabaseEnabled || !managingCompany.externalDashboardUrl} />
+                        <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)} disabled={!managingCompany.externalDashboardUrl} />
                         <span>Dashboard externo</span>
                       </label>
                       <label className="portal-checkbox">

@@ -173,7 +173,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   return (
     <main className="relative h-screen overflow-hidden text-white" style={{ background: '#0c0a08' }}>
       <Link
-        href={`/empresa/${company.slug}`}
+        href={`/empresa/${company.slug}/power-bi`}
         aria-label="Voltar ao portal"
         className="absolute left-4 top-4 z-30 hidden h-11 w-11 items-center justify-center rounded-full text-white transition md:inline-flex md:left-6 md:top-6"
         style={{
