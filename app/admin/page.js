@@ -179,6 +179,8 @@ export default function AdminPage() {
   const [passwordBatchMap, setPasswordBatchMap] = useState({})
   const [isGeneratingPasswordList, setIsGeneratingPasswordList] = useState(false)
   const [activePanel, setActivePanel] = useState('companies')
+  const [activeCompanyTab, setActiveCompanyTab] = useState('basic')
+  const [activeUserTab, setActiveUserTab] = useState('data')
   const [feedbackItems, setFeedbackItems] = useState([])
   const [feedbackLoading, setFeedbackLoading] = useState(false)
   const [feedbackError, setFeedbackError] = useState('')
@@ -520,10 +522,12 @@ export default function AdminPage() {
   const closeCompanyModal = () => {
     setIsCompanyModalOpen(false)
     setForm(emptyForm)
+    setActiveCompanyTab('basic')
   }
 
   const openCreateCompanyModal = () => {
     setForm(emptyForm)
+    setActiveCompanyTab('basic')
     setIsCompanyModalOpen(true)
   }
 
@@ -630,6 +634,7 @@ export default function AdminPage() {
       tools: company.tools || ['dashboard'],
       isPremiumLab: company.isPremiumLab,
     })
+    setActiveCompanyTab('basic')
     setIsCompanyModalOpen(true)
   }
 
@@ -657,6 +662,7 @@ export default function AdminPage() {
   const openUserModal = company => {
     setManagingCompanyId(company.id)
     setEditingUserId('')
+    setActiveUserTab('data')
     setUserForm(buildEmptyUserForm(company))
     setIsUserModalOpen(true)
   }
@@ -691,6 +697,7 @@ export default function AdminPage() {
     if (!managingCompany) return
     setIsCreateUserModalOpen(false)
     setEditingUserId(user.uid)
+    setActiveUserTab('data')
     setUserForm(cloneUserForm(user, managingCompany))
   }
 
@@ -1752,12 +1759,13 @@ export default function AdminPage() {
       {isCompanyModalOpen ? (
         <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto px-4 py-4 sm:items-center sm:py-8" style={{ background: 'rgba(0,0,0,0.75)' }}>
           <div
-            className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-[880px] flex-col overflow-hidden rounded-2xl sm:max-h-[92vh]"
+            className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-[1100px] flex-col overflow-hidden rounded-2xl sm:max-h-[92vh]"
             style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(0,0,0,0.6)' }}
           >
+            {/* Header */}
             <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div>
-                <h3 className="text-xl font-bold text-white">{form.id ? 'Editar empresa' : 'Nova empresa'}</h3>
+                <h3 className="text-xl font-bold text-white">{form.id ? (form.name || 'Editar empresa') : 'Nova empresa'}</h3>
                 <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
                   Ajuste os dados principais da empresa e o comportamento do portal a partir daqui.
                 </p>
@@ -1768,342 +1776,327 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <form className="flex min-h-0 flex-1 flex-col" style={{ background: '#110f0d' }} onSubmit={handleSaveCompany}>
-              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 py-6">
-                <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2 md:col-span-2">
-                  <label className="portal-label">Nome da empresa</label>
-                  <input
-                    className="portal-input"
-                    value={form.name}
-                    onChange={event => {
-                      const name = event.target.value
-                      setForm(previous => ({ ...previous, name, slug: slugifyCompanyName(name) }))
-                    }}
-                    placeholder="Ex.: Premium Lab"
-                    required
-                  />
+            <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSaveCompany}>
+              {/* Body: sidebar + content */}
+              <div className="flex min-h-0 flex-1 overflow-hidden">
+                {/* Left sidebar */}
+                <div className="flex w-[240px] shrink-0 flex-col gap-1 p-4" style={{ background: '#0c0a08', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                  <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#4a433c' }}>Seções</p>
+                  {[
+                    { key: 'basic', label: 'Dados básicos' },
+                    { key: 'connection', label: 'Conexão' },
+                    { key: 'filters', label: 'Filtros' },
+                    { key: 'powerbi', label: 'Power BI' },
+                    { key: 'rules', label: 'Regras' },
+                  ].map(tab => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      className="rounded-xl px-4 py-2.5 text-sm font-medium w-full text-left transition"
+                      style={
+                        activeCompanyTab === tab.key
+                          ? { background: 'rgba(227,173,90,0.1)', border: '1px solid rgba(227,173,90,0.2)', color: '#e3ad5a' }
+                          : { color: '#6b6358', border: '1px solid transparent' }
+                      }
+                      onClick={() => setActiveCompanyTab(tab.key)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
 
-                <div className="space-y-2">
-                  <label className="portal-label">Slug</label>
-                  <input
-                    className="portal-input"
-                    value={form.slug}
-                    onChange={event => setForm(previous => ({ ...previous, slug: slugifyCompanyName(event.target.value) }))}
-                    placeholder="premium-lab"
-                    required
-                  />
-                </div>
+                {/* Right content */}
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-5" style={{ background: '#0f0d0b' }}>
 
-                <div className="space-y-2">
-                  <label className="portal-label">Email principal</label>
-                  <input
-                    className="portal-input"
-                    type="email"
-                    value={form.email}
-                    onChange={event => setForm(previous => ({ ...previous, email: event.target.value }))}
-                    placeholder="empresa@dominio.com"
-                    required
-                  />
-                </div>
+                  {/* TAB: basic */}
+                  {activeCompanyTab === 'basic' && (
+                    <div className="space-y-5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Dados básicos</p>
+                      <div className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2 md:col-span-2">
+                            <label className="portal-label">Nome da empresa</label>
+                            <input
+                              className="portal-input"
+                              value={form.name}
+                              onChange={event => {
+                                const name = event.target.value
+                                setForm(previous => ({ ...previous, name, slug: slugifyCompanyName(name) }))
+                              }}
+                              placeholder="Ex.: Premium Lab"
+                              required
+                            />
+                          </div>
 
-                <div className="space-y-2 md:col-span-2">
-                  <label className="portal-label">{form.id ? 'Nova senha (opcional)' : 'Senha'}</label>
-                  <input
-                    className="portal-input"
-                    type="text"
-                    value={form.password}
-                    onChange={event => setForm(previous => ({ ...previous, password: event.target.value }))}
-                    placeholder={form.id ? 'Preencha só se quiser trocar' : 'Senha de acesso'}
-                    required={!form.id}
-                  />
-                </div>
-                </div>
+                          <div className="space-y-2">
+                            <label className="portal-label">Slug</label>
+                            <input
+                              className="portal-input"
+                              value={form.slug}
+                              onChange={event => setForm(previous => ({ ...previous, slug: slugifyCompanyName(event.target.value) }))}
+                              placeholder="premium-lab"
+                              required
+                            />
+                          </div>
 
-                {form.supabaseEnabled ? (
-                  <details
-                    className="rounded-2xl p-5"
-                    style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}
-                  >
-                    <summary className="cursor-pointer list-none">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="text-sm font-semibold text-white">Filtros gerais dos dashboards</h4>
-                          <p className="mt-1 text-sm text-[#b7b0a6]">
-                            Aplique filtros fixos para toda a empresa no PPS e na Análise de Dados.
-                          </p>
+                          <div className="space-y-2">
+                            <label className="portal-label">Email principal</label>
+                            <input
+                              className="portal-input"
+                              type="email"
+                              value={form.email}
+                              onChange={event => setForm(previous => ({ ...previous, email: event.target.value }))}
+                              placeholder="empresa@dominio.com"
+                              required
+                            />
+                          </div>
+
+                          <div className="space-y-2 md:col-span-2">
+                            <label className="portal-label">{form.id ? 'Nova senha (opcional)' : 'Senha'}</label>
+                            <input
+                              className="portal-input"
+                              type="text"
+                              value={form.password}
+                              onChange={event => setForm(previous => ({ ...previous, password: event.target.value }))}
+                              placeholder={form.id ? 'Preencha só se quiser trocar' : 'Senha de acesso'}
+                              required={!form.id}
+                            />
+                          </div>
                         </div>
-                        <span className="portal-pill">Retrável</span>
                       </div>
-                    </summary>
 
-                    <div className="mt-4 space-y-4">
-                      {dashboardFilterOptionsLoading ? (
-                        <p className="text-sm text-[#b7b0a6]">Carregando filtros disponíveis...</p>
-                      ) : null}
-                      {dashboardFilterOptionsError ? (
-                        <p className="text-sm text-amber-200">{dashboardFilterOptionsError}</p>
-                      ) : null}
+                      <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        {!hasPremiumLab || form.isPremiumLab ? (
+                          <label className="portal-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={form.isPremiumLab}
+                              onChange={event => setForm(previous => ({ ...previous, isPremiumLab: event.target.checked }))}
+                            />
+                            <span>Marcar como Premium Lab</span>
+                          </label>
+                        ) : (
+                          <div className="rounded-2xl bg-[#e3ad5a]/10 px-4 py-3 text-sm text-[#e6d5b7]">
+                            Premium Lab ja esta definida como tenant principal.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
-                      {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode]) => {
-                        const filters = form.dashboardFilters?.[mode] || []
+                  {/* TAB: connection */}
+                  {activeCompanyTab === 'connection' && (
+                    <div className="space-y-5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Conexão</p>
 
-                        return (
-                          <div key={mode} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <h5 className="text-sm font-semibold text-white">
-                                  {mode === 'pps' ? 'PPS' : 'Análise de Dados'}
-                                </h5>
-                                <p className="mt-1 text-xs text-[#8d867c]">
-                                  {filters.length === 0 ? 'Sem filtro geral neste módulo.' : `${filters.length} filtro(s) aplicado(s).`}
-                                </p>
+                      <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-semibold text-white">Portal interno (Supabase)</h4>
+                            <p className="mt-1 text-sm text-[#b7b0a6]">
+                              Defina se a empresa usa o portal interno ou um dashboard externo.
+                            </p>
+                          </div>
+                          <label className="portal-checkbox shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={form.supabaseEnabled}
+                              onChange={event => setForm(previous => ({ ...previous, supabaseEnabled: event.target.checked }))}
+                            />
+                            <span>Portal interno</span>
+                          </label>
+                        </div>
+
+                        {form.supabaseEnabled ? (
+                          <div className="mt-5 space-y-4">
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div className="space-y-2">
+                                <label className="portal-label">Modelo de alimentação do dashboard</label>
+                                <select
+                                  className="portal-input"
+                                  value={form.dashboardFeedingModel}
+                                  onChange={event => setForm(previous => ({ ...previous, dashboardFeedingModel: event.target.value }))}
+                                >
+                                  {DASHBOARD_FEEDING_MODE_TYPES.map(model => (
+                                    <option key={model.value} value={model.value}>
+                                      {model.label}
+                                    </option>
+                                  ))}
+                                </select>
                               </div>
-                              <button type="button" className="portal-ghost-button" onClick={() => addCompanyDashboardFilter(mode)}>
-                                <Plus size={14} />
-                                Adicionar filtro
-                              </button>
+
+                              <div className="space-y-2">
+                                <label className="portal-label">Identificação do banco</label>
+                                <input
+                                  className="portal-input"
+                                  value={form.supabaseLabel}
+                                  onChange={event => setForm(previous => ({ ...previous, supabaseLabel: event.target.value }))}
+                                  placeholder="Ex.: sincronizado em Supabase produção"
+                                />
+                              </div>
+
+                              <div className="space-y-2 md:col-span-2">
+                                <label className="portal-label">Supabase URL</label>
+                                <input
+                                  className="portal-input"
+                                  value={form.supabaseUrl}
+                                  onChange={event => setForm(previous => ({ ...previous, supabaseUrl: event.target.value }))}
+                                  placeholder="https://projeto.supabase.co"
+                                />
+                              </div>
+
+                              <div className="space-y-2 md:col-span-2">
+                                <label className="portal-label">Supabase Service Role Key</label>
+                                <input
+                                  className="portal-input"
+                                  type="password"
+                                  value={form.supabaseServiceRoleKey}
+                                  onChange={event => setForm(previous => ({ ...previous, supabaseServiceRoleKey: event.target.value }))}
+                                  placeholder={form.id ? 'Preencha só se quiser trocar a chave' : 'Cole a service_role_key do tenant'}
+                                />
+                              </div>
                             </div>
 
-                            <div className="mt-4 space-y-3">
-                              {filters.length === 0 ? (
-                                <p className="text-sm text-[#b7b0a6]">Nenhum filtro configurado para este modulo.</p>
-                              ) : (
-                                filters.map(filter => {
-                                  const filterDefinition = getDashboardFilterDefinition(filter.field)
-                                  const fieldOptions = getDashboardFieldOptions(filter.field)
+                            <div className="space-y-3">
+                              <label className="flex items-center gap-2 text-sm font-medium text-[#efe9df]">
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 accent-[#5aa7ff]"
+                                  checked={form.limitByCompanyCodeEnabled}
+                                  onChange={event => setForm(previous => ({ ...previous, limitByCompanyCodeEnabled: event.target.checked }))}
+                                />
+                                <span>Limitar dashboard por codigo da empresa</span>
+                              </label>
+                              {form.limitByCompanyCodeEnabled ? (
+                                <div className="space-y-2">
+                                  <label className="portal-label">Codigo da empresa</label>
+                                  <input
+                                    className="portal-input"
+                                    value={form.companyCodeFilter}
+                                    onChange={event => setForm(previous => ({ ...previous, companyCodeFilter: event.target.value }))}
+                                    placeholder="Ex.: 1"
+                                  />
+                                </div>
+                              ) : null}
+                              <p className="text-xs text-[#8d867c]">
+                                Quando ligado, o portal filtra PPS e Análise de Dados por PEDID.EMPCODIGO.
+                              </p>
+                            </div>
 
-                                  return (
-                                    <div key={filter.id} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                      <div className="mb-3 flex justify-end">
-                                        <button
-                                          type="button"
-                                          className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
-                                          onClick={() => removeCompanyDashboardFilter(mode, filter.id)}
-                                        >
-                                          Remover
-                                        </button>
-                                      </div>
-                                      <div className="grid gap-3 md:grid-cols-2">
-                                        <select
-                                          className="portal-input"
-                                          value={filter.field || ''}
-                                          onChange={event => updateCompanyDashboardFilterField(mode, filter.id, event.target.value)}
-                                        >
-                                          <option value="">Selecione o filtro</option>
-                                          {getAvailableDashboardFields().map(field => (
-                                            <option key={field.name} value={field.name}>
-                                              {field.label}
-                                            </option>
-                                          ))}
-                                        </select>
-
-                                        {filterDefinition?.inputType === 'select' ? (
-                                          <select
-                                            className="portal-input"
-                                            value={filter.value}
-                                            onChange={event => updateCompanyDashboardFilter(mode, filter.id, 'value', event.target.value)}
-                                            disabled={!filter.field || fieldOptions.length === 0}
-                                          >
-                                            <option value="">
-                                              {!filter.field
-                                                ? 'Escolha o filtro primeiro'
-                                                : fieldOptions.length === 0
-                                                  ? 'Sem opções disponíveis'
-                                                  : 'Selecione um valor'}
-                                            </option>
-                                            {fieldOptions.map(option => (
-                                              <option key={option.value} value={option.value}>
-                                                {option.label}
-                                              </option>
-                                            ))}
-                                          </select>
-                                        ) : (
-                                          <input
-                                            className="portal-input"
-                                            value={filter.value}
-                                            onChange={event => updateCompanyDashboardFilter(mode, filter.id, 'value', event.target.value)}
-                                            placeholder="Valor ou lista separada por virgula"
-                                            disabled={!filter.field}
-                                          />
-                                        )}
-
-                                        <select
-                                          className="portal-input"
-                                          value={filter.operator}
-                                          onChange={event => updateCompanyDashboardFilter(mode, filter.id, 'operator', event.target.value)}
-                                        >
-                                          {POWER_BI_FILTER_OPERATORS.map(option => (
-                                            <option key={option.value} value={option.value}>
-                                              {option.label}
-                                            </option>
-                                          ))}
-                                        </select>
-
-                                        <div className="portal-input flex items-center border-dashed text-sm text-[#b7b0a6]">
-                                          {getDashboardFilterDefinition(filter.field)?.inputType === 'select'
-                                            ? 'Valor definido por seleção'
-                                            : 'Valor digitado livremente'}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )
-                                })
-                              )}
+                            <div className="space-y-2">
+                              <label className="portal-label">Codigos de perda</label>
+                              <input
+                                className="portal-input"
+                                value={form.lossFinalityCodesText}
+                                onChange={event => setForm(previous => ({ ...previous, lossFinalityCodesText: event.target.value }))}
+                                placeholder="Ex.: 2, 4, 30"
+                              />
+                              <p className="text-xs text-[#8d867c]">
+                                Informe os codigos da PEDFINALIDADE que representam perda nesta empresa, separados por virgula.
+                              </p>
                             </div>
                           </div>
-                        )
-                      })}
-                    </div>
-                  </details>
-                ) : null}
-
-                {form.supabaseEnabled ? (
-                  <details
-                    className="rounded-2xl p-5"
-                    style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}
-                  >
-                    <summary className="cursor-pointer list-none">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="text-sm font-semibold text-white">Filtros por visual</h4>
-                          <p className="mt-1 text-sm text-[#b7b0a6]">
-                            Aplique filtros fixos em gráficos ou tabelas específicas do PPS e da Análise de Dados.
-                          </p>
-                        </div>
-                        <span className="portal-pill">Retrável</span>
+                        ) : (
+                          <div className="mt-5 space-y-2">
+                            <label className="portal-label">Link do dashboard externo</label>
+                            <input
+                              className="portal-input"
+                              value={form.externalDashboardUrl}
+                              onChange={event => setForm(previous => ({ ...previous, externalDashboardUrl: event.target.value }))}
+                              placeholder="https://dashboard-da-empresa.com.br"
+                              required={!form.supabaseEnabled}
+                            />
+                          </div>
+                        )}
                       </div>
-                    </summary>
+                    </div>
+                  )}
 
-                    <div className="mt-4 space-y-4">
-                      {dashboardFilterOptionsLoading ? (
-                        <p className="text-sm text-[#b7b0a6]">Carregando valores dos filtros padrão...</p>
-                      ) : null}
-                      {dashboardFilterOptionsError ? (
-                        <p className="text-sm text-amber-200">{dashboardFilterOptionsError}</p>
-                      ) : null}
+                  {/* TAB: filters */}
+                  {activeCompanyTab === 'filters' && (
+                    <div className="space-y-5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Filtros</p>
 
-                      {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode, sections]) => (
-                        <div key={mode} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          <h5 className="text-sm font-semibold text-white">
-                            {mode === 'pps' ? 'PPS' : 'Análise de Dados'}
-                          </h5>
+                      {!form.supabaseEnabled ? (
+                        <div className="rounded-2xl px-5 py-4 text-sm text-[#b7b0a6]" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          Esta seção está disponível apenas quando o portal interno (Supabase) está habilitado. Ative na aba Conexão.
+                        </div>
+                      ) : (
+                        <>
+                          {/* General filters */}
+                          <div className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                            <div>
+                              <h4 className="text-sm font-semibold text-white">Filtros gerais dos dashboards</h4>
+                              <p className="mt-1 text-sm text-[#b7b0a6]">
+                                Aplique filtros fixos para toda a empresa no PPS e na Análise de Dados.
+                              </p>
+                            </div>
 
-                          <div className="mt-4 space-y-3">
-                            {sections.map(section => {
-                              const filters = form.dashboardVisualFilters?.[mode]?.[section.key] || []
+                            {dashboardFilterOptionsLoading ? (
+                              <p className="text-sm text-[#b7b0a6]">Carregando filtros disponíveis...</p>
+                            ) : null}
+                            {dashboardFilterOptionsError ? (
+                              <p className="text-sm text-amber-200">{dashboardFilterOptionsError}</p>
+                            ) : null}
+
+                            {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode]) => {
+                              const filters = form.dashboardFilters?.[mode] || []
 
                               return (
-                                <div key={section.key} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div key={mode} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
                                   <div className="flex items-center justify-between gap-3">
                                     <div>
-                                      <p className="text-sm font-semibold text-white">{section.label}</p>
+                                      <h5 className="text-sm font-semibold text-white">
+                                        {mode === 'pps' ? 'PPS' : 'Análise de Dados'}
+                                      </h5>
                                       <p className="mt-1 text-xs text-[#8d867c]">
-                                        {filters.length === 0 ? 'Sem filtro exclusivo para este visual.' : `${filters.length} filtro(s) aplicado(s).`}
+                                        {filters.length === 0 ? 'Sem filtro geral neste módulo.' : `${filters.length} filtro(s) aplicado(s).`}
                                       </p>
                                     </div>
-                                    <button
-                                      type="button"
-                                      className="portal-ghost-button"
-                                      onClick={() => addCompanyVisualFilter(mode, section.key)}
-                                    >
+                                    <button type="button" className="portal-ghost-button" onClick={() => addCompanyDashboardFilter(mode)}>
                                       <Plus size={14} />
-                                      Adicionar
+                                      Adicionar filtro
                                     </button>
                                   </div>
 
-                                  {filters.length > 0 ? (
-                                    <div className="mt-3 space-y-3">
-                                      {filters.map(filter => {
-                                        const source = filter.source || (filter.field ? 'standard' : 'table')
+                                  <div className="mt-4 space-y-3">
+                                    {filters.length === 0 ? (
+                                      <p className="text-sm text-[#b7b0a6]">Nenhum filtro configurado para este modulo.</p>
+                                    ) : (
+                                      filters.map(filter => {
                                         const filterDefinition = getDashboardFilterDefinition(filter.field)
                                         const fieldOptions = getDashboardFieldOptions(filter.field)
 
                                         return (
-                                          <div key={filter.id} className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                          <div key={filter.id} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
                                             <div className="mb-3 flex justify-end">
                                               <button
                                                 type="button"
                                                 className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
-                                                onClick={() => removeCompanyVisualFilter(mode, section.key, filter.id)}
+                                                onClick={() => removeCompanyDashboardFilter(mode, filter.id)}
                                               >
                                                 Remover
                                               </button>
                                             </div>
-
                                             <div className="grid gap-3 md:grid-cols-2">
                                               <select
                                                 className="portal-input"
-                                                value={source}
-                                                onChange={event => updateCompanyVisualFilterSource(mode, section.key, filter.id, event.target.value)}
+                                                value={filter.field || ''}
+                                                onChange={event => updateCompanyDashboardFilterField(mode, filter.id, event.target.value)}
                                               >
-                                                <option value="standard">Filtro padrão do site</option>
-                                                <option value="table">Tabela e coluna</option>
-                                              </select>
-
-                                              {source === 'standard' ? (
-                                                <select
-                                                  className="portal-input"
-                                                  value={filter.field || ''}
-                                                  onChange={event => updateCompanyVisualFilterField(mode, section.key, filter.id, event.target.value)}
-                                                >
-                                                  <option value="">Selecione o filtro</option>
-                                                  {getAvailableDashboardFields().map(field => (
-                                                    <option key={field.name} value={field.name}>
-                                                      {field.label}
-                                                    </option>
-                                                  ))}
-                                                </select>
-                                              ) : (
-                                                <select
-                                                  className="portal-input"
-                                                  value={filter.table || ''}
-                                                  onChange={event => updateCompanyVisualFilterTable(mode, section.key, filter.id, event.target.value)}
-                                                >
-                                                  <option value="">Selecione a tabela</option>
-                                                  {(dashboardFilterOptions?.supabaseTables || []).map(table => (
-                                                    <option key={table.name} value={table.name}>
-                                                      {table.name}
-                                                    </option>
-                                                  ))}
-                                                </select>
-                                              )}
-
-                                              {source === 'table' ? (
-                                                <select
-                                                  className="portal-input"
-                                                  value={filter.column || ''}
-                                                  onChange={event => updateCompanyVisualFilter(mode, section.key, filter.id, 'column', event.target.value)}
-                                                  disabled={!filter.table}
-                                                >
-                                                  <option value="">{filter.table ? 'Selecione a coluna' : 'Escolha a tabela primeiro'}</option>
-                                                  {(() => {
-                                                 const supabaseTable = (dashboardFilterOptions?.supabaseTables || []).find(t => t.name === filter.table)
-                                                 return (supabaseTable?.columns || []).map(col => (
-                                                   <option key={col} value={col}>{col}</option>
-                                                  ))
-                                              })()}
-                                                </select>
-                                              ) : null}
-
-                                              <select
-                                                className="portal-input"
-                                                value={filter.operator}
-                                                onChange={event => updateCompanyVisualFilter(mode, section.key, filter.id, 'operator', event.target.value)}
-                                              >
-                                                {POWER_BI_FILTER_OPERATORS.map(option => (
-                                                  <option key={option.value} value={option.value}>
-                                                    {option.label}
+                                                <option value="">Selecione o filtro</option>
+                                                {getAvailableDashboardFields().map(field => (
+                                                  <option key={field.name} value={field.name}>
+                                                    {field.label}
                                                   </option>
                                                 ))}
                                               </select>
 
-                                              {source === 'standard' && filterDefinition?.inputType === 'select' ? (
+                                              {filterDefinition?.inputType === 'select' ? (
                                                 <select
                                                   className="portal-input"
                                                   value={filter.value}
-                                                  onChange={event => updateCompanyVisualFilter(mode, section.key, filter.id, 'value', event.target.value)}
+                                                  onChange={event => updateCompanyDashboardFilter(mode, filter.id, 'value', event.target.value)}
                                                   disabled={!filter.field || fieldOptions.length === 0}
                                                 >
                                                   <option value="">
@@ -2123,394 +2116,461 @@ export default function AdminPage() {
                                                 <input
                                                   className="portal-input"
                                                   value={filter.value}
-                                                  onChange={event => updateCompanyVisualFilter(mode, section.key, filter.id, 'value', event.target.value)}
+                                                  onChange={event => updateCompanyDashboardFilter(mode, filter.id, 'value', event.target.value)}
                                                   placeholder="Valor ou lista separada por virgula"
-                                                  disabled={source === 'standard' ? !filter.field : !filter.table || !filter.column}
+                                                  disabled={!filter.field}
                                                 />
                                               )}
+
+                                              <select
+                                                className="portal-input"
+                                                value={filter.operator}
+                                                onChange={event => updateCompanyDashboardFilter(mode, filter.id, 'operator', event.target.value)}
+                                              >
+                                                {POWER_BI_FILTER_OPERATORS.map(option => (
+                                                  <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                  </option>
+                                                ))}
+                                              </select>
+
+                                              <div className="portal-input flex items-center border-dashed text-sm text-[#b7b0a6]">
+                                                {getDashboardFilterDefinition(filter.field)?.inputType === 'select'
+                                                  ? 'Valor definido por seleção'
+                                                  : 'Valor digitado livremente'}
+                                              </div>
                                             </div>
                                           </div>
                                         )
-                                      })}
-                                    </div>
-                                  ) : null}
+                                      })
+                                    )}
+                                  </div>
                                 </div>
                               )
                             })}
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                ) : null}
 
-                <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h4 className="text-sm font-semibold text-white">Tipo de portal</h4>
-                      <p className="mt-1 text-sm text-[#b7b0a6]">
-                        Defina se a empresa usa o portal interno ou um dashboard externo.
-                      </p>
-                    </div>
+                          <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }} />
 
-                    <label className="portal-checkbox shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={form.supabaseEnabled}
-                        onChange={event => setForm(previous => ({ ...previous, supabaseEnabled: event.target.checked }))}
-                      />
-                      <span>Portal interno</span>
-                    </label>
-                  </div>
-
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    {form.supabaseEnabled ? (
-                      <>
-                        <div className="space-y-3 md:col-span-2">
-                          <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2">
-                              <label className="portal-label">Modelo de alimentação do dashboard</label>
-                              <select
-                                className="portal-input"
-                                value={form.dashboardFeedingModel}
-                                onChange={event => setForm(previous => ({ ...previous, dashboardFeedingModel: event.target.value }))}
-                              >
-                                {DASHBOARD_FEEDING_MODE_TYPES.map(model => (
-                                  <option key={model.value} value={model.value}>
-                                    {model.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-
-                          <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2">
-                              <label className="portal-label">Supabase URL</label>
-                              <input
-                                className="portal-input"
-                                value={form.supabaseUrl}
-                                onChange={event => setForm(previous => ({ ...previous, supabaseUrl: event.target.value }))}
-                                placeholder="https://projeto.supabase.co"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <label className="portal-label">Identificação do banco</label>
-                              <input
-                                className="portal-input"
-                                value={form.supabaseLabel}
-                                onChange={event => setForm(previous => ({ ...previous, supabaseLabel: event.target.value }))}
-                                placeholder="Ex.: sincronizado em Supabase produção"
-                              />
-                            </div>
-
-                            <div className="space-y-2 md:col-span-2">
-                              <label className="portal-label">Supabase Service Role Key</label>
-                              <input
-                                className="portal-input"
-                                type="password"
-                                value={form.supabaseServiceRoleKey}
-                                onChange={event => setForm(previous => ({ ...previous, supabaseServiceRoleKey: event.target.value }))}
-                                placeholder={form.id ? 'Preencha só se quiser trocar a chave' : 'Cole a service_role_key do tenant'}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3 md:col-span-2">
-                          <label className="flex items-center gap-2 text-sm font-medium text-[#efe9df]">
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 accent-[#5aa7ff]"
-                              checked={form.limitByCompanyCodeEnabled}
-                              onChange={event => setForm(previous => ({ ...previous, limitByCompanyCodeEnabled: event.target.checked }))}
-                            />
-                            <span>Limitar dashboard por codigo da empresa</span>
-                          </label>
-                          {form.limitByCompanyCodeEnabled ? (
-                            <div className="space-y-2">
-                              <label className="portal-label">Codigo da empresa</label>
-                              <input
-                                className="portal-input"
-                                value={form.companyCodeFilter}
-                                onChange={event => setForm(previous => ({ ...previous, companyCodeFilter: event.target.value }))}
-                                placeholder="Ex.: 1"
-                              />
-                            </div>
-                          ) : null}
-                          <p className="text-xs text-[#8d867c]">
-                            Quando ligado, o portal filtra PPS e Análise de Dados por PEDID.EMPCODIGO.
-                          </p>
-                        </div>
-
-                        <div className="space-y-2 md:col-span-2">
-                          <label className="portal-label">Codigos de perda</label>
-                          <input
-                            className="portal-input"
-                            value={form.lossFinalityCodesText}
-                            onChange={event => setForm(previous => ({ ...previous, lossFinalityCodesText: event.target.value }))}
-                            placeholder="Ex.: 2, 4, 30"
-                          />
-                          <p className="text-xs text-[#8d867c]">
-                            Informe os codigos da PEDFINALIDADE que representam perda nesta empresa, separados por virgula.
-                          </p>
-                        </div>
-
-                        <div className="space-y-3 md:col-span-2">
-                          <div className="flex items-center justify-between gap-3">
+                          {/* Visual filters */}
+                          <div className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
                             <div>
-                              <label className="portal-label">Pedido concluído quando</label>
-                              <p className="mt-1 text-xs text-[#8d867c]">
-                                O pedido também será tratado como concluído quando bater qualquer condição abaixo.
+                              <h4 className="text-sm font-semibold text-white">Filtros por visual</h4>
+                              <p className="mt-1 text-sm text-[#b7b0a6]">
+                                Aplique filtros fixos em gráficos ou tabelas específicas do PPS e da Análise de Dados.
                               </p>
                             </div>
-                            <button
-                              type="button"
-                              className="portal-ghost-button"
-                              onClick={addOrderCompletionRule}
-                            >
-                              <Plus size={14} />
-                              Adicionar
+
+                            {dashboardFilterOptionsLoading ? (
+                              <p className="text-sm text-[#b7b0a6]">Carregando valores dos filtros padrão...</p>
+                            ) : null}
+                            {dashboardFilterOptionsError ? (
+                              <p className="text-sm text-amber-200">{dashboardFilterOptionsError}</p>
+                            ) : null}
+
+                            {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode, sections]) => (
+                              <div key={mode} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <h5 className="text-sm font-semibold text-white">
+                                  {mode === 'pps' ? 'PPS' : 'Análise de Dados'}
+                                </h5>
+
+                                <div className="mt-4 space-y-3">
+                                  {sections.map(section => {
+                                    const filters = form.dashboardVisualFilters?.[mode]?.[section.key] || []
+
+                                    return (
+                                      <div key={section.key} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <div className="flex items-center justify-between gap-3">
+                                          <div>
+                                            <p className="text-sm font-semibold text-white">{section.label}</p>
+                                            <p className="mt-1 text-xs text-[#8d867c]">
+                                              {filters.length === 0 ? 'Sem filtro exclusivo para este visual.' : `${filters.length} filtro(s) aplicado(s).`}
+                                            </p>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            className="portal-ghost-button"
+                                            onClick={() => addCompanyVisualFilter(mode, section.key)}
+                                          >
+                                            <Plus size={14} />
+                                            Adicionar
+                                          </button>
+                                        </div>
+
+                                        {filters.length > 0 ? (
+                                          <div className="mt-3 space-y-3">
+                                            {filters.map(filter => {
+                                              const source = filter.source || (filter.field ? 'standard' : 'table')
+                                              const filterDefinition = getDashboardFilterDefinition(filter.field)
+                                              const fieldOptions = getDashboardFieldOptions(filter.field)
+
+                                              return (
+                                                <div key={filter.id} className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                  <div className="mb-3 flex justify-end">
+                                                    <button
+                                                      type="button"
+                                                      className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
+                                                      onClick={() => removeCompanyVisualFilter(mode, section.key, filter.id)}
+                                                    >
+                                                      Remover
+                                                    </button>
+                                                  </div>
+
+                                                  <div className="grid gap-3 md:grid-cols-2">
+                                                    <select
+                                                      className="portal-input"
+                                                      value={source}
+                                                      onChange={event => updateCompanyVisualFilterSource(mode, section.key, filter.id, event.target.value)}
+                                                    >
+                                                      <option value="standard">Filtro padrão do site</option>
+                                                      <option value="table">Tabela e coluna</option>
+                                                    </select>
+
+                                                    {source === 'standard' ? (
+                                                      <select
+                                                        className="portal-input"
+                                                        value={filter.field || ''}
+                                                        onChange={event => updateCompanyVisualFilterField(mode, section.key, filter.id, event.target.value)}
+                                                      >
+                                                        <option value="">Selecione o filtro</option>
+                                                        {getAvailableDashboardFields().map(field => (
+                                                          <option key={field.name} value={field.name}>
+                                                            {field.label}
+                                                          </option>
+                                                        ))}
+                                                      </select>
+                                                    ) : (
+                                                      <select
+                                                        className="portal-input"
+                                                        value={filter.table || ''}
+                                                        onChange={event => updateCompanyVisualFilterTable(mode, section.key, filter.id, event.target.value)}
+                                                      >
+                                                        <option value="">Selecione a tabela</option>
+                                                        {(dashboardFilterOptions?.supabaseTables || []).map(table => (
+                                                          <option key={table.name} value={table.name}>
+                                                            {table.name}
+                                                          </option>
+                                                        ))}
+                                                      </select>
+                                                    )}
+
+                                                    {source === 'table' ? (
+                                                      <select
+                                                        className="portal-input"
+                                                        value={filter.column || ''}
+                                                        onChange={event => updateCompanyVisualFilter(mode, section.key, filter.id, 'column', event.target.value)}
+                                                        disabled={!filter.table}
+                                                      >
+                                                        <option value="">{filter.table ? 'Selecione a coluna' : 'Escolha a tabela primeiro'}</option>
+                                                        {(() => {
+                                                          const supabaseTable = (dashboardFilterOptions?.supabaseTables || []).find(t => t.name === filter.table)
+                                                          return (supabaseTable?.columns || []).map(col => (
+                                                            <option key={col} value={col}>{col}</option>
+                                                          ))
+                                                        })()}
+                                                      </select>
+                                                    ) : null}
+
+                                                    <select
+                                                      className="portal-input"
+                                                      value={filter.operator}
+                                                      onChange={event => updateCompanyVisualFilter(mode, section.key, filter.id, 'operator', event.target.value)}
+                                                    >
+                                                      {POWER_BI_FILTER_OPERATORS.map(option => (
+                                                        <option key={option.value} value={option.value}>
+                                                          {option.label}
+                                                        </option>
+                                                      ))}
+                                                    </select>
+
+                                                    {source === 'standard' && filterDefinition?.inputType === 'select' ? (
+                                                      <select
+                                                        className="portal-input"
+                                                        value={filter.value}
+                                                        onChange={event => updateCompanyVisualFilter(mode, section.key, filter.id, 'value', event.target.value)}
+                                                        disabled={!filter.field || fieldOptions.length === 0}
+                                                      >
+                                                        <option value="">
+                                                          {!filter.field
+                                                            ? 'Escolha o filtro primeiro'
+                                                            : fieldOptions.length === 0
+                                                              ? 'Sem opções disponíveis'
+                                                              : 'Selecione um valor'}
+                                                        </option>
+                                                        {fieldOptions.map(option => (
+                                                          <option key={option.value} value={option.value}>
+                                                            {option.label}
+                                                          </option>
+                                                        ))}
+                                                      </select>
+                                                    ) : (
+                                                      <input
+                                                        className="portal-input"
+                                                        value={filter.value}
+                                                        onChange={event => updateCompanyVisualFilter(mode, section.key, filter.id, 'value', event.target.value)}
+                                                        placeholder="Valor ou lista separada por virgula"
+                                                        disabled={source === 'standard' ? !filter.field : !filter.table || !filter.column}
+                                                      />
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              )
+                                            })}
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TAB: powerbi */}
+                  {activeCompanyTab === 'powerbi' && (
+                    <div className="space-y-5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Power BI</p>
+
+                      <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-semibold text-white">Power BI hospedado no portal</h4>
+                            <p className="mt-1 text-sm text-[#b7b0a6]">
+                              Cadastre um ou mais modelos de Power BI para esta empresa e controle os acessos por usuário.
+                            </p>
+                          </div>
+
+                          <label className="portal-checkbox shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={form.powerBiEnabled}
+                              onChange={event =>
+                                setForm(previous => ({
+                                  ...previous,
+                                  powerBiEnabled: event.target.checked,
+                                  powerBiReports:
+                                    event.target.checked && previous.powerBiReports.length === 0
+                                      ? [createEmptyPowerBiReport()]
+                                      : previous.powerBiReports,
+                                }))
+                              }
+                            />
+                            <span>Power BI</span>
+                          </label>
+                        </div>
+
+                        {form.powerBiEnabled ? (
+                          <div className="mt-4 space-y-4">
+                            {form.powerBiReports.length === 0 ? (
+                              <div className="rounded-xl px-4 py-4 text-sm" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.07)', color: '#5c554e' }}>
+                                Nenhum modelo cadastrado ainda. Adicione o primeiro para liberar o catálogo de Power BI.
+                              </div>
+                            ) : null}
+
+                            {form.powerBiReports.map((report, index) => (
+                              <div key={report.id} className="rounded-xl p-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                <div className="mb-4 flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-sm font-semibold text-white">Modelo {index + 1}</p>
+                                    <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#8d867c]">Power BI Embedded</p>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <label className="portal-checkbox">
+                                      <input
+                                        type="checkbox"
+                                        checked={report.enabled !== false}
+                                        onChange={event => updatePowerBiReportField(report.id, 'enabled', event.target.checked)}
+                                      />
+                                      <span>Ativo</span>
+                                    </label>
+                                    <button
+                                      type="button"
+                                      className="inline-flex h-9 items-center justify-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
+                                      onClick={() => removePowerBiReport(report.id)}
+                                    >
+                                      <Trash2 size={15} />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div className="space-y-2 md:col-span-2">
+                                    <label className="portal-label">Nome do modelo</label>
+                                    <input
+                                      className="portal-input"
+                                      value={report.label}
+                                      onChange={event => updatePowerBiReportField(report.id, 'label', event.target.value)}
+                                      placeholder="Ex.: Performance em Vendas"
+                                      required={form.powerBiEnabled}
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <label className="portal-label">Workspace ID</label>
+                                    <input
+                                      className="portal-input"
+                                      value={report.workspaceId}
+                                      onChange={event => updatePowerBiReportField(report.id, 'workspaceId', event.target.value)}
+                                      placeholder="a4f4dbd4-d6ef-43d7-ad10-c7d9426ea112"
+                                      required={form.powerBiEnabled}
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <label className="portal-label">Report ID</label>
+                                    <input
+                                      className="portal-input"
+                                      value={report.reportId}
+                                      onChange={event => updatePowerBiReportField(report.id, 'reportId', event.target.value)}
+                                      placeholder="37daae5a-d2f3-4237-8fc8-c176a3518d21"
+                                      required={form.powerBiEnabled}
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2 md:col-span-2">
+                                    <label className="portal-label">Dataset ID</label>
+                                    <input
+                                      className="portal-input"
+                                      value={report.datasetId}
+                                      onChange={event => updatePowerBiReportField(report.id, 'datasetId', event.target.value)}
+                                      placeholder="17301e64-6e62-4c66-ad24-ee7d3e68e21b"
+                                      required={form.powerBiEnabled}
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <label className="portal-label">Effective identity username</label>
+                                    <input
+                                      className="portal-input"
+                                      value={report.effectiveIdentityUsername || ''}
+                                      onChange={event => updatePowerBiReportField(report.id, 'effectiveIdentityUsername', event.target.value)}
+                                      placeholder="Opcional: email, usuário ou object id"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <label className="portal-label">Papeis RLS</label>
+                                    <input
+                                      className="portal-input"
+                                      value={report.effectiveIdentityRolesText ?? (Array.isArray(report.effectiveIdentityRoles) ? report.effectiveIdentityRoles.join(', ') : '')}
+                                      onChange={event => updatePowerBiReportField(report.id, 'effectiveIdentityRolesText', event.target.value)}
+                                      placeholder="Opcional: Geral, VndAdilson"
+                                    />
+                                    <p className="text-xs text-[#8d867c]">Separe varios papeis por virgula.</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+
+                            <button type="button" className="portal-ghost-button" onClick={addPowerBiReport}>
+                              <Plus size={15} />
+                              Adicionar modelo
                             </button>
                           </div>
-
-                          {(form.orderCompletionRules || []).length > 0 ? (
-                            <div className="space-y-3">
-                              {(form.orderCompletionRules || []).map(rule => {
-                                const supabaseTable = (dashboardFilterOptions?.supabaseTables || []).find(table => table.name === rule.table)
-
-                                return (
-                                  <div key={rule.id} className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <div className="mb-3 flex justify-end">
-                                      <button
-                                        type="button"
-                                        className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
-                                        onClick={() => removeOrderCompletionRule(rule.id)}
-                                      >
-                                        Remover
-                                      </button>
-                                    </div>
-
-                                    <div className="grid gap-3 md:grid-cols-3">
-                                      <select
-                                        className="portal-input"
-                                        value={rule.table || ''}
-                                        onChange={event => updateOrderCompletionRule(rule.id, 'table', event.target.value)}
-                                      >
-                                        <option value="">Selecione a tabela</option>
-                                        {(dashboardFilterOptions?.supabaseTables || []).map(table => (
-                                          <option key={table.name} value={table.name}>
-                                            {table.name}
-                                          </option>
-                                        ))}
-                                      </select>
-
-                                      <select
-                                        className="portal-input"
-                                        value={rule.column || ''}
-                                        onChange={event => updateOrderCompletionRule(rule.id, 'column', event.target.value)}
-                                        disabled={!rule.table}
-                                      >
-                                        <option value="">{rule.table ? 'Selecione a coluna' : 'Escolha a tabela primeiro'}</option>
-                                        {(supabaseTable?.columns || []).map(column => (
-                                          <option key={column} value={column}>
-                                            {column}
-                                          </option>
-                                        ))}
-                                      </select>
-
-                                      <input
-                                        className="portal-input"
-                                        value={rule.value || ''}
-                                        onChange={event => updateOrderCompletionRule(rule.id, 'value', event.target.value)}
-                                        placeholder="Valor ou lista separada por virgula"
-                                        disabled={!rule.table || !rule.column}
-                                      />
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          ) : (
-                            <div className="rounded-xl px-4 py-3 text-sm" style={{ border: '1px dashed rgba(255,255,255,0.07)', color: '#5c554e' }}>
-                              Sem condição adicional. A data de saída continua concluindo o pedido normalmente.
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="space-y-2 md:col-span-2">
-                        <label className="portal-label">Link do dashboard externo</label>
-                        <input
-                          className="portal-input"
-                          value={form.externalDashboardUrl}
-                          onChange={event => setForm(previous => ({ ...previous, externalDashboardUrl: event.target.value }))}
-                          placeholder="https://dashboard-da-empresa.com.br"
-                          required={!form.supabaseEnabled}
-                        />
+                        ) : null}
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h4 className="text-sm font-semibold text-white">Power BI hospedado no portal</h4>
-                      <p className="mt-1 text-sm text-[#b7b0a6]">
-                        Cadastre um ou mais modelos de Power BI para esta empresa e controle os acessos por usuário.
-                      </p>
                     </div>
+                  )}
 
-                    <label className="portal-checkbox shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={form.powerBiEnabled}
-                        onChange={event =>
-                          setForm(previous => ({
-                            ...previous,
-                            powerBiEnabled: event.target.checked,
-                            powerBiReports:
-                              event.target.checked && previous.powerBiReports.length === 0
-                                ? [createEmptyPowerBiReport()]
-                                : previous.powerBiReports,
-                          }))
-                        }
-                      />
-                      <span>Power BI</span>
-                    </label>
-                  </div>
+                  {/* TAB: rules */}
+                  {activeCompanyTab === 'rules' && (
+                    <div className="space-y-5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Regras</p>
 
-                  {form.powerBiEnabled ? (
-                    <div className="mt-4 space-y-4">
-                      {form.powerBiReports.length === 0 ? (
-                        <div className="rounded-xl px-4 py-4 text-sm" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.07)', color: '#5c554e' }}>
-                          Nenhum modelo cadastrado ainda. Adicione o primeiro para liberar o catálogo de Power BI.
-                        </div>
-                      ) : null}
-
-                      {form.powerBiReports.map((report, index) => (
-                        <div key={report.id} className="rounded-xl p-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
-                          <div className="mb-4 flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-white">Modelo {index + 1}</p>
-                              <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#8d867c]">Power BI Embedded</p>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <label className="portal-checkbox">
-                                <input
-                                  type="checkbox"
-                                  checked={report.enabled !== false}
-                                  onChange={event => updatePowerBiReportField(report.id, 'enabled', event.target.checked)}
-                                />
-                                <span>Ativo</span>
-                              </label>
-                              <button
-                                type="button"
-                                className="inline-flex h-9 items-center justify-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
-                                onClick={() => removePowerBiReport(report.id)}
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            </div>
+                      <div className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <label className="portal-label">Pedido concluído quando</label>
+                            <p className="mt-1 text-xs text-[#8d867c]">
+                              O pedido também será tratado como concluído quando bater qualquer condição abaixo.
+                            </p>
                           </div>
-
-                          <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2 md:col-span-2">
-                              <label className="portal-label">Nome do modelo</label>
-                              <input
-                                className="portal-input"
-                                value={report.label}
-                                onChange={event => updatePowerBiReportField(report.id, 'label', event.target.value)}
-                                placeholder="Ex.: Performance em Vendas"
-                                required={form.powerBiEnabled}
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <label className="portal-label">Workspace ID</label>
-                              <input
-                                className="portal-input"
-                                value={report.workspaceId}
-                                onChange={event => updatePowerBiReportField(report.id, 'workspaceId', event.target.value)}
-                                placeholder="a4f4dbd4-d6ef-43d7-ad10-c7d9426ea112"
-                                required={form.powerBiEnabled}
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <label className="portal-label">Report ID</label>
-                              <input
-                                className="portal-input"
-                                value={report.reportId}
-                                onChange={event => updatePowerBiReportField(report.id, 'reportId', event.target.value)}
-                                placeholder="37daae5a-d2f3-4237-8fc8-c176a3518d21"
-                                required={form.powerBiEnabled}
-                              />
-                            </div>
-
-                            <div className="space-y-2 md:col-span-2">
-                              <label className="portal-label">Dataset ID</label>
-                              <input
-                                className="portal-input"
-                                value={report.datasetId}
-                                onChange={event => updatePowerBiReportField(report.id, 'datasetId', event.target.value)}
-                                placeholder="17301e64-6e62-4c66-ad24-ee7d3e68e21b"
-                                required={form.powerBiEnabled}
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <label className="portal-label">Effective identity username</label>
-                              <input
-                                className="portal-input"
-                                value={report.effectiveIdentityUsername || ''}
-                                onChange={event => updatePowerBiReportField(report.id, 'effectiveIdentityUsername', event.target.value)}
-                                placeholder="Opcional: email, usuário ou object id"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <label className="portal-label">Papeis RLS</label>
-                              <input
-                                className="portal-input"
-                                value={report.effectiveIdentityRolesText ?? (Array.isArray(report.effectiveIdentityRoles) ? report.effectiveIdentityRoles.join(', ') : '')}
-                                onChange={event => updatePowerBiReportField(report.id, 'effectiveIdentityRolesText', event.target.value)}
-                                placeholder="Opcional: Geral, VndAdilson"
-                              />
-                              <p className="text-xs text-[#8d867c]">Separe varios papeis por virgula.</p>
-                            </div>
-                          </div>
+                          <button
+                            type="button"
+                            className="portal-ghost-button"
+                            onClick={addOrderCompletionRule}
+                          >
+                            <Plus size={14} />
+                            Adicionar
+                          </button>
                         </div>
-                      ))}
 
-                      <button type="button" className="portal-ghost-button" onClick={addPowerBiReport}>
-                        <Plus size={15} />
-                        Adicionar modelo
-                      </button>
+                        {(form.orderCompletionRules || []).length > 0 ? (
+                          <div className="space-y-3">
+                            {(form.orderCompletionRules || []).map(rule => {
+                              const supabaseTable = (dashboardFilterOptions?.supabaseTables || []).find(table => table.name === rule.table)
+
+                              return (
+                                <div key={rule.id} className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                  <div className="mb-3 flex justify-end">
+                                    <button
+                                      type="button"
+                                      className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
+                                      onClick={() => removeOrderCompletionRule(rule.id)}
+                                    >
+                                      Remover
+                                    </button>
+                                    </div>
+
+                                  <div className="grid gap-3 md:grid-cols-3">
+                                    <select
+                                      className="portal-input"
+                                      value={rule.table || ''}
+                                      onChange={event => updateOrderCompletionRule(rule.id, 'table', event.target.value)}
+                                    >
+                                      <option value="">Selecione a tabela</option>
+                                      {(dashboardFilterOptions?.supabaseTables || []).map(table => (
+                                        <option key={table.name} value={table.name}>
+                                          {table.name}
+                                        </option>
+                                      ))}
+                                    </select>
+
+                                    <select
+                                      className="portal-input"
+                                      value={rule.column || ''}
+                                      onChange={event => updateOrderCompletionRule(rule.id, 'column', event.target.value)}
+                                      disabled={!rule.table}
+                                    >
+                                      <option value="">{rule.table ? 'Selecione a coluna' : 'Escolha a tabela primeiro'}</option>
+                                      {(supabaseTable?.columns || []).map(column => (
+                                        <option key={column} value={column}>
+                                          {column}
+                                        </option>
+                                      ))}
+                                    </select>
+
+                                    <input
+                                      className="portal-input"
+                                      value={rule.value || ''}
+                                      onChange={event => updateOrderCompletionRule(rule.id, 'value', event.target.value)}
+                                      placeholder="Valor ou lista separada por virgula"
+                                      disabled={!rule.table || !rule.column}
+                                    />
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl px-4 py-3 text-sm" style={{ border: '1px dashed rgba(255,255,255,0.07)', color: '#5c554e' }}>
+                            Sem condição adicional. A data de saída continua concluindo o pedido normalmente.
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  ) : null}
-                </div>
+                  )}
 
-                {!hasPremiumLab || form.isPremiumLab ? (
-                  <label className="portal-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={form.isPremiumLab}
-                      onChange={event => setForm(previous => ({ ...previous, isPremiumLab: event.target.checked }))}
-                    />
-                    <span>Marcar como Premium Lab</span>
-                  </label>
-                ) : (
-                  <div className="rounded-2xl bg-[#e3ad5a]/10 px-4 py-3 text-sm text-[#e6d5b7]">
-                    Premium Lab ja esta definida como tenant principal.
-                  </div>
-                )}
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/6 px-6 py-5">
+              {/* Footer */}
+              <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="flex flex-wrap gap-2">
                   {form.id ? (
                     <>
@@ -2676,443 +2736,317 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="overflow-y-auto p-6" style={{ background: '#110f0d' }}>
+              <div className="flex min-h-0 flex-col" style={{ background: '#110f0d', borderLeft: '1px solid rgba(255,255,255,0.04)' }}>
                 {!editingUserId ? (
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-                    <h3 className="text-base font-bold text-white">Selecione um usuário para editar</h3>
-                    <p className="mt-2 text-sm text-[#b7b0a6]">
-                      A edição só aparece após clicar em <strong>Editar</strong> na lista à esquerda.
-                      Para criar um novo usuário, use o botão <strong>Novo usuário</strong>.
-                    </p>
+                  <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
+                    <div
+                      className="flex h-14 w-14 items-center justify-center rounded-2xl"
+                      style={{ background: 'rgba(227,173,90,0.07)', border: '1px solid rgba(227,173,90,0.12)' }}
+                    >
+                      <Pencil size={22} style={{ color: '#c9924a' }} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-white">Selecione um usuário</h3>
+                      <p className="mt-1.5 text-sm" style={{ color: '#5c554e' }}>
+                        Clique em <strong className="text-white">Editar</strong> em qualquer usuário da lista para configurar acessos, filtros e permissões.
+                      </p>
+                    </div>
                   </div>
                 ) : null}
 
                 {editingUserId ? (
-                <form className="space-y-5" onSubmit={handleSaveUser}>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <label className="portal-label">Nome</label>
-                      <input
-                        className="portal-input"
-                        value={userForm.name}
-                        onChange={event => updateUserFormField('name', event.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="portal-label">Email</label>
-                      <input
-                        className="portal-input"
-                        type="email"
-                        value={userForm.email}
-                        onChange={event => updateUserFormField('email', event.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <label className="portal-label">{editingUserId ? 'Nova senha (opcional)' : 'Senha'}</label>
-                      <input
-                        className="portal-input"
-                        type="text"
-                        value={userForm.password}
-                        onChange={event => updateUserFormField('password', event.target.value)}
-                        required={!editingUserId}
-                        placeholder={editingUserId ? 'Preencha so se quiser trocar a senha' : 'Senha de acesso'}
-                      />
-                    </div>
+                <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSaveUser}>
+                  {/* User header */}
+                  <div className="shrink-0 px-6 pt-5 pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#4a4238' }}>Editando usuário</p>
+                    <h3 className="mt-1 text-base font-semibold text-white truncate">{userForm.name || userForm.email || '—'}</h3>
+                    <p className="mt-0.5 text-xs truncate" style={{ color: '#4a4238' }}>{userForm.email}</p>
                   </div>
 
-                  <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <h4 className="text-sm font-semibold text-white">Páginas liberadas</h4>
-                    <div className="mt-3 grid gap-3 md:grid-cols-3">
-                      <label className="portal-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.ANALYSIS]}
-                          onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.ANALYSIS)}
-                          disabled={!managingCompany.supabaseEnabled}
-                        />
-                        <span>Análise de Dados</span>
-                      </label>
-                      <label className="portal-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.PPS]}
-                          onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.PPS)}
-                          disabled={!managingCompany.supabaseEnabled}
-                        />
-                        <span>PPS</span>
-                      </label>
-                      <label className="portal-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD]}
-                          onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)}
-                          disabled={managingCompany.supabaseEnabled || !managingCompany.externalDashboardUrl}
-                        />
-                        <span>Dashboard externo</span>
-                      </label>
-                      <label className="portal-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.POWER_BI]}
-                          onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.POWER_BI)}
-                          disabled={!hasConfiguredPowerBi(managingCompany)}
-                        />
-                        <span>Power BI</span>
-                      </label>
-                    </div>
+                  {/* Tab nav */}
+                  <div className="flex shrink-0 gap-1 px-5 pt-3 pb-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    {[
+                      { key: 'data', label: 'Dados' },
+                      { key: 'access', label: 'Acessos' },
+                      { key: 'filters', label: 'Filtros' },
+                      ...(hasConfiguredPowerBi(managingCompany) ? [{ key: 'powerbi', label: 'Power BI' }] : []),
+                    ].map(tab => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setActiveUserTab(tab.key)}
+                        className="px-4 py-2 text-sm font-medium transition"
+                        style={
+                          activeUserTab === tab.key
+                            ? { color: '#e3ad5a', borderBottom: '2px solid #e3ad5a', marginBottom: '-1px' }
+                            : { color: '#6b6358', borderBottom: '2px solid transparent', marginBottom: '-1px' }
+                        }
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
                   </div>
 
-                  <div className="grid gap-4 xl:grid-cols-2">
-                    {hasConfiguredPowerBi(managingCompany) ? (
-                      <div className="rounded-2xl p-5 xl:col-span-2" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
-                        <div>
-                          <h4 className="text-sm font-semibold text-white">Modelos de Power BI</h4>
-                          <p className="mt-1 text-sm text-[#b7b0a6]">
-                            Controle quais modelos o usuário enxerga, quais páginas de cada relatório ficam acessíveis e quais filtros devem ser aplicados.
-                          </p>
-                        </div>
+                  {/* Tab content */}
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 space-y-4">
 
-                        {powerBiCatalogLoading ? (
-                          <p className="mt-4 text-sm text-[#b7b0a6]">Carregando modelos do relatório...</p>
-                        ) : powerBiCatalogError ? (
-                          <p className="mt-4 text-sm text-[#f0b8b8]">{powerBiCatalogError}</p>
-                        ) : powerBiCatalog.length === 0 ? (
-                          <p className="mt-4 text-sm text-[#b7b0a6]">Nenhum modelo foi encontrado para esta empresa ainda.</p>
-                        ) : (
-                          <div className="mt-4 space-y-4">
-                            {powerBiCatalog.map(report => {
-                              const reportPermission = userForm.permissions.powerBiReports?.[report.id] || {
-                                enabled: true,
-                                pages: [],
-                                filters: [],
-                              }
-                              const allowAllPages = !reportPermission.pages || reportPermission.pages.length === 0
-                              const schemaTables = getReportSchemaTables(report)
-                              const hasSchemaTables = schemaTables.length > 0
-
-                              return (
-                                <div key={report.id} className="rounded-xl p-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
-                                  <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <div>
-                                      <p className="text-sm font-semibold text-white">{report.label || report.reportName}</p>
-                                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#8d867c]">{report.reportName || 'Relatorio Power BI'}</p>
-                                    </div>
-
-                                    <label className="portal-checkbox">
-                                      <input
-                                        type="checkbox"
-                                        checked={reportPermission.enabled !== false}
-                                        onChange={() => toggleUserPowerBiReport(report.id)}
-                                      />
-                                      <span>Mostrar modelo</span>
-                                    </label>
-                                  </div>
-
-                                  <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
-                                    <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                      <div className="flex items-center justify-between gap-3">
-                                        <div>
-                                          <p className="text-sm font-semibold text-white">Páginas liberadas</p>
-                                          <p className="mt-1 text-sm text-[#b7b0a6]">
-                                            Deixe sem marcar para liberar todas ou selecione somente as páginas permitidas.
-                                          </p>
-                                        </div>
-                                        <button
-                                          type="button"
-                                          className="portal-ghost-button"
-                                          onClick={() =>
-                                            setUserForm(previous => ({
-                                              ...previous,
-                                              permissions: {
-                                                ...previous.permissions,
-                                                powerBiReports: {
-                                                  ...previous.permissions.powerBiReports,
-                                                  [report.id]: {
-                                                    ...reportPermission,
-                                                    pages: [],
-                                                  },
-                                                },
-                                              },
-                                            }))
-                                          }
-                                        >
-                                          Todas
-                                        </button>
-                                      </div>
-
-                                      <p className="mt-3 text-xs uppercase tracking-[0.18em] text-[#8d867c]">
-                                        {allowAllPages ? 'Todas as páginas estão liberadas.' : 'Páginas escolhidas manualmente.'}
-                                      </p>
-
-                                      <div className="mt-4 grid gap-2 md:grid-cols-2">
-                                        {(report.pages || []).map(page => (
-                                          <label key={page.name} className="portal-checkbox">
-                                            <input
-                                              type="checkbox"
-                                              checked={allowAllPages ? true : reportPermission.pages.includes(page.name)}
-                                              onChange={() =>
-                                                toggleUserPowerBiReportPage(
-                                                  report.id,
-                                                  page.name,
-                                                  (report.pages || []).map(item => item.name)
-                                                )
-                                              }
-                                            />
-                                            <span>{page.displayName || page.name}</span>
-                                          </label>
-                                        ))}
-                                      </div>
-                                    </div>
-
-                                    <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                      <div className="flex items-center justify-between gap-3">
-                                        <div>
-                                          <p className="text-sm font-semibold text-white">Filtros do usuário</p>
-                                          <p className="mt-1 text-sm text-[#b7b0a6]">
-                                            Aplique filtros permanentes neste modelo para restringir dados por tabela, coluna e valor.
-                                          </p>
-                                        </div>
-                                        <button type="button" className="portal-ghost-button" onClick={() => addUserPowerBiFilter(report.id)}>
-                                          <Plus size={14} />
-                                          Adicionar filtro
-                                        </button>
-                                      </div>
-
-                                      <div className="mt-4 space-y-3">
-                                        {(reportPermission.filters || []).length === 0 ? (
-                                          <p className="text-sm text-[#b7b0a6]">Nenhum filtro configurado para este modelo.</p>
-                                        ) : (
-                                          (reportPermission.filters || []).map(filter => (
-                                            <div key={filter.id} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                              <div className="mb-3 flex justify-end">
-                                                <button
-                                                  type="button"
-                                                  className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
-                                                  onClick={() => removeUserPowerBiFilter(report.id, filter.id)}
-                                                >
-                                                  Remover
-                                                </button>
-                                              </div>
-                                              {!hasSchemaTables ? (
-                                                <p className="mb-3 text-xs text-[#b7b0a6]">
-                                                  Este modelo ainda não expôs a estrutura de tabelas e colunas. Você pode preencher manualmente por enquanto.
-                                                </p>
-                                              ) : null}
-                                              <div className="grid gap-3 md:grid-cols-2">
-                                                {hasSchemaTables ? (
-                                                  <select
-                                                    className="portal-input"
-                                                    value={filter.table}
-                                                    onChange={event =>
-                                                      updateUserPowerBiFilterTable(report.id, filter.id, event.target.value, schemaTables)
-                                                    }
-                                                  >
-                                                    <option value="">Selecione a tabela</option>
-                                                    {schemaTables.map(table => (
-                                                      <option key={table.name} value={table.name}>
-                                                        {table.name}
-                                                      </option>
-                                                    ))}
-                                                  </select>
-                                                ) : (
-                                                  <input
-                                                    className="portal-input"
-                                                    value={filter.table}
-                                                    onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'table', event.target.value)}
-                                                    placeholder="Tabela"
-                                                  />
-                                                )}
-                                                {hasSchemaTables ? (
-                                                  <select
-                                                    className="portal-input"
-                                                    value={filter.column}
-                                                    onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'column', event.target.value)}
-                                                    disabled={!filter.table}
-                                                  >
-                                                    <option value="">{filter.table ? 'Selecione a coluna' : 'Escolha a tabela primeiro'}</option>
-                                                    {(schemaTables.find(table => table.name === filter.table)?.columns || []).map(column => (
-                                                      <option key={column.name} value={column.name}>
-                                                        {column.name}
-                                                      </option>
-                                                    ))}
-                                                  </select>
-                                                ) : (
-                                                  <input
-                                                    className="portal-input"
-                                                    value={filter.column}
-                                                    onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'column', event.target.value)}
-                                                    placeholder="Coluna"
-                                                  />
-                                                )}
-                                                <select
-                                                  className="portal-input"
-                                                  value={filter.operator}
-                                                  onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'operator', event.target.value)}
-                                                >
-                                                  {POWER_BI_FILTER_OPERATORS.map(option => (
-                                                    <option key={option.value} value={option.value}>
-                                                      {option.label}
-                                                    </option>
-                                                  ))}
-                                                </select>
-                                                <input
-                                                  className="portal-input"
-                                                  value={filter.value}
-                                                  onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'value', event.target.value)}
-                                                  placeholder="Valor ou lista separada por virgula"
-                                                />
-                                              </div>
-                                            </div>
-                                          ))
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )
-                            })}
+                    {/* TAB: data */}
+                    {activeUserTab === 'data' && (
+                      <div className="space-y-4">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Dados do usuário</p>
+                        <div className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div className="space-y-2">
+                            <label className="portal-label">Nome</label>
+                            <input className="portal-input" value={userForm.name} onChange={event => updateUserFormField('name', event.target.value)} required />
                           </div>
-                        )}
+                          <div className="space-y-2">
+                            <label className="portal-label">Email</label>
+                            <input className="portal-input" type="email" value={userForm.email} onChange={event => updateUserFormField('email', event.target.value)} required />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="portal-label">Nova senha (opcional)</label>
+                            <input
+                              className="portal-input"
+                              type="text"
+                              value={userForm.password}
+                              onChange={event => updateUserFormField('password', event.target.value)}
+                              required={!editingUserId}
+                              placeholder="Preencha só se quiser trocar a senha"
+                            />
+                          </div>
+                        </div>
                       </div>
-                    ) : null}
+                    )}
 
-                    {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode, sections]) => (
-                      <div key={mode} className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
-                        <h4 className="text-sm font-semibold text-white">
-                          {mode === 'pps' ? 'Visuais do PPS' : 'Visuais da Análise de Dados'}
-                        </h4>
-                        <div className="mt-3 space-y-2">
-                          {sections.map(section => (
-                            <label key={section.key} className="portal-checkbox">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(userForm.permissions.sections[mode]?.[section.key])}
-                                onChange={() => toggleUserSectionPermission(mode, section.key)}
-                                disabled={mode !== 'pps' && !managingCompany.supabaseEnabled}
-                              />
-                              <span>{section.label}</span>
+                    {/* TAB: access */}
+                    {activeUserTab === 'access' && (
+                      <div className="space-y-4">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Acessos e visibilidade</p>
+                        <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <h4 className="text-sm font-semibold text-white">Páginas liberadas</h4>
+                          <div className="mt-3 grid gap-3 md:grid-cols-2">
+                            <label className="portal-checkbox">
+                              <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.ANALYSIS]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.ANALYSIS)} disabled={!managingCompany.supabaseEnabled} />
+                              <span>Análise de Dados</span>
                             </label>
-                          ))}
+                            <label className="portal-checkbox">
+                              <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.PPS]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.PPS)} disabled={!managingCompany.supabaseEnabled} />
+                              <span>PPS</span>
+                            </label>
+                            <label className="portal-checkbox">
+                              <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)} disabled={managingCompany.supabaseEnabled || !managingCompany.externalDashboardUrl} />
+                              <span>Dashboard externo</span>
+                            </label>
+                            <label className="portal-checkbox">
+                              <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.POWER_BI]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.POWER_BI)} disabled={!hasConfiguredPowerBi(managingCompany)} />
+                              <span>Power BI</span>
+                            </label>
+                          </div>
                         </div>
 
-                        <div className="mt-5 rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-white">Filtros do usuário</p>
-                              <p className="mt-1 text-sm text-[#b7b0a6]">
-                                Aplique filtros permanentes usando os mesmos campos visíveis no dashboard deste módulo.
-                              </p>
+                        {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode, sections]) => (
+                          <div key={mode} className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                            <h4 className="text-sm font-semibold text-white">
+                              {mode === 'pps' ? 'Visuais do PPS' : 'Visuais da Análise de Dados'}
+                            </h4>
+                            <div className="mt-3 grid gap-2 md:grid-cols-2">
+                              {sections.map(section => (
+                                <label key={section.key} className="portal-checkbox">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(userForm.permissions.sections[mode]?.[section.key])}
+                                    onChange={() => toggleUserSectionPermission(mode, section.key)}
+                                    disabled={mode !== 'pps' && !managingCompany.supabaseEnabled}
+                                  />
+                                  <span>{section.label}</span>
+                                </label>
+                              ))}
                             </div>
-                            <button type="button" className="portal-ghost-button" onClick={() => addUserDashboardFilter(mode)}>
-                              <Plus size={14} />
-                              Adicionar filtro
-                            </button>
                           </div>
+                        ))}
+                      </div>
+                    )}
 
-                          {dashboardFilterOptionsLoading ? (
-                            <p className="mt-3 text-sm text-[#b7b0a6]">Carregando filtros disponíveis...</p>
-                          ) : null}
-                          {dashboardFilterOptionsError ? (
-                            <p className="mt-3 text-sm text-amber-200">{dashboardFilterOptionsError}</p>
-                          ) : null}
+                    {/* TAB: filters */}
+                    {activeUserTab === 'filters' && (
+                      <div className="space-y-4">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Filtros do usuário</p>
+                        {dashboardFilterOptionsLoading ? <p className="text-sm" style={{ color: '#5c554e' }}>Carregando filtros disponíveis...</p> : null}
+                        {dashboardFilterOptionsError ? <p className="text-sm text-amber-200">{dashboardFilterOptionsError}</p> : null}
 
-                          <div className="mt-4 space-y-3">
+                        {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode]) => (
+                          <div key={mode} className="rounded-2xl p-5 space-y-3" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                            <div className="flex items-center justify-between gap-3">
+                              <h4 className="text-sm font-semibold text-white">{mode === 'pps' ? 'PPS' : 'Análise de Dados'}</h4>
+                              <button type="button" className="portal-ghost-button" onClick={() => addUserDashboardFilter(mode)}>
+                                <Plus size={14} />
+                                Adicionar filtro
+                              </button>
+                            </div>
                             {(userForm.permissions.dashboardFilters?.[mode] || []).length === 0 ? (
-                              <p className="text-sm text-[#b7b0a6]">Nenhum filtro configurado para este modulo.</p>
+                              <p className="text-sm" style={{ color: '#5c554e' }}>Nenhum filtro configurado para este módulo.</p>
                             ) : (
                               (userForm.permissions.dashboardFilters?.[mode] || []).map(filter => (
                                 <div key={filter.id} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
                                   <div className="mb-3 flex justify-end">
-                                    <button
-                                      type="button"
-                                      className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
-                                      onClick={() => removeUserDashboardFilter(mode, filter.id)}
-                                    >
+                                    <button type="button" className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15" onClick={() => removeUserDashboardFilter(mode, filter.id)}>
                                       Remover
                                     </button>
                                   </div>
                                   <div className="grid gap-3 md:grid-cols-2">
-                                    <select
-                                      className="portal-input"
-                                      value={filter.field || ''}
-                                      onChange={event => updateUserDashboardFilterField(mode, filter.id, event.target.value)}
-                                    >
+                                    <select className="portal-input" value={filter.field || ''} onChange={event => updateUserDashboardFilterField(mode, filter.id, event.target.value)}>
                                       <option value="">Selecione o filtro</option>
                                       {getAvailableDashboardFields().map(field => (
-                                        <option key={field.name} value={field.name}>
-                                          {field.label}
-                                        </option>
+                                        <option key={field.name} value={field.name}>{field.label}</option>
                                       ))}
                                     </select>
                                     {(() => {
                                       const filterDefinition = getDashboardFilterDefinition(filter.field)
                                       const fieldOptions = getDashboardFieldOptions(filter.field)
-
                                       if (filterDefinition?.inputType === 'select') {
                                         return (
-                                          <select
-                                            className="portal-input"
-                                            value={filter.value}
-                                            onChange={event => updateUserDashboardFilter(mode, filter.id, 'value', event.target.value)}
-                                            disabled={!filter.field || fieldOptions.length === 0}
-                                          >
-                                            <option value="">
-                                              {!filter.field
-                                                ? 'Escolha o filtro primeiro'
-                                                : fieldOptions.length === 0
-                                                  ? 'Sem opções disponíveis'
-                                                  : 'Selecione um valor'}
-                                            </option>
-                                            {fieldOptions.map(option => (
-                                              <option key={option.value} value={option.value}>
-                                                {option.label}
-                                              </option>
-                                            ))}
+                                          <select className="portal-input" value={filter.value} onChange={event => updateUserDashboardFilter(mode, filter.id, 'value', event.target.value)} disabled={!filter.field || fieldOptions.length === 0}>
+                                            <option value="">{!filter.field ? 'Escolha o filtro primeiro' : fieldOptions.length === 0 ? 'Sem opções disponíveis' : 'Selecione um valor'}</option>
+                                            {fieldOptions.map(option => (<option key={option.value} value={option.value}>{option.label}</option>))}
                                           </select>
                                         )
                                       }
-
                                       return (
-                                        <input
-                                          className="portal-input"
-                                          value={filter.value}
-                                          onChange={event => updateUserDashboardFilter(mode, filter.id, 'value', event.target.value)}
-                                          placeholder="Valor ou lista separada por virgula"
-                                          disabled={!filter.field}
-                                        />
+                                        <input className="portal-input" value={filter.value} onChange={event => updateUserDashboardFilter(mode, filter.id, 'value', event.target.value)} placeholder="Valor ou lista separada por vírgula" disabled={!filter.field} />
                                       )
                                     })()}
-                                    <select
-                                      className="portal-input"
-                                      value={filter.operator}
-                                      onChange={event => updateUserDashboardFilter(mode, filter.id, 'operator', event.target.value)}
-                                    >
-                                      {POWER_BI_FILTER_OPERATORS.map(option => (
-                                        <option key={option.value} value={option.value}>
-                                        {option.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                    <div className="portal-input flex items-center border-dashed text-sm text-[#b7b0a6]">
-                                      {getDashboardFilterDefinition(filter.field)?.inputType === 'select'
-                                        ? 'Valor definido por seleção'
-                                        : 'Valor digitado livremente'}
+                                    <select className="portal-input" value={filter.operator} onChange={event => updateUserDashboardFilter(mode, filter.id, 'operator', event.target.value)}>
+                                      {POWER_BI_FILTER_OPERATORS.map(option => (<option key={option.value} value={option.value}>{option.label}</option>))}
+                                    </select>
+                                    <div className="portal-input flex items-center border-dashed text-sm" style={{ color: '#6b6358' }}>
+                                      {getDashboardFilterDefinition(filter.field)?.inputType === 'select' ? 'Valor definido por seleção' : 'Valor digitado livremente'}
                                     </div>
                                   </div>
                                 </div>
                               ))
                             )}
                           </div>
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+
+                    {/* TAB: powerbi */}
+                    {activeUserTab === 'powerbi' && hasConfiguredPowerBi(managingCompany) && (
+                      <div className="space-y-4">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Power BI</p>
+                        {powerBiCatalogLoading ? <p className="text-sm" style={{ color: '#5c554e' }}>Carregando modelos do relatório...</p> : null}
+                        {powerBiCatalogError ? <p className="text-sm text-red-300">{powerBiCatalogError}</p> : null}
+                        {!powerBiCatalogLoading && !powerBiCatalogError && powerBiCatalog.length === 0 ? (
+                          <p className="text-sm" style={{ color: '#5c554e' }}>Nenhum modelo encontrado para esta empresa.</p>
+                        ) : null}
+                        {powerBiCatalog.map(report => {
+                          const reportPermission = userForm.permissions.powerBiReports?.[report.id] || { enabled: true, pages: [], filters: [] }
+                          const allowAllPages = !reportPermission.pages || reportPermission.pages.length === 0
+                          const schemaTables = getReportSchemaTables(report)
+                          const hasSchemaTables = schemaTables.length > 0
+                          return (
+                            <div key={report.id} className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-white">{report.label || report.reportName}</p>
+                                  <p className="mt-0.5 text-xs uppercase tracking-[0.16em]" style={{ color: '#6b6358' }}>{report.reportName || 'Relatório Power BI'}</p>
+                                </div>
+                                <label className="portal-checkbox">
+                                  <input type="checkbox" checked={reportPermission.enabled !== false} onChange={() => toggleUserPowerBiReport(report.id)} />
+                                  <span>Mostrar modelo</span>
+                                </label>
+                              </div>
+
+                              <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className="text-sm font-semibold text-white">Páginas liberadas</p>
+                                  <button type="button" className="portal-ghost-button" onClick={() => setUserForm(previous => ({ ...previous, permissions: { ...previous.permissions, powerBiReports: { ...previous.permissions.powerBiReports, [report.id]: { ...reportPermission, pages: [] } } } }))}>
+                                    Todas
+                                  </button>
+                                </div>
+                                <p className="mt-2 text-xs uppercase tracking-[0.18em]" style={{ color: '#6b6358' }}>
+                                  {allowAllPages ? 'Todas as páginas estão liberadas.' : 'Páginas escolhidas manualmente.'}
+                                </p>
+                                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                                  {(report.pages || []).map(page => (
+                                    <label key={page.name} className="portal-checkbox">
+                                      <input
+                                        type="checkbox"
+                                        checked={allowAllPages ? true : reportPermission.pages.includes(page.name)}
+                                        onChange={() => toggleUserPowerBiReportPage(report.id, page.name, (report.pages || []).map(item => item.name))}
+                                      />
+                                      <span>{page.displayName || page.name}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className="text-sm font-semibold text-white">Filtros do usuário</p>
+                                  <button type="button" className="portal-ghost-button" onClick={() => addUserPowerBiFilter(report.id)}>
+                                    <Plus size={14} />
+                                    Adicionar filtro
+                                  </button>
+                                </div>
+                                <div className="mt-4 space-y-3">
+                                  {(reportPermission.filters || []).length === 0 ? (
+                                    <p className="text-sm" style={{ color: '#5c554e' }}>Nenhum filtro configurado para este modelo.</p>
+                                  ) : (
+                                    (reportPermission.filters || []).map(filter => (
+                                      <div key={filter.id} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <div className="mb-3 flex justify-end">
+                                          <button type="button" className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15" onClick={() => removeUserPowerBiFilter(report.id, filter.id)}>
+                                            Remover
+                                          </button>
+                                        </div>
+                                        {!hasSchemaTables ? (
+                                          <p className="mb-3 text-xs" style={{ color: '#6b6358' }}>
+                                            Este modelo ainda não expôs a estrutura de tabelas e colunas. Você pode preencher manualmente por enquanto.
+                                          </p>
+                                        ) : null}
+                                        <div className="grid gap-3 md:grid-cols-2">
+                                          {hasSchemaTables ? (
+                                            <select className="portal-input" value={filter.table} onChange={event => updateUserPowerBiFilterTable(report.id, filter.id, event.target.value, schemaTables)}>
+                                              <option value="">Selecione a tabela</option>
+                                              {schemaTables.map(table => (<option key={table.name} value={table.name}>{table.name}</option>))}
+                                            </select>
+                                          ) : (
+                                            <input className="portal-input" value={filter.table} onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'table', event.target.value)} placeholder="Tabela" />
+                                          )}
+                                          {hasSchemaTables ? (
+                                            <select className="portal-input" value={filter.column} onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'column', event.target.value)} disabled={!filter.table}>
+                                              <option value="">{filter.table ? 'Selecione a coluna' : 'Escolha a tabela primeiro'}</option>
+                                              {(schemaTables.find(table => table.name === filter.table)?.columns || []).map(column => (<option key={column.name} value={column.name}>{column.name}</option>))}
+                                            </select>
+                                          ) : (
+                                            <input className="portal-input" value={filter.column} onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'column', event.target.value)} placeholder="Coluna" />
+                                          )}
+                                          <select className="portal-input" value={filter.operator} onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'operator', event.target.value)}>
+                                            {POWER_BI_FILTER_OPERATORS.map(option => (<option key={option.value} value={option.value}>{option.label}</option>))}
+                                          </select>
+                                          <input className="portal-input" value={filter.value} onChange={event => updateUserPowerBiFilter(report.id, filter.id, 'value', event.target.value)} placeholder="Valor ou lista separada por vírgula" />
+                                        </div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3">
+                  {/* Footer */}
+                  <div className="shrink-0 flex items-center justify-end gap-3 px-5 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    <button type="button" className="portal-ghost-button" onClick={() => { setEditingUserId(''); setUserForm(buildEmptyUserForm(managingCompany)) }}>
+                      Cancelar
+                    </button>
                     <button type="submit" className="portal-primary-button">
-                      <UserPlus size={16} />
+                      <UserPlus size={15} />
                       Salvar usuário
                     </button>
                   </div>
