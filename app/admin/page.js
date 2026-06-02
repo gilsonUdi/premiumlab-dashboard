@@ -40,6 +40,8 @@ import {
   DASHBOARD_SECTION_GROUPS,
   buildDefaultDashboardVisualFilters,
   getDashboardFilterDefinition,
+  getExternalDashboardCatalog,
+  hasAnyExternalDashboardConfig,
   normalizeUserPermissions,
   PORTAL_PAGE_KEYS,
   POWER_BI_FILTER_OPERATORS,
@@ -59,6 +61,28 @@ function createEmptyPowerBiReport() {
   }
 }
 
+function createEmptyExternalDashboard() {
+  return {
+    id: `external-dashboard-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    label: '',
+    url: '',
+    enabled: true,
+  }
+}
+
+function getExternalDashboardsForForm(company = {}) {
+  if (Array.isArray(company.externalDashboards) && company.externalDashboards.length > 0) {
+    return company.externalDashboards.map((dashboard, index) => ({
+      id: String(dashboard.id || `external-dashboard-${index + 1}`).trim(),
+      label: String(dashboard.label || dashboard.name || '').trim(),
+      url: String(dashboard.url || dashboard.embedUrl || '').trim(),
+      enabled: dashboard.enabled !== false,
+    }))
+  }
+
+  return getExternalDashboardCatalog(company)
+}
+
 function buildDefaultDashboardFilters() {
   return { analysis: [], pps: [] }
 }
@@ -75,6 +99,7 @@ const emptyForm = {
   supabaseLabel: '',
   dashboardFeedingModel: 'firebird_legacy',
   externalDashboardUrl: '',
+  externalDashboards: [],
   powerBiEnabled: false,
   powerBiEmbedUrl: '',
   powerBiLabel: '',
@@ -144,7 +169,7 @@ function formatCompanyDate(value) {
 function formatCompanyStatus(company) {
   const enabled = []
   if (company.supabaseEnabled) enabled.push('Portal interno')
-  if (company.externalDashboardUrl) enabled.push('Dashboard externo')
+  if (hasAnyExternalDashboardConfig(company)) enabled.push('Dashboard externo')
   if (company.powerBiEnabled) enabled.push('Power BI')
   return enabled.length > 0 ? enabled.join(' + ') : 'Sem ferramenta ativa'
 }
@@ -251,6 +276,7 @@ export default function AdminPage() {
         company.email,
         company.supabaseLabel,
         company.externalDashboardUrl,
+        ...(getExternalDashboardCatalog(company).flatMap(dashboard => [dashboard.label, dashboard.url])),
         company.powerBiEmbedUrl,
         company.powerBiLabel,
         company.powerBiWorkspaceId,
@@ -572,6 +598,16 @@ export default function AdminPage() {
             .filter(report => report.workspaceId && report.reportId)
         : []
       const primaryReport = normalizedReports[0] || null
+      const normalizedExternalDashboards = form.externalDashboards
+        .map((dashboard, index) => ({
+          ...dashboard,
+          id: String(dashboard.id || `dashboard-externo-${index + 1}`).trim(),
+          label: String(dashboard.label || '').trim(),
+          url: String(dashboard.url || '').trim(),
+          enabled: dashboard.enabled !== false,
+        }))
+        .filter(dashboard => dashboard.url)
+      const primaryExternalDashboard = normalizedExternalDashboards.find(dashboard => dashboard.enabled !== false) || null
       const nextState = await upsertCompany(state, {
         ...form,
         id: form.id || slug,
@@ -587,6 +623,8 @@ export default function AdminPage() {
         orderCompletionRules: form.orderCompletionRules,
         limitByCompanyCodeEnabled: form.limitByCompanyCodeEnabled,
         companyCodeFilter: form.companyCodeFilter,
+        externalDashboards: normalizedExternalDashboards,
+        externalDashboardUrl: primaryExternalDashboard?.url || '',
         powerBiReports: normalizedReports,
         powerBiEnabled: form.powerBiEnabled && normalizedReports.length > 0,
         powerBiLabel: primaryReport?.label || '',
@@ -620,6 +658,7 @@ export default function AdminPage() {
       supabaseLabel: company.supabaseLabel || '',
       dashboardFeedingModel: company.dashboardFeedingModel || company.dashboardDataSource || company.dashboardDataSourceType || 'firebird_legacy',
       externalDashboardUrl: company.externalDashboardUrl || '',
+      externalDashboards: getExternalDashboardsForForm(company),
       powerBiEnabled: company.powerBiEnabled === true,
       powerBiEmbedUrl: company.powerBiEmbedUrl || '',
       powerBiLabel: company.powerBiLabel || '',
@@ -1197,6 +1236,27 @@ export default function AdminPage() {
           [mode]: (previous.permissions.dashboardFilters?.[mode] || []).filter(filter => filter.id !== filterId),
         },
       },
+    }))
+  }
+
+  const updateExternalDashboardField = (dashboardId, field, value) => {
+    setForm(previous => ({
+      ...previous,
+      externalDashboards: previous.externalDashboards.map(dashboard => (dashboard.id === dashboardId ? { ...dashboard, [field]: value } : dashboard)),
+    }))
+  }
+
+  const addExternalDashboard = () => {
+    setForm(previous => ({
+      ...previous,
+      externalDashboards: [...previous.externalDashboards, createEmptyExternalDashboard()],
+    }))
+  }
+
+  const removeExternalDashboard = dashboardId => {
+    setForm(previous => ({
+      ...previous,
+      externalDashboards: previous.externalDashboards.filter(dashboard => dashboard.id !== dashboardId),
     }))
   }
 
@@ -2000,17 +2060,74 @@ export default function AdminPage() {
                           </div>
                         ) : null}
 
-                        <div className="mt-5 space-y-2">
-                          <label className="portal-label">Link do dashboard externo</label>
-                          <input
-                            className="portal-input"
-                            value={form.externalDashboardUrl}
-                            onChange={event => setForm(previous => ({ ...previous, externalDashboardUrl: event.target.value }))}
-                            placeholder="https://dashboard-da-empresa.com.br"
-                          />
-                          <p className="text-xs text-[#8d867c]">
-                            Opcional. Quando preenchido, o portal mostra o dashboard externo mesmo se o portal interno tambem estiver ativo.
-                          </p>
+                        <div className="mt-5 space-y-4 rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <h4 className="text-sm font-semibold text-white">Dashboards externos</h4>
+                              <p className="mt-1 text-sm text-[#b7b0a6]">
+                                Cadastre um ou mais links externos para aparecerem em uma tela de escolha no portal da empresa.
+                              </p>
+                            </div>
+                            <button type="button" className="portal-ghost-button shrink-0" onClick={addExternalDashboard}>
+                              <Plus size={14} />
+                              Adicionar
+                            </button>
+                          </div>
+
+                          {form.externalDashboards.length === 0 ? (
+                            <div className="rounded-xl px-4 py-4 text-sm" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.07)', color: '#5c554e' }}>
+                              Nenhum dashboard externo cadastrado. Adicione um link para liberar o card no portal.
+                            </div>
+                          ) : null}
+
+                          {form.externalDashboards.map((dashboard, index) => (
+                            <div key={dashboard.id} className="rounded-xl p-4" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.06)' }}>
+                              <div className="mb-4 flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-white">Dashboard externo {index + 1}</p>
+                                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#8d867c]">Link incorporado</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <label className="portal-checkbox">
+                                    <input
+                                      type="checkbox"
+                                      checked={dashboard.enabled !== false}
+                                      onChange={event => updateExternalDashboardField(dashboard.id, 'enabled', event.target.checked)}
+                                    />
+                                    <span>Ativo</span>
+                                  </label>
+                                  <button
+                                    type="button"
+                                    className="inline-flex h-9 items-center justify-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15"
+                                    onClick={() => removeExternalDashboard(dashboard.id)}
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                  <label className="portal-label">Nome do dashboard</label>
+                                  <input
+                                    className="portal-input"
+                                    value={dashboard.label}
+                                    onChange={event => updateExternalDashboardField(dashboard.id, 'label', event.target.value)}
+                                    placeholder="Ex.: Vendas comerciais"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="portal-label">URL</label>
+                                  <input
+                                    className="portal-input"
+                                    value={dashboard.url}
+                                    onChange={event => updateExternalDashboardField(dashboard.id, 'url', event.target.value)}
+                                    placeholder="https://dashboard-da-empresa.com.br"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -2838,7 +2955,7 @@ export default function AdminPage() {
                               <span>PPS</span>
                             </label>
                             <label className="portal-checkbox">
-                              <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)} disabled={!managingCompany.externalDashboardUrl} />
+                              <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)} disabled={!hasAnyExternalDashboardConfig(managingCompany)} />
                               <span>Dashboard externo</span>
                             </label>
                             <label className="portal-checkbox">
@@ -3106,7 +3223,7 @@ export default function AdminPage() {
                         <span>PPS</span>
                       </label>
                       <label className="portal-checkbox">
-                        <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)} disabled={!managingCompany.externalDashboardUrl} />
+                        <input type="checkbox" checked={userForm.permissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD]} onChange={() => toggleUserPagePermission(PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)} disabled={!hasAnyExternalDashboardConfig(managingCompany)} />
                         <span>Dashboard externo</span>
                       </label>
                       <label className="portal-checkbox">

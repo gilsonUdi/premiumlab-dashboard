@@ -14,7 +14,7 @@ import {
   loadCompanyState,
 } from '@/lib/portal-store'
 import { getFirebaseServices } from '@/lib/firebase-client'
-import { canAccessPortalPage, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
+import { canAccessPortalPage, hasAnyExternalDashboardConfig, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
 import { hasAnyPowerBiConfig } from '@/lib/power-bi'
 
 const TOOL_CARDS = [
@@ -308,7 +308,7 @@ export default function CompanyHomePage({ slug }) {
           })
       : []
   const canUseExternalDashboard =
-    company.externalDashboardUrl &&
+    hasAnyExternalDashboardConfig(company) &&
     canAccessPortalPage(company, userPermissions, PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)
 
   return (

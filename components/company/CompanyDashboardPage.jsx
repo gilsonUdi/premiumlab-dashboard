@@ -10,7 +10,7 @@ import {
   getCurrentPortalSession,
   loadCompanyState,
 } from '@/lib/portal-store'
-import { canAccessPortalPage, getSectionVisibility, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
+import { canAccessPortalPage, getExternalDashboardConfigFromCompany, getSectionVisibility, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
 import { getPowerBiConfigFromCompany, hasAnyPowerBiConfig } from '@/lib/power-bi'
 
 function PlaceholderTool({ company }) {
@@ -56,7 +56,7 @@ function EmbeddedToolFrame({ company, src, backHref }) {
   )
 }
 
-export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiReportKey = '' }) {
+export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiReportKey = '', externalDashboardKey = '' }) {
   const router = useRouter()
   const [state, setState] = useState(null)
   const [session, setSession] = useState(null)
@@ -74,7 +74,7 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
         }
 
         if (currentSession.type === 'company' && currentSession.companySlug !== slug) {
-          const targetMode = mode === 'pps' ? 'pps' : mode === 'power-bi' ? `power-bi${powerBiReportKey ? `/${powerBiReportKey}` : ''}` : mode === 'external' ? 'externo' : 'dashboard'
+          const targetMode = mode === 'pps' ? 'pps' : mode === 'power-bi' ? `power-bi${powerBiReportKey ? `/${powerBiReportKey}` : ''}` : mode === 'external' ? `externo${externalDashboardKey ? `/${externalDashboardKey}` : ''}` : 'dashboard'
           router.replace(`/empresa/${currentSession.companySlug}/${targetMode}`)
           return
         }
@@ -95,14 +95,16 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
     return () => {
       active = false
     }
-  }, [mode, powerBiReportKey, router, slug])
+  }, [externalDashboardKey, mode, powerBiReportKey, router, slug])
 
   const company = useMemo(() => {
     if (!state) return null
     return getCompanyBySlug(state, slug) || (session?.companyId ? getCompanyById(state, session.companyId) : null)
   }, [session?.companyId, slug, state])
 
-  const isExternalDashboard = (mode === 'external' || (mode !== 'power-bi' && mode !== 'pps' && !company?.supabaseEnabled)) && Boolean(company?.externalDashboardUrl)
+  const selectedExternalDashboard = mode === 'external' ? getExternalDashboardConfigFromCompany(company || {}, externalDashboardKey) : null
+  const externalDashboardUrl = selectedExternalDashboard?.url || (!externalDashboardKey ? company?.externalDashboardUrl : '')
+  const isExternalDashboard = (mode === 'external' || (mode !== 'power-bi' && mode !== 'pps' && !company?.supabaseEnabled)) && Boolean(externalDashboardUrl)
   const selectedPowerBiReport = mode === 'power-bi' ? getPowerBiConfigFromCompany(company || {}, powerBiReportKey) : null
   const isEmbeddedPowerBi = mode === 'power-bi' && Boolean(selectedPowerBiReport?.workspaceId) && Boolean(selectedPowerBiReport?.reportId)
   const isLegacyPowerBi = mode === 'power-bi' && Boolean(selectedPowerBiReport?.embedUrl) && !isEmbeddedPowerBi
@@ -139,7 +141,7 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
   }
 
   if (isExternalDashboard) {
-    return <EmbeddedToolFrame company={company} src={company.externalDashboardUrl} backHref={`/empresa/${company.slug}`} />
+    return <EmbeddedToolFrame company={company} src={externalDashboardUrl} backHref={`/empresa/${company.slug}/externo`} />
   }
 
   if (mode === 'external') {

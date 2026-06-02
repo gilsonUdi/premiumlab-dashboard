@@ -1,5 +1,5 @@
-import CompanyDashboardPage from '@/components/company/CompanyDashboardPage'
+import ExternalDashboardCatalogPage from '@/components/company/ExternalDashboardCatalogPage'
 
 export default function CompanyExternalDashboardRoute({ params }) {
-  return <CompanyDashboardPage slug={params.slug} mode="external" />
+  return <ExternalDashboardCatalogPage slug={params.slug} />
 }

@@ -9,6 +9,7 @@ import {
 } from '@/lib/server-auth'
 import {
   buildDefaultUserPermissions,
+  hasAnyExternalDashboardConfig,
   normalizeCompanyPortalSettings,
   normalizeUserPermissions,
   PORTAL_PAGE_KEYS,
@@ -58,6 +59,7 @@ function normalizeCompanyPayload(payload = {}) {
     dashboardMode: payload.dashboardMode || (payload.isPremiumLab ? 'premium' : 'external'),
     supabaseEnabled: portalSettings.supabaseEnabled,
     externalDashboardUrl: portalSettings.externalDashboardUrl,
+    externalDashboards: portalSettings.externalDashboards,
     powerBiEnabled: portalSettings.powerBiEnabled,
     powerBiEmbedUrl: portalSettings.powerBiEmbedUrl,
     powerBiLabel: portalSettings.powerBiLabel,
@@ -154,6 +156,7 @@ export async function POST(request) {
         dashboardMode: company.dashboardMode,
         supabaseEnabled: company.supabaseEnabled,
         externalDashboardUrl: company.externalDashboardUrl,
+        externalDashboards: company.externalDashboards,
         powerBiEnabled: company.powerBiEnabled,
         powerBiEmbedUrl: company.powerBiEmbedUrl,
         powerBiLabel: company.powerBiLabel,
@@ -183,7 +186,7 @@ export async function POST(request) {
 
     ownerPermissions.pages[PORTAL_PAGE_KEYS.ANALYSIS] = company.supabaseEnabled
     ownerPermissions.pages[PORTAL_PAGE_KEYS.PPS] = company.supabaseEnabled
-    ownerPermissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD] = Boolean(company.externalDashboardUrl)
+    ownerPermissions.pages[PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD] = hasAnyExternalDashboardConfig(company)
     ownerPermissions.pages[PORTAL_PAGE_KEYS.POWER_BI] =
       company.powerBiEnabled && company.powerBiReports.length > 0
 
