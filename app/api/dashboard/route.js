@@ -2154,11 +2154,37 @@ function getApiCachePayloadList(orderRow = {}, key = '') {
 }
 
 function isApiCacheCanceledOrder(orderRow = {}) {
-  const tracking = getApiCachePayloadList(orderRow, 'tracking')
-  return tracking.some(step => {
-    const code = String(step?.locationCode || '').trim()
-    const description = normalizeApiCacheMarker(step?.locationDescription || step?.description || step?.observation || '')
-    return code === '43' || description.includes('CANCELAMENTO DO PEDIDO')
+  const payload = orderRow.payload && typeof orderRow.payload === 'object' ? orderRow.payload : {}
+  const topLevelMarker = normalizeApiCacheMarker([
+    orderRow.status,
+    payload.status,
+    payload.situacao,
+    payload.orderStatus,
+    payload.currentCell,
+    payload.canceled,
+    payload.cancelled,
+    payload.cancelado,
+  ].filter(Boolean).join(' '))
+
+  if (topLevelMarker.includes('CANCEL')) return true
+
+  const movements = [
+    ...getApiCachePayloadList(orderRow, 'tracking'),
+    ...getApiCachePayloadList(orderRow, 'routes'),
+    ...getApiCachePayloadList(orderRow, 'occurrences'),
+  ]
+
+  return movements.some(step => {
+    const code = String(step?.locationCode ?? step?.warehouseCode ?? step?.code ?? '').trim()
+    const marker = normalizeApiCacheMarker([
+      step?.locationDescription,
+      step?.warehouseDescription,
+      step?.description,
+      step?.observation,
+      step?.currentCell,
+      step?.status,
+    ].filter(Boolean).join(' '))
+    return code === '43' || marker.includes('CANCEL')
   })
 }
 
