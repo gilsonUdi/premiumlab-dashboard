@@ -2051,31 +2051,6 @@ export default function AdminPage() {
                               </p>
                             </div>
 
-                            <div className="space-y-2">
-                              <label className="portal-label">Codigos de perda</label>
-                              <input
-                                className="portal-input"
-                                value={form.lossFinalityCodesText}
-                                onChange={event => setForm(previous => ({ ...previous, lossFinalityCodesText: event.target.value }))}
-                                placeholder="Ex.: 2, 4, 30"
-                              />
-                              <p className="text-xs text-[#8d867c]">
-                                Informe os codigos da PEDFINALIDADE que representam perda nesta empresa, separados por virgula.
-                              </p>
-                            </div>
-
-                            <div className="space-y-2">
-                              <label className="portal-label">Codigos de cancelamento na API</label>
-                              <input
-                                className="portal-input"
-                                value={form.apiCancellationCodesText}
-                                onChange={event => setForm(previous => ({ ...previous, apiCancellationCodesText: event.target.value }))}
-                                placeholder="Ex.: 43, 4"
-                              />
-                              <p className="text-xs text-[#8d867c]">
-                                Na alimentacao por API, pedidos que passarem por estes codigos de celula/local serao desconsiderados dos dashboards.
-                              </p>
-                            </div>
                           </div>
                         ) : null}
 
@@ -2621,6 +2596,41 @@ export default function AdminPage() {
                   {activeCompanyTab === 'rules' && (
                     <div className="space-y-5">
                       <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Regras</p>
+
+                      <div className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div>
+                          <h4 className="text-sm font-semibold text-white">Regras de perda e cancelamento</h4>
+                          <p className="mt-1 text-xs text-[#8d867c]">
+                            Configure codigos por empresa para manter as regras dos dashboards alinhadas ao modelo de alimentacao usado pelo tenant.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="portal-label">Codigos de perda</label>
+                          <input
+                            className="portal-input"
+                            value={form.lossFinalityCodesText}
+                            onChange={event => setForm(previous => ({ ...previous, lossFinalityCodesText: event.target.value }))}
+                            placeholder="Ex.: 2, 4, 30"
+                          />
+                          <p className="text-xs text-[#8d867c]">
+                            Informe os codigos da PEDFINALIDADE que representam perda nesta empresa, separados por virgula.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="portal-label">Codigos de cancelamento na API</label>
+                          <input
+                            className="portal-input"
+                            value={form.apiCancellationCodesText}
+                            onChange={event => setForm(previous => ({ ...previous, apiCancellationCodesText: event.target.value }))}
+                            placeholder="Ex.: 43, 4"
+                          />
+                          <p className="text-xs text-[#8d867c]">
+                            Na alimentacao por API, pedidos que passarem por estes codigos de celula/local serao desconsiderados dos dashboards.
+                          </p>
+                        </div>
+                      </div>
 
                       <div className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
                         <div className="flex items-center justify-between gap-3">

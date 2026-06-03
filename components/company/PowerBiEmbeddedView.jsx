@@ -309,26 +309,26 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
                   }}
                 >
-                  <div className="flex h-12 items-center justify-between gap-3 px-3 sm:px-5">
-                    <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-9 items-center justify-between gap-2 px-3 sm:px-4">
+                    <div className="flex min-w-0 items-center gap-2">
                       <Link
                         href={`/empresa/${company.slug}`}
                         aria-label="Voltar ao portal"
-                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-white transition md:hidden"
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white transition md:hidden"
                         style={{ background: 'rgba(255,255,255,0.05)', color: '#8a8278' }}
                       >
-                        <ArrowLeft size={16} />
+                        <ArrowLeft size={14} />
                       </Link>
-                      <span className="truncate text-[11px] font-bold uppercase tracking-[0.24em]" style={{ color: '#c9924a' }}>
+                      <span className="truncate text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: '#c9924a' }}>
                         GSControladoria
                       </span>
                     </div>
                     <button
                       type="button"
-                      className="portal-ghost-button h-8 gap-1.5 px-3 text-xs"
+                      className="portal-ghost-button h-7 gap-1.5 px-2.5 text-xs"
                       onClick={toggleFullscreen}
                     >
-                      <Maximize2 size={13} />
+                      <Maximize2 size={12} />
                       {isFullscreen ? 'Sair' : 'Tela cheia'}
                     </button>
                   </div>
