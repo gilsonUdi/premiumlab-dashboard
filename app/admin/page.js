@@ -113,6 +113,7 @@ const emptyForm = {
   limitByCompanyCodeEnabled: false,
   companyCodeFilter: '',
   lossFinalityCodesText: '',
+  apiCancellationCodesText: '43',
   tools: ['dashboard'],
   isPremiumLab: false,
 }
@@ -617,6 +618,10 @@ export default function AdminPage() {
           .split(',')
           .map(code => String(code || '').trim())
           .filter(Boolean),
+        apiCancellationCodes: String(form.apiCancellationCodesText || '')
+          .split(',')
+          .map(code => String(code || '').trim())
+          .filter(Boolean),
         dashboardFilters: form.dashboardFilters,
         dashboardVisualFilters: form.dashboardVisualFilters,
         dashboardFeedingModel: form.dashboardFeedingModel,
@@ -672,6 +677,7 @@ export default function AdminPage() {
       limitByCompanyCodeEnabled: company.limitByCompanyCodeEnabled === true,
       companyCodeFilter: company.companyCodeFilter || '',
       lossFinalityCodesText: Array.isArray(company.lossFinalityCodes) ? company.lossFinalityCodes.join(', ') : '',
+      apiCancellationCodesText: Array.isArray(company.apiCancellationCodes) && company.apiCancellationCodes.length > 0 ? company.apiCancellationCodes.join(', ') : '43',
       tools: company.tools || ['dashboard'],
       isPremiumLab: company.isPremiumLab,
     })
@@ -2055,6 +2061,19 @@ export default function AdminPage() {
                               />
                               <p className="text-xs text-[#8d867c]">
                                 Informe os codigos da PEDFINALIDADE que representam perda nesta empresa, separados por virgula.
+                              </p>
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="portal-label">Codigos de cancelamento na API</label>
+                              <input
+                                className="portal-input"
+                                value={form.apiCancellationCodesText}
+                                onChange={event => setForm(previous => ({ ...previous, apiCancellationCodesText: event.target.value }))}
+                                placeholder="Ex.: 43, 4"
+                              />
+                              <p className="text-xs text-[#8d867c]">
+                                Na alimentacao por API, pedidos que passarem por estes codigos de celula/local serao desconsiderados dos dashboards.
                               </p>
                             </div>
                           </div>

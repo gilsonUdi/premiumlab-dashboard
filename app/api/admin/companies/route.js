@@ -44,6 +44,12 @@ function normalizeCompanyPayload(payload = {}) {
         .split(',')
         .map(code => String(code || '').trim())
         .filter(Boolean)
+  const apiCancellationCodes = Array.isArray(payload.apiCancellationCodes)
+    ? payload.apiCancellationCodes
+    : String(payload.apiCancellationCodes || '')
+        .split(',')
+        .map(code => String(code || '').trim())
+        .filter(Boolean)
 
   return {
     id: payload.id || slug,
@@ -74,6 +80,7 @@ function normalizeCompanyPayload(payload = {}) {
     limitByCompanyCodeEnabled: portalSettings.limitByCompanyCodeEnabled,
     companyCodeFilter: portalSettings.companyCodeFilter,
     lossFinalityCodes: [...new Set(lossFinalityCodes)],
+    apiCancellationCodes: [...new Set(apiCancellationCodes)],
     createdAt: payload.createdAt || new Date().toISOString(),
   }
 }
@@ -171,6 +178,7 @@ export async function POST(request) {
         limitByCompanyCodeEnabled: company.limitByCompanyCodeEnabled,
         companyCodeFilter: company.companyCodeFilter,
         lossFinalityCodes: company.lossFinalityCodes,
+        apiCancellationCodes: company.apiCancellationCodes,
         authUid: authUser.uid,
         hasServiceRoleKey: Boolean(supabaseServiceRoleKey),
         createdAt: existingCompany?.createdAt || company.createdAt,

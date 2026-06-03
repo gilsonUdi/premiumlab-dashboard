@@ -6,6 +6,7 @@ import {
   getCompanyDashboardFeedingModel,
   getCompanyDashboardFilters,
   getCompanyDashboardVisualFilters,
+  getCompanyApiCancellationCodes,
   getCompanyOrderCompletionRules,
   getDashboardFilters,
   normalizeUserPermissions,
@@ -2153,8 +2154,15 @@ function getApiCachePayloadList(orderRow = {}, key = '') {
   return Array.isArray(payload[key]) ? payload[key] : []
 }
 
-function isApiCacheCanceledOrder(orderRow = {}) {
+function normalizeApiCancellationCodes(value = []) {
+  const rawCodes = Array.isArray(value) ? value : String(value || '').split(',')
+  const codes = rawCodes.map(code => String(code || '').trim()).filter(Boolean)
+  return codes.length > 0 ? [...new Set(codes)] : ['43']
+}
+
+function isApiCacheCanceledOrder(orderRow = {}, cancellationCodes = ['43']) {
   const payload = orderRow.payload && typeof orderRow.payload === 'object' ? orderRow.payload : {}
+  const cancellationCodeSet = new Set(normalizeApiCancellationCodes(cancellationCodes))
   const topLevelMarker = normalizeApiCacheMarker([
     orderRow.status,
     payload.status,
@@ -2175,16 +2183,25 @@ function isApiCacheCanceledOrder(orderRow = {}) {
   ]
 
   return movements.some(step => {
-    const code = String(step?.locationCode ?? step?.warehouseCode ?? step?.code ?? '').trim()
+    const stepCodes = [
+      step?.locationCode,
+      step?.warehouseCode,
+      step?.warehouse?.id,
+      step?.location?.id,
+      step?.cellCode,
+      step?.code,
+    ].map(code => String(code ?? '').trim()).filter(Boolean)
     const marker = normalizeApiCacheMarker([
       step?.locationDescription,
       step?.warehouseDescription,
+      step?.warehouse?.description,
+      step?.location?.description,
       step?.description,
       step?.observation,
       step?.currentCell,
       step?.status,
     ].filter(Boolean).join(' '))
-    return code === '43' || marker.includes('CANCEL')
+    return stepCodes.some(code => cancellationCodeSet.has(code)) || marker.includes('CANCEL')
   })
 }
 
@@ -2263,6 +2280,7 @@ async function buildApiCacheDashboardPayload({
   dashboardVisualFilters = {},
   orderCompletionRules = [],
   companyCodeFilter = null,
+  apiCancellationCodes = ['43'],
   now,
 }) {
   const fallbackStart = format(addDays(new Date(), -30), 'yyyy-MM-dd')
@@ -2323,7 +2341,7 @@ async function buildApiCacheDashboardPayload({
   if (eventsRes.error) throw new Error(`gradual_cache_events: ${eventsRes.error.message}`)
 
   const filteredOrdersData = filterApiCacheOrdersByCompanyCode(ordersRes.data || [], companyCodeFilter)
-    .filter(row => !isApiCacheCanceledOrder(row))
+    .filter(row => !isApiCacheCanceledOrder(row, apiCancellationCodes))
   const allowedOrderIdSet = new Set(filteredOrdersData.map(row => String(row.order_id || '').trim()).filter(Boolean))
   const filteredItemsData = (itemsRes.data || []).filter(row => allowedOrderIdSet.has(String(row.order_id || '').trim()))
   const filteredEventsData = (eventsRes.data || []).filter(row => allowedOrderIdSet.has(String(row.order_id || '').trim()))
@@ -2756,6 +2774,7 @@ export async function GET(request) {
     const dashboardFeedingModel = getCompanyDashboardFeedingModel(company)
     const orderCompletionRules = getCompanyOrderCompletionRules(company)
     const companyCodeFilter = getCompanyCodeFilter(company)
+    const apiCancellationCodes = getCompanyApiCancellationCodes(company)
     const { url: supabaseUrl, serviceRoleKey: supabaseServiceRoleKey } = resolveSupabaseConfig(company, companySecrets)
 
     const supabase = (() => {
@@ -2786,6 +2805,7 @@ export async function GET(request) {
         dashboardVisualFilters,
         orderCompletionRules,
         companyCodeFilter,
+        apiCancellationCodes,
         now,
       })
       return NextResponse.json(payload, { headers: NO_STORE_HEADERS })
