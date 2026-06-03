@@ -2141,6 +2141,64 @@ function mapApiCacheRouteSteps(orderRow = {}, expectedDate, now) {
   })
 }
 
+function normalizeApiCacheMarker(value) {
+  return normalizeText(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+}
+
+function getApiCachePayloadList(orderRow = {}, key = '') {
+  const payload = orderRow.payload && typeof orderRow.payload === 'object' ? orderRow.payload : {}
+  return Array.isArray(payload[key]) ? payload[key] : []
+}
+
+function isApiCacheCanceledOrder(orderRow = {}) {
+  const tracking = getApiCachePayloadList(orderRow, 'tracking')
+  return tracking.some(step => {
+    const code = String(step?.locationCode || '').trim()
+    const description = normalizeApiCacheMarker(step?.locationDescription || step?.description || step?.observation || '')
+    return code === '43' || description.includes('CANCELAMENTO DO PEDIDO')
+  })
+}
+
+function hasApiCacheFinancialMovement(orderRow = {}) {
+  const payloadProducts = [
+    ...getApiCachePayloadList(orderRow, 'products'),
+    ...getApiCachePayloadList(orderRow, 'services'),
+  ]
+
+  if (payloadProducts.some(item => normalizeApiCacheMarker(item?.moveFinancial) === 'YES')) return true
+
+  const tracking = getApiCachePayloadList(orderRow, 'tracking')
+  return tracking.some(step => normalizeApiCacheMarker(step?.locationDescription).includes('FINANCEIRO APROVADO'))
+}
+
+function buildApiCachePayloadProducts(orderRow = {}, order = null) {
+  const payloadProducts = [
+    ...getApiCachePayloadList(orderRow, 'products'),
+    ...getApiCachePayloadList(orderRow, 'services'),
+  ]
+  if (payloadProducts.length === 0) return []
+
+  const orderId = String(orderRow.order_id || order?.pedidoId || '').trim()
+  return payloadProducts.map((item, index) => {
+    const moveFinancial = String(item?.moveFinancial || '').trim()
+    return {
+      pedcodigo: order?.pedcodigo || normalizeOrderCode(orderId),
+      pedidoId: orderId,
+      status: order?.saida ? 'Saida' : 'Em Producao',
+      procodigo: String(item?.code || item?.productCode || item?.procodigo || item?.id || `item-${index + 1}`).trim(),
+      prodescricao: normalizeText(item?.description || item?.productLineDescription || item?.prodescricao || 'Produto sem descricao'),
+      quantidade: Number(item?.quantity ?? item?.quantidade ?? 0) || 0,
+      missingQuantity: Number(item?.missingQuantity ?? item?.lossQuantity ?? item?.perdaQuantidade ?? 0) || 0,
+      moveFinancial,
+      gerouFinanceiro: normalizeApiCacheMarker(moveFinancial) === 'YES' ? 'Sim' : normalizeApiCacheMarker(moveFinancial) === 'NO' ? 'Nao' : '',
+      clinome: order?.clinome || '',
+    }
+  })
+}
+
 async function buildApiCacheDashboardPayload({
   supabase,
   company,
@@ -2175,6 +2233,7 @@ async function buildApiCacheDashboardPayload({
   const procodigoFilters = parseCsvParam(searchParams, 'procodigo')
   const prodescricaoFilters = parseCsvParam(searchParams, 'prodescricao')
   const productQuantidadeFilters = parseCsvParam(searchParams, 'productQuantidade')
+  const productFinancialFilters = parseCsvParam(searchParams, 'productFinancial')
   const customerIndiceFilters = parseCsvParam(searchParams, 'customerIndice')
   const customerMediaDiasFilters = parseCsvParam(searchParams, 'customerMediaDias')
   const shouldLoadTraceability = pedcodigoValues.length > 0
@@ -2210,6 +2269,7 @@ async function buildApiCacheDashboardPayload({
   if (eventsRes.error) throw new Error(`gradual_cache_events: ${eventsRes.error.message}`)
 
   const filteredOrdersData = filterApiCacheOrdersByCompanyCode(ordersRes.data || [], companyCodeFilter)
+    .filter(row => !isApiCacheCanceledOrder(row))
   const allowedOrderIdSet = new Set(filteredOrdersData.map(row => String(row.order_id || '').trim()).filter(Boolean))
   const filteredItemsData = (itemsRes.data || []).filter(row => allowedOrderIdSet.has(String(row.order_id || '').trim()))
   const filteredEventsData = (eventsRes.data || []).filter(row => allowedOrderIdSet.has(String(row.order_id || '').trim()))
@@ -2242,8 +2302,10 @@ async function buildApiCacheDashboardPayload({
     const route = mapApiCacheRouteSteps(row, expectedDate, now)
     const relatedItems = itemsByOrder.get(orderId) || []
     const itemQty = relatedItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0)
+    const payloadProducts = buildApiCachePayloadProducts(row)
+    const payloadProductQty = payloadProducts.reduce((acc, item) => acc + (Number(item.quantidade) || 0), 0)
     const payloadQty = Number(pickOrderPayloadValue(row, 'totalQuantity', 'quantidade') || 0) || 0
-    const quantidade = itemQty > 0 ? itemQty : payloadQty
+    const quantidade = payloadProductQty > 0 ? payloadProductQty : itemQty > 0 ? itemQty : payloadQty
 
     return resolveOrderOperationalState({
       pedcodigo: normalizeOrderCode(pickOrderPayloadValue(row, 'pedcodigo', 'orderId') || row.order_id),
@@ -2266,6 +2328,8 @@ async function buildApiCacheDashboardPayload({
       zocodigo: pickOrderPayloadValue(row, 'zocodigo'),
       vendedorCodigo: String(pickOrderPayloadValue(row, 'sellerId', 'vendedorCodigo') || '').trim(),
       vendedorNome: normalizeText(pickOrderPayloadValue(row, 'sellerName', 'vendedorNome') || ''),
+      gerouFinanceiro: hasApiCacheFinancialMovement(row) ? 'Sim' : 'Nao',
+      sourceOrderRow: row,
       emittedDate,
       expectedDate,
       deliveredDate,
@@ -2301,6 +2365,7 @@ async function buildApiCacheDashboardPayload({
     zocodigo: order.zocodigo,
     vendedorCodigo: order.vendedorCodigo,
     vendedorNome: order.vendedorNome,
+    gerouFinanceiro: order.gerouFinanceiro,
   }))
 
   let products = filteredItemsData.map(item => {
@@ -2315,9 +2380,17 @@ async function buildApiCacheDashboardPayload({
       prodescricao: normalizeText(payload.description || payload.prodescricao || 'Produto sem descricao'),
       quantidade: Number(item.quantity) || 0,
       missingQuantity: Number(item.missing_quantity) || 0,
+      moveFinancial: String(payload.moveFinancial || ''),
+      gerouFinanceiro: normalizeApiCacheMarker(payload.moveFinancial) === 'YES' ? 'Sim' : normalizeApiCacheMarker(payload.moveFinancial) === 'NO' ? 'Nao' : '',
       clinome: order?.clinome || '',
     }
   })
+
+  const productOrderIdsFromCache = new Set(products.map(row => String(row.pedidoId || '').trim()).filter(Boolean))
+  const payloadProducts = cachedOrders
+    .filter(order => !productOrderIdsFromCache.has(String(order.pedidoId || '').trim()))
+    .flatMap(order => buildApiCachePayloadProducts(order.sourceOrderRow, order))
+  products = [...products, ...payloadProducts]
 
   let traceability = shouldLoadTraceability
     ? filteredEventsData.map(event => {
@@ -2364,6 +2437,7 @@ async function buildApiCacheDashboardPayload({
   if (procodigoFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'procodigo', procodigoFilters))
   if (prodescricaoFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'prodescricao', prodescricaoFilters))
   if (productQuantidadeFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'quantidade', productQuantidadeFilters))
+  if (productFinancialFilters.length > 0) products = products.filter(row => rowMatchesAnyFilter(row, 'gerouFinanceiro', productFinancialFilters))
 
   if (dashboardScopedFilters.length > 0) {
     const allowedOrderIds = resolveAllowedOrderIdsFromDashboardFilters(dashboardScopedFilters, selectedCachedOrders, products, traceability)
@@ -2420,8 +2494,20 @@ async function buildApiCacheDashboardPayload({
 
   const perdasOrderIds = getVisualOrderIds('perdasChart')
   const lossProducts = products.filter(row => perdasOrderIds.has(row.pedidoId))
+  const lossOrderRows = finalCachedOrders.filter(row => perdasOrderIds.has(row.pedidoId))
+  const lossProductsByOrder = new Map()
+  for (const product of lossProducts) {
+    if (!lossProductsByOrder.has(product.pedidoId)) lossProductsByOrder.set(product.pedidoId, [])
+    lossProductsByOrder.get(product.pedidoId).push(product)
+  }
   const totalQuantity = lossProducts.reduce((acc, item) => acc + (Number(item.quantidade) || 0), 0)
-  const lossQuantity = lossProducts.reduce((acc, item) => acc + (Number(item.missingQuantity) || 0), 0)
+  const lossQuantity = lossOrderRows.reduce((acc, order) => {
+    const payload = order.sourceOrderRow?.payload && typeof order.sourceOrderRow.payload === 'object' ? order.sourceOrderRow.payload : {}
+    const payloadLossQuantity = Number(payload.lossQuantity || 0) || 0
+    if (payloadLossQuantity > 0) return acc + payloadLossQuantity
+    if (payload.hasLossEvent !== true) return acc
+    return acc + (lossProductsByOrder.get(order.pedidoId) || []).reduce((sum, item) => sum + (Number(item.missingQuantity) || 0), 0)
+  }, 0)
   const perdas = {
     total: totalQuantity,
     withLoss: lossQuantity,

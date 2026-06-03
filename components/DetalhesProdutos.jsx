@@ -34,6 +34,7 @@ export default function DetalhesProdutos({ data, selectedOrder, onColumnClick, l
     { key: 'procodigo',   label: 'Cód. Produto'   },
     { key: 'prodescricao',label: 'Descrição'      },
     { key: 'quantidade',  label: 'Qtd.'            },
+    { key: 'gerouFinanceiro', label: 'Financeiro'  },
   ]
 
   const filterBy = (event, field, value) => {
@@ -111,6 +112,7 @@ export default function DetalhesProdutos({ data, selectedOrder, onColumnClick, l
                     <td onClick={(event) => filterBy(event, 'products.procodigo', row.procodigo)} className="px-4 py-2.5 font-mono" style={{ color: '#7ba3cc' }}>{row.procodigo}</td>
                     <td onClick={(event) => filterBy(event, 'products.prodescricao', row.prodescricao)} className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>{row.prodescricao}</td>
                     <td onClick={(event) => filterBy(event, 'products.quantidade', row.quantidade)} className="px-4 py-2.5 text-right" style={{ color: '#e2e8f0' }}>{row.quantidade}</td>
+                    <td onClick={(event) => filterBy(event, 'products.gerouFinanceiro', row.gerouFinanceiro)} className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>{row.gerouFinanceiro || '-'}</td>
                   </tr>
                 )
               })

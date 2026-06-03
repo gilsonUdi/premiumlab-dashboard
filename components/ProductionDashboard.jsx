@@ -35,6 +35,7 @@ const defaultFilters = () => ({
   procodigo: [],
   prodescricao: [],
   productQuantidade: [],
+  productFinancial: [],
   customerIndice: [],
   customerMediaDias: [],
 })
@@ -56,6 +57,7 @@ const FILTER_LABELS = {
   procodigo: 'Cod. Produto',
   prodescricao: 'Descrição',
   productQuantidade: 'Qtd. Produto',
+  productFinancial: 'Financeiro',
   customerIndice: 'Índice Cliente',
   customerMediaDias: 'Media Dias',
 }
@@ -74,6 +76,7 @@ const INTERACTIVE_FIELD_MAP = {
   'products.procodigo': 'procodigo',
   'products.prodescricao': 'prodescricao',
   'products.quantidade': 'productQuantidade',
+  'products.gerouFinanceiro': 'productFinancial',
   'customers.indice': 'customerIndice',
   'customers.mediaDias': 'customerMediaDias',
 }
@@ -355,6 +358,7 @@ export default function ProductionDashboard({
         'Cod. Produto': row.procodigo,
         Descricao: row.prodescricao,
         Quantidade: row.quantidade,
+        'Gerou financeiro': row.gerouFinanceiro || '',
       }))
 
       const traceRows = (data.traceability || []).map(row => ({
