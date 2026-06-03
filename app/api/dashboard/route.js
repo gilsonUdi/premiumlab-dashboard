@@ -2219,6 +2219,11 @@ function isApiCacheStockProduct(item = {}) {
   if (typeId === 'E') return true
   if (typeDescription.includes('ITEM DE ESTOQUE') || typeDescription === 'ESTOQUE') return true
 
+  const normalizedType = normalizeApiCacheMarker(item?.type)
+  const productLineId = String(item?.productLineId ?? item?.linhaProdutoId ?? '').trim()
+  const productLineDescription = normalizeApiCacheMarker(item?.productLineDescription || item?.linhaProdutoDescricao)
+  if (normalizedType === 'PRODUCT' && (productLineId || productLineDescription)) return true
+
   return false
 }
 
