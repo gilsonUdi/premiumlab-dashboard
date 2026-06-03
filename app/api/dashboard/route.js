@@ -2200,6 +2200,28 @@ function hasApiCacheFinancialMovement(orderRow = {}) {
   return tracking.some(step => normalizeApiCacheMarker(step?.locationDescription).includes('FINANCEIRO APROVADO'))
 }
 
+function isApiCacheStockProduct(item = {}) {
+  const warehouseType = normalizeApiCacheMarker(
+    item?.warehouse?.type ||
+    item?.stockWarehouse?.type ||
+    item?.warehouseType ||
+    item?.tipoEstoque
+  )
+  if (warehouseType === 'STOCK') return true
+
+  const typeId = normalizeApiCacheMarker(item?.type?.id || item?.productType?.id)
+  const typeDescription = normalizeApiCacheMarker(
+    item?.type?.description ||
+    item?.productType?.description ||
+    item?.itemTypeDescription
+  )
+
+  if (typeId === 'E') return true
+  if (typeDescription.includes('ITEM DE ESTOQUE') || typeDescription === 'ESTOQUE') return true
+
+  return false
+}
+
 function buildApiCachePayloadProducts(orderRow = {}, order = null) {
   const payloadProducts = [
     ...getApiCachePayloadList(orderRow, 'products'),
@@ -2220,6 +2242,7 @@ function buildApiCachePayloadProducts(orderRow = {}, order = null) {
       missingQuantity: Number(item?.missingQuantity ?? item?.lossQuantity ?? item?.perdaQuantidade ?? 0) || 0,
       moveFinancial,
       gerouFinanceiro: normalizeApiCacheMarker(moveFinancial) === 'YES' ? 'Sim' : normalizeApiCacheMarker(moveFinancial) === 'NO' ? 'Nao' : '',
+      isStockProduct: isApiCacheStockProduct(item),
       clinome: order?.clinome || '',
     }
   })
@@ -2408,6 +2431,7 @@ async function buildApiCacheDashboardPayload({
       missingQuantity: Number(item.missing_quantity) || 0,
       moveFinancial: String(payload.moveFinancial || ''),
       gerouFinanceiro: normalizeApiCacheMarker(payload.moveFinancial) === 'YES' ? 'Sim' : normalizeApiCacheMarker(payload.moveFinancial) === 'NO' ? 'Nao' : '',
+      isStockProduct: isApiCacheStockProduct(payload),
       clinome: order?.clinome || '',
     }
   })
@@ -2519,8 +2543,9 @@ async function buildApiCacheDashboardPayload({
   }
 
   const perdasOrderIds = getVisualOrderIds('perdasChart')
-  const lossProducts = products.filter(row => perdasOrderIds.has(row.pedidoId))
-  const lossOrderRows = finalCachedOrders.filter(row => perdasOrderIds.has(row.pedidoId))
+  const lossProducts = products.filter(row => perdasOrderIds.has(row.pedidoId) && row.isStockProduct === true)
+  const stockLossOrderIds = new Set(lossProducts.map(row => row.pedidoId))
+  const lossOrderRows = finalCachedOrders.filter(row => perdasOrderIds.has(row.pedidoId) && stockLossOrderIds.has(row.pedidoId))
   const lossProductsByOrder = new Map()
   for (const product of lossProducts) {
     if (!lossProductsByOrder.has(product.pedidoId)) lossProductsByOrder.set(product.pedidoId, [])
