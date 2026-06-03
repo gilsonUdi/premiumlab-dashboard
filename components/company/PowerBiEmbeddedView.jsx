@@ -309,7 +309,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
                   }}
                 >
-                  <div className="flex h-9 items-center justify-between gap-2 px-3 sm:px-4">
+                  <div className="flex h-10 items-center justify-between gap-2 px-3 sm:px-4">
                     <div className="flex min-w-0 items-center gap-2">
                       <Link
                         href={`/empresa/${company.slug}`}
