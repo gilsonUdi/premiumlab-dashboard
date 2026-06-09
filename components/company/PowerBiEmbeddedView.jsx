@@ -24,16 +24,20 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       const isPortrait = window.innerHeight >= window.innerWidth
       setIsMobileLayout(mobilePortraitQuery.matches || (window.innerWidth <= 767 && isPortrait))
     }
+    const syncLayoutAfterViewportSettles = () => {
+      syncLayout()
+      window.setTimeout(syncLayout, 250)
+    }
 
     syncLayout()
-    mobilePortraitQuery.addEventListener('change', syncLayout)
-    window.addEventListener('resize', syncLayout)
-    window.addEventListener('orientationchange', syncLayout)
+    mobilePortraitQuery.addEventListener('change', syncLayoutAfterViewportSettles)
+    window.addEventListener('resize', syncLayoutAfterViewportSettles)
+    window.addEventListener('orientationchange', syncLayoutAfterViewportSettles)
 
     return () => {
-      mobilePortraitQuery.removeEventListener('change', syncLayout)
-      window.removeEventListener('resize', syncLayout)
-      window.removeEventListener('orientationchange', syncLayout)
+      mobilePortraitQuery.removeEventListener('change', syncLayoutAfterViewportSettles)
+      window.removeEventListener('resize', syncLayoutAfterViewportSettles)
+      window.removeEventListener('orientationchange', syncLayoutAfterViewportSettles)
     }
   }, [])
 
@@ -87,6 +91,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   }, [company.slug, reportKey])
 
   const pageMap = useMemo(() => new Map((config?.pages || []).map(page => [page.name, page])), [config?.pages])
+  const powerBiLayoutType = isMobileLayout ? models.LayoutType.MobilePortrait : models.LayoutType.Master
+  const powerBiLayoutKey = isMobileLayout ? 'mobile-portrait' : 'web-master'
 
   const embedConfig = useMemo(() => {
     if (!config) return null
@@ -105,11 +111,11 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         },
         navContentPaneEnabled: false,
         background: models.BackgroundType.Default,
-        layoutType: isMobileLayout ? models.LayoutType.MobilePortrait : models.LayoutType.Master,
+        layoutType: powerBiLayoutType,
       },
       filters: Array.isArray(config.filters) ? config.filters : [],
     }
-  }, [activePageName, config, isMobileLayout])
+  }, [activePageName, config, powerBiLayoutType])
 
   useEffect(() => {
     if (!reportRef.current) return
@@ -117,7 +123,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     async function updateLayout() {
       try {
         await reportRef.current.updateSettings({
-          layoutType: isMobileLayout ? models.LayoutType.MobilePortrait : models.LayoutType.Master,
+          layoutType: powerBiLayoutType,
         })
       } catch (layoutError) {
         console.error(layoutError)
@@ -125,7 +131,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     }
 
     updateLayout()
-  }, [isMobileLayout])
+  }, [powerBiLayoutType])
 
   const handleSelectPage = async pageName => {
     setActivePageName(pageName)
@@ -341,6 +347,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                   </div>
                 </div>
                 <PowerBIEmbed
+                  key={powerBiLayoutKey}
                   embedConfig={embedConfig}
                   cssClassName="h-full w-full"
                   getEmbeddedComponent={embeddedReport => {
@@ -354,7 +361,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                           if (!reportRef.current) return
                           try {
                             await reportRef.current.updateSettings({
-                              layoutType: isMobileLayout ? models.LayoutType.MobilePortrait : models.LayoutType.Master,
+                              layoutType: powerBiLayoutType,
                             })
                             if (!activePageName) return
                             const pages = await reportRef.current.getPages()
