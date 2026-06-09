@@ -19,14 +19,21 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const embedShellRef = useRef(null)
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(max-width: 767px)')
-    const syncLayout = () => setIsMobileLayout(mediaQuery.matches)
+    const mobilePortraitQuery = window.matchMedia('(max-width: 767px) and (orientation: portrait)')
+    const syncLayout = () => {
+      const isPortrait = window.innerHeight >= window.innerWidth
+      setIsMobileLayout(mobilePortraitQuery.matches || (window.innerWidth <= 767 && isPortrait))
+    }
 
     syncLayout()
-    mediaQuery.addEventListener('change', syncLayout)
+    mobilePortraitQuery.addEventListener('change', syncLayout)
+    window.addEventListener('resize', syncLayout)
+    window.addEventListener('orientationchange', syncLayout)
 
     return () => {
-      mediaQuery.removeEventListener('change', syncLayout)
+      mobilePortraitQuery.removeEventListener('change', syncLayout)
+      window.removeEventListener('resize', syncLayout)
+      window.removeEventListener('orientationchange', syncLayout)
     }
   }, [])
 
