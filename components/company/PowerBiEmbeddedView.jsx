@@ -14,6 +14,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [activePageName, setActivePageName] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobileLayout, setIsMobileLayout] = useState(false)
+  const [isMobileDevice, setIsMobileDevice] = useState(false)
+  const [mobileBottomInset, setMobileBottomInset] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const reportRef = useRef(null)
   const embedShellRef = useRef(null)
@@ -38,6 +40,40 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       mobilePortraitQuery.removeEventListener('change', syncLayoutAfterViewportSettles)
       window.removeEventListener('resize', syncLayoutAfterViewportSettles)
       window.removeEventListener('orientationchange', syncLayoutAfterViewportSettles)
+    }
+  }, [])
+
+  useEffect(() => {
+    const coarsePointerQuery = window.matchMedia('(hover: none) and (pointer: coarse)')
+    const syncMobileDevice = () => {
+      setIsMobileDevice(coarsePointerQuery.matches || navigator.maxTouchPoints > 0)
+    }
+    const viewport = window.visualViewport
+    const syncBottomInset = () => {
+      if (!viewport) {
+        setMobileBottomInset(0)
+        return
+      }
+      const coveredHeight = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+      setMobileBottomInset(Math.round(coveredHeight))
+    }
+    const syncMobileViewport = () => {
+      syncMobileDevice()
+      syncBottomInset()
+      window.setTimeout(syncBottomInset, 250)
+    }
+
+    syncMobileViewport()
+    coarsePointerQuery.addEventListener('change', syncMobileViewport)
+    viewport?.addEventListener('resize', syncMobileViewport)
+    viewport?.addEventListener('scroll', syncMobileViewport)
+    window.addEventListener('orientationchange', syncMobileViewport)
+
+    return () => {
+      coarsePointerQuery.removeEventListener('change', syncMobileViewport)
+      viewport?.removeEventListener('resize', syncMobileViewport)
+      viewport?.removeEventListener('scroll', syncMobileViewport)
+      window.removeEventListener('orientationchange', syncMobileViewport)
     }
   }, [])
 
@@ -184,7 +220,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const sidebarPages = config?.pages || []
 
   return (
-    <main className="relative h-screen overflow-hidden text-white" style={{ background: '#0c0a08' }}>
+    <main className="relative h-[100dvh] overflow-hidden text-white" style={{ background: '#0c0a08' }}>
       <Link
         href={`/empresa/${company.slug}/power-bi`}
         aria-label="Voltar ao portal"
@@ -198,7 +234,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         <ArrowLeft size={18} />
       </Link>
 
-      <section className={`grid h-screen grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[64px_minmax(0,1fr)]' : 'lg:grid-cols-[272px_minmax(0,1fr)]'}`}>
+      <section className={`grid h-[100dvh] grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[64px_minmax(0,1fr)]' : 'lg:grid-cols-[272px_minmax(0,1fr)]'}`}>
         <aside
           className="hidden pt-20 lg:flex lg:min-h-0 lg:flex-col"
           style={{ background: '#0f0d0b', borderRight: '1px solid rgba(255,255,255,0.05)' }}
@@ -336,14 +372,16 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                         GSControladoria
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      className="portal-ghost-button h-7 gap-1.5 px-2.5 text-xs"
-                      onClick={toggleFullscreen}
-                    >
-                      <Maximize2 size={12} />
-                      {isFullscreen ? 'Sair' : 'Tela cheia'}
-                    </button>
+                    {!isMobileDevice ? (
+                      <button
+                        type="button"
+                        className="portal-ghost-button h-7 gap-1.5 px-2.5 text-xs"
+                        onClick={toggleFullscreen}
+                      >
+                        <Maximize2 size={12} />
+                        {isFullscreen ? 'Sair' : 'Tela cheia'}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
                 <PowerBIEmbed
@@ -392,6 +430,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                   <div
                     className="absolute inset-x-0 bottom-0 z-20 px-3 py-2 backdrop-blur"
                     style={{
+                      bottom: `${mobileBottomInset}px`,
+                      paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
                       background: 'rgba(12,10,8,0.92)',
                       borderTop: '1px solid rgba(255,255,255,0.05)',
                       boxShadow: '0 -4px 20px rgba(0,0,0,0.3)',
