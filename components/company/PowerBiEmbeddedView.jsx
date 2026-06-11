@@ -15,7 +15,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobileLayout, setIsMobileLayout] = useState(false)
   const [isMobileDevice, setIsMobileDevice] = useState(false)
-  const [mobileBottomInset, setMobileBottomInset] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const reportRef = useRef(null)
   const embedShellRef = useRef(null)
@@ -48,32 +47,14 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     const syncMobileDevice = () => {
       setIsMobileDevice(coarsePointerQuery.matches || navigator.maxTouchPoints > 0)
     }
-    const viewport = window.visualViewport
-    const syncBottomInset = () => {
-      if (!viewport) {
-        setMobileBottomInset(0)
-        return
-      }
-      const coveredHeight = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
-      setMobileBottomInset(Math.round(coveredHeight))
-    }
-    const syncMobileViewport = () => {
-      syncMobileDevice()
-      syncBottomInset()
-      window.setTimeout(syncBottomInset, 250)
-    }
 
-    syncMobileViewport()
-    coarsePointerQuery.addEventListener('change', syncMobileViewport)
-    viewport?.addEventListener('resize', syncMobileViewport)
-    viewport?.addEventListener('scroll', syncMobileViewport)
-    window.addEventListener('orientationchange', syncMobileViewport)
+    syncMobileDevice()
+    coarsePointerQuery.addEventListener('change', syncMobileDevice)
+    window.addEventListener('orientationchange', syncMobileDevice)
 
     return () => {
-      coarsePointerQuery.removeEventListener('change', syncMobileViewport)
-      viewport?.removeEventListener('resize', syncMobileViewport)
-      viewport?.removeEventListener('scroll', syncMobileViewport)
-      window.removeEventListener('orientationchange', syncMobileViewport)
+      coarsePointerQuery.removeEventListener('change', syncMobileDevice)
+      window.removeEventListener('orientationchange', syncMobileDevice)
     }
   }, [])
 
@@ -353,6 +334,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                 <div
                   className="absolute inset-x-0 top-0 z-20 backdrop-blur"
                   style={{
+                    paddingTop: 'env(safe-area-inset-top, 0px)',
                     background: 'rgba(12,10,8,0.9)',
                     borderBottom: '1px solid rgba(255,255,255,0.05)',
                     boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
@@ -430,7 +412,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                   <div
                     className="absolute inset-x-0 bottom-0 z-20 px-3 py-2 backdrop-blur"
                     style={{
-                      bottom: `${mobileBottomInset}px`,
                       paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
                       background: 'rgba(12,10,8,0.92)',
                       borderTop: '1px solid rgba(255,255,255,0.05)',
