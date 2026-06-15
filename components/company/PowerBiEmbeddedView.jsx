@@ -1,11 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { PowerBIEmbed } from 'powerbi-client-react'
 import { models } from 'powerbi-client'
 import { ArrowLeft, ChevronRight, Maximize2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { getPortalAuthHeaders } from '@/lib/portal-store'
+
+const TOKEN_REFRESH_INTERVAL_MS = 30 * 1000
+const TOKEN_REFRESH_MARGIN_MS = 10 * 60 * 1000
 
 export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [config, setConfig] = useState(null)
@@ -18,6 +21,49 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const reportRef = useRef(null)
   const embedShellRef = useRef(null)
+  const tokenRefreshPromiseRef = useRef(null)
+
+  const fetchEmbedConfig = useCallback(async () => {
+    const response = await fetch(
+      `/api/power-bi/embed?slug=${encodeURIComponent(company.slug)}&report=${encodeURIComponent(reportKey)}`,
+      {
+        headers: await getPortalAuthHeaders(),
+        cache: 'no-store',
+      }
+    )
+    const payload = await response.json()
+    if (!response.ok) {
+      throw new Error(payload.error || 'Nao foi possivel preparar o Power BI.')
+    }
+    return payload
+  }, [company.slug, reportKey])
+
+  const refreshEmbedToken = useCallback(async () => {
+    if (tokenRefreshPromiseRef.current) return tokenRefreshPromiseRef.current
+
+    const refreshPromise = (async () => {
+      const payload = await fetchEmbedConfig()
+
+      if (reportRef.current && payload.accessToken) {
+        await reportRef.current.setAccessToken(payload.accessToken)
+      }
+
+      setConfig(previous => ({
+        ...(previous || payload),
+        accessToken: payload.accessToken,
+        tokenExpiration: payload.tokenExpiration,
+      }))
+      setError('')
+      return payload
+    })()
+
+    tokenRefreshPromiseRef.current = refreshPromise
+    try {
+      return await refreshPromise
+    } finally {
+      tokenRefreshPromiseRef.current = null
+    }
+  }, [fetchEmbedConfig])
 
   useEffect(() => {
     const mobilePortraitQuery = window.matchMedia('(max-width: 767px) and (orientation: portrait)')
@@ -106,6 +152,54 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       active = false
     }
   }, [company.slug, reportKey])
+
+  useEffect(() => {
+    if (!config?.tokenExpiration) return undefined
+
+    let active = true
+
+    const checkTokenExpiration = async () => {
+      const expirationTime = Date.parse(config.tokenExpiration)
+      if (!Number.isFinite(expirationTime)) return
+      if (expirationTime - Date.now() > TOKEN_REFRESH_MARGIN_MS) return
+
+      try {
+        await refreshEmbedToken()
+      } catch (refreshError) {
+        if (active) console.error('[power-bi:token-refresh]', refreshError)
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) checkTokenExpiration()
+    }
+
+    checkTokenExpiration()
+    const intervalId = window.setInterval(checkTokenExpiration, TOKEN_REFRESH_INTERVAL_MS)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      active = false
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [config?.tokenExpiration, refreshEmbedToken])
+
+  const handlePowerBiError = useCallback(event => {
+    const detail = event?.detail || event || {}
+    console.error(detail)
+
+    const errorText = [detail.errorCode, detail.message, detail.detailedMessage]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+
+    if (/token|expired|unauthorized|forbidden|403/.test(errorText)) {
+      refreshEmbedToken().catch(refreshError => {
+        console.error('[power-bi:token-refresh-after-error]', refreshError)
+      })
+    }
+  }, [refreshEmbedToken])
 
   const pageMap = useMemo(() => new Map((config?.pages || []).map(page => [page.name, page])), [config?.pages])
   const powerBiLayoutType = isMobileLayout ? models.LayoutType.MobilePortrait : models.LayoutType.Master
@@ -404,7 +498,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                           setActivePageName(nextName)
                         },
                       ],
-                      ['error', event => console.error(event?.detail || event)],
+                      ['error', handlePowerBiError],
                     ])
                   }
                 />
