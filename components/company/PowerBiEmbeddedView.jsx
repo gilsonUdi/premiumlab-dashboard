@@ -22,6 +22,9 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const reportRef = useRef(null)
   const embedShellRef = useRef(null)
   const tokenRefreshPromiseRef = useRef(null)
+  const reportLoadedRef = useRef(false)
+  const pendingPageNameRef = useRef('')
+  const pageNavigationRunningRef = useRef(false)
 
   const fetchEmbedConfig = useCallback(async () => {
     const response = await fetch(
@@ -205,6 +208,35 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const powerBiLayoutType = isMobileLayout ? models.LayoutType.MobilePortrait : models.LayoutType.Master
   const powerBiLayoutKey = isMobileLayout ? 'mobile-portrait' : 'web-master'
 
+  const runPendingPageNavigation = useCallback(async () => {
+    if (pageNavigationRunningRef.current || !reportLoadedRef.current || !reportRef.current) return
+
+    pageNavigationRunningRef.current = true
+    try {
+      while (pendingPageNameRef.current && reportLoadedRef.current && reportRef.current) {
+        const pageName = pendingPageNameRef.current
+        pendingPageNameRef.current = ''
+
+        try {
+          await reportRef.current.setPage(pageName)
+          if (!pendingPageNameRef.current) setActivePageName(pageName)
+        } catch (pageError) {
+          console.error(pageError)
+        }
+      }
+    } finally {
+      pageNavigationRunningRef.current = false
+      if (pendingPageNameRef.current) runPendingPageNavigation()
+    }
+  }, [])
+
+  const handleSelectPage = useCallback(pageName => {
+    if (!pageName || (pageMap.size > 0 && !pageMap.has(pageName))) return
+    pendingPageNameRef.current = pageName
+    setActivePageName(pageName)
+    runPendingPageNavigation()
+  }, [pageMap, runPendingPageNavigation])
+
   const embedConfig = useMemo(() => {
     if (!config) return null
 
@@ -214,7 +246,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       embedUrl: config.embedUrl,
       accessToken: config.accessToken,
       tokenType: models.TokenType.Embed,
-      pageName: activePageName || config.initialPageName || undefined,
+      pageName: config.initialPageName || undefined,
       settings: {
         panes: {
           filters: { visible: false },
@@ -226,7 +258,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       },
       filters: Array.isArray(config.filters) ? config.filters : [],
     }
-  }, [activePageName, config, powerBiLayoutType])
+  }, [config, powerBiLayoutType])
 
   useEffect(() => {
     if (!reportRef.current) return
@@ -243,18 +275,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
 
     updateLayout()
   }, [powerBiLayoutType])
-
-  const handleSelectPage = async pageName => {
-    setActivePageName(pageName)
-    if (!reportRef.current) return
-    try {
-      const pages = await reportRef.current.getPages()
-      const nextPage = pages.find(page => page.name === pageName)
-      if (nextPage) await nextPage.setActive()
-    } catch (pageError) {
-      console.error(pageError)
-    }
-  }
 
   const toggleFullscreen = async () => {
     try {
@@ -466,6 +486,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                   cssClassName="h-full w-full"
                   getEmbeddedComponent={embeddedReport => {
                     reportRef.current = embeddedReport
+                    reportLoadedRef.current = false
                   }}
                   eventHandlers={
                     new Map([
@@ -473,14 +494,14 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                         'loaded',
                         async () => {
                           if (!reportRef.current) return
+                          reportLoadedRef.current = true
                           try {
                             await reportRef.current.updateSettings({
                               layoutType: powerBiLayoutType,
                             })
-                            if (!activePageName) return
-                            const pages = await reportRef.current.getPages()
-                            const selectedPage = pages.find(page => page.name === activePageName)
-                            if (selectedPage) await selectedPage.setActive()
+                            if (pendingPageNameRef.current) {
+                              await runPendingPageNavigation()
+                            }
                           } catch (loadError) {
                             console.error(loadError)
                           }
@@ -492,9 +513,10 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                           const nextName = event?.detail?.newPage?.name || ''
                           if (!nextName) return
                           if (pageMap.size > 0 && !pageMap.has(nextName)) {
-                            handleSelectPage(config.initialPageName)
+                            if (!pendingPageNameRef.current) handleSelectPage(config.initialPageName)
                             return
                           }
+                          if (pendingPageNameRef.current && pendingPageNameRef.current !== nextName) return
                           setActivePageName(nextName)
                         },
                       ],
