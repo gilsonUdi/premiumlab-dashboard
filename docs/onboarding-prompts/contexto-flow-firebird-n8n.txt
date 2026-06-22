@@ -1,0 +1,481 @@
+PROMPT DE CONTEXTO - FLOW N8N PARA CONSULTA FIREBIRD
+
+Voce esta continuando a implementacao da automacao de IA da GS Gestao no n8n para atendimento de clientes de laboratorios opticos via chat/WhatsApp.
+
+============================================================
+1. CONTEXTO GERAL
+============================================================
+
+A GS Gestao possui um ecossistema para laboratorios opticos, com:
+- Portal web multi-tenant.
+- Dashboards internos.
+- Power BI embed.
+- Automacoes no n8n.
+- Agentes de IA para atendimento a clientes.
+- Consultas operacionais em bancos Firebird, APIs e modelos Power BI.
+
+O atendimento automatizado esta sendo montado no n8n self-hosted em uma VPS da Hostinger, gerenciada pelo EasyPanel.
+
+O agente usa:
+- Modelo OpenAI.
+- Redis para memoria/sessao.
+- n8n como orquestrador dos fluxos.
+
+A autenticacao do cliente ja foi estruturada em um flow separado.
+
+Apos autenticacao, o cliente pode consultar:
+- Pedidos.
+- Boletos.
+- Precos.
+
+Essas consultas devem respeitar os escopos salvos na sessao Redis.
+
+Agora vamos adaptar a consulta de pedidos para usar conexao direta com Firebird, pois o acesso ao banco do cliente foi liberado.
+
+============================================================
+2. OBJETIVO DESTE NOVO FLOW
+============================================================
+
+Criar ou adaptar o flow de consulta de pedidos para consultar diretamente o Firebird do laboratorio, em vez de usar a API/cache.
+
+O agente deve conseguir responder perguntas sobre pedidos com base no banco Firebird, incluindo:
+- Status do pedido.
+- Data de emissao.
+- Saida registrada.
+- Romaneio emitido.
+- Entrega operacional.
+- Pedidos em determinado periodo.
+- Pedidos sem romaneio.
+- Resumo de pedidos por periodo.
+
+O objetivo e permitir que o cliente consulte seus pedidos em tempo real, diretamente no banco operacional do laboratorio.
+
+============================================================
+3. BANCO FIREBIRD
+============================================================
+
+Usar o node Firebird no n8n.
+
+A conexao deve ser feita com as credenciais liberadas pelo cliente.
+
+O banco e o sistema operacional do laboratorio.
+
+A tabela principal de pedidos identificada e:
+- PEDID
+
+Campos ja confirmados:
+- PEDCODIGO: codigo visivel do pedido no sistema.
+- ID_PEDIDO: ID interno do pedido.
+- PEDDTEMIS: data de emissao.
+- PEDDTSAIDA: data de saida.
+- PEDHRSAIDA: hora de saida.
+- PEDDTROMAN: data do romaneio.
+- PEDNRROMAN: numero do romaneio.
+
+Observacao importante:
+- Em testes anteriores, a coluna correta de emissao era PEDDTEMIS.
+- Nao usar P.EMISSAO, pois esse campo retornou erro de coluna inexistente.
+
+============================================================
+4. CONSULTA DE TESTE JA VALIDADA
+============================================================
+
+Esta consulta ja funcionou no Firebird:
+
+SELECT FIRST 10
+  P.ID_PEDIDO,
+  P.PEDCODIGO,
+  P.PEDDTEMIS,
+  P.PEDDTROMAN,
+  P.PEDNRROMAN,
+  P.PEDDTSAIDA,
+  P.PEDHRSAIDA
+FROM PEDID P
+WHERE P.PEDDTEMIS >= CAST('2026-06-15' AS DATE)
+  AND P.PEDDTEMIS < DATEADD(1 DAY TO CAST('2026-06-15' AS DATE))
+ORDER BY P.PEDDTEMIS DESC, P.ID_PEDIDO DESC
+
+============================================================
+5. REGRAS PARA FILTRO POR DATA
+============================================================
+
+Para filtros por data no Firebird, usar intervalo fechado-aberto:
+
+PEDDTEMIS >= CAST(dataInicio AS DATE)
+AND PEDDTEMIS < DATEADD(1 DAY TO CAST(dataFim AS DATE))
+
+Exemplo:
+
+WHERE P.PEDDTEMIS >= CAST('2026-06-01' AS DATE)
+  AND P.PEDDTEMIS < DATEADD(1 DAY TO CAST('2026-06-15' AS DATE))
+
+Isso evita problemas com horario e garante que o dia final seja incluido corretamente.
+
+Evitar depender apenas de ID de pedido para consultas por periodo, ja que o Firebird permite consulta por data corretamente.
+
+============================================================
+6. DIFERENCA ENTRE PEDCODIGO E ID_PEDIDO
+============================================================
+
+Para pedido especifico, buscar por:
+- PEDCODIGO
+- ID_PEDIDO
+
+Quando o cliente disser algo como:
+"pedido 803249"
+
+Provavelmente esta falando de:
+- PEDCODIGO
+
+Quando o sistema interno, portal ou API mencionar IDs grandes como:
+- 2998179
+- 2999903
+
+Provavelmente esta falando de:
+- ID_PEDIDO
+
+O flow deve tentar lidar com os dois cenarios sempre que possivel.
+
+============================================================
+7. INTERPRETACAO OPERACIONAL
+============================================================
+
+Pedido com PEDDTSAIDA preenchido:
+- Deve ser considerado com saida registrada.
+
+Pedido com PEDDTROMAN ou PEDNRROMAN preenchido:
+- Deve ser considerado com romaneio emitido.
+
+Para o atendimento, a interpretacao deve seguir esta prioridade:
+
+1. Se PEDNRROMAN estiver preenchido:
+   - Existe romaneio emitido.
+
+2. Se PEDDTROMAN estiver preenchido:
+   - Existe romaneio emitido.
+
+3. Se PEDDTSAIDA estiver preenchido, mas sem romaneio:
+   - Existe saida registrada.
+   - Nao afirmar automaticamente que ha romaneio.
+
+4. Se nao houver romaneio nem saida:
+   - Informar que ainda nao consta saida ou romaneio registrado.
+
+Regra de linguagem:
+- Nao dizer que um pedido foi entregue se so houver saida e nao houver romaneio.
+- Dizer "saida registrada".
+- Se houver romaneio, pode dizer que esta com romaneio emitido.
+
+============================================================
+8. ESTRUTURA RECOMENDADA DO FLOW NO N8N
+============================================================
+
+Flow sugerido:
+
+1. When Executed by Another Workflow
+2. Code - Preparar parametros Firebird
+3. Switch - Tipo consulta pedido
+4. Firebird - Consultar pedido especifico
+5. Firebird - Listar pedidos por periodo
+6. Firebird - Resumir periodo
+7. Firebird - Listar pedidos sem romaneio
+8. Code - Normalizar retorno Firebird
+9. AI Agent - Responder pedido
+10. Code - Normalizar resposta final
+
+============================================================
+9. INPUTS ESPERADOS NO TRIGGER
+============================================================
+
+O node "When Executed by Another Workflow" deve receber:
+
+- tenant
+- mensagem
+- chatId
+- redisKey
+- session
+- pedidoId opcional
+- codigoPedido opcional
+- dataInicio opcional
+- dataFim opcional
+- tipoConsultaPedido opcional
+
+A sessao pode vir como objeto ou como string JSON.
+
+============================================================
+10. NODE: CODE - PREPARAR PARAMETROS FIREBIRD
+============================================================
+
+Funcoes deste node:
+- Normalizar sessao.
+- Ler a mensagem do cliente.
+- Identificar o tipo de consulta.
+- Extrair datas.
+- Extrair codigo do pedido.
+- Definir tipoConsultaPedido.
+
+Tipos de consulta sugeridos:
+- pedido_especifico
+- listar_periodo
+- resumir_periodo
+- sem_romaneio
+
+Exemplos de interpretacao:
+
+"Quero ver o pedido 803249"
+=> tipoConsultaPedido = pedido_especifico
+
+"Quantos pedidos tivemos em junho?"
+=> tipoConsultaPedido = resumir_periodo
+
+"Liste os pedidos de 15/06/2026"
+=> tipoConsultaPedido = listar_periodo
+
+"Quais pedidos estao sem romaneio hoje?"
+=> tipoConsultaPedido = sem_romaneio
+
+============================================================
+11. NODE: SWITCH - TIPO CONSULTA PEDIDO
+============================================================
+
+Criar ramos:
+
+1. pedido_especifico
+2. listar_periodo
+3. resumir_periodo
+4. sem_romaneio
+
+Cada ramo deve chamar uma query Firebird especifica.
+
+============================================================
+12. QUERY: CONSULTAR PEDIDO ESPECIFICO
+============================================================
+
+Se o node Firebird aceitar parametros:
+
+SELECT FIRST 1
+  P.ID_PEDIDO,
+  P.PEDCODIGO,
+  P.PEDDTEMIS,
+  P.PEDDTROMAN,
+  P.PEDNRROMAN,
+  P.PEDDTSAIDA,
+  P.PEDHRSAIDA
+FROM PEDID P
+WHERE
+  P.PEDCODIGO = CAST(? AS NUMERIC(18,3))
+  OR P.ID_PEDIDO = CAST(? AS INTEGER)
+ORDER BY P.PEDDTEMIS DESC
+
+Se o node Firebird nao aceitar parametros, montar a query no Code com valores ja sanitizados.
+
+Sanitizacao obrigatoria:
+- Remover tudo que nao for numero do codigo informado.
+- Nunca inserir texto livre diretamente em SQL.
+
+Exemplo:
+
+const codigo = String($json.codigoPedido || '').replace(/\D/g, '');
+
+============================================================
+13. QUERY: LISTAR PEDIDOS POR PERIODO
+============================================================
+
+SELECT
+  P.ID_PEDIDO,
+  P.PEDCODIGO,
+  P.PEDDTEMIS,
+  P.PEDDTROMAN,
+  P.PEDNRROMAN,
+  P.PEDDTSAIDA,
+  P.PEDHRSAIDA
+FROM PEDID P
+WHERE P.PEDDTEMIS >= CAST('YYYY-MM-DD' AS DATE)
+  AND P.PEDDTEMIS < DATEADD(1 DAY TO CAST('YYYY-MM-DD' AS DATE))
+ORDER BY P.PEDDTEMIS DESC, P.ID_PEDIDO DESC
+
+Observacao:
+- Substituir YYYY-MM-DD por dataInicio e dataFim ja normalizadas.
+
+============================================================
+14. QUERY: RESUMO POR PERIODO
+============================================================
+
+SELECT
+  COUNT(*) AS TOTAL_PEDIDOS,
+  SUM(CASE WHEN P.PEDNRROMAN IS NOT NULL OR P.PEDDTROMAN IS NOT NULL THEN 1 ELSE 0 END) AS COM_ROMANEIO,
+  SUM(CASE WHEN P.PEDNRROMAN IS NULL AND P.PEDDTROMAN IS NULL THEN 1 ELSE 0 END) AS SEM_ROMANEIO,
+  SUM(CASE WHEN P.PEDDTSAIDA IS NOT NULL THEN 1 ELSE 0 END) AS COM_SAIDA
+FROM PEDID P
+WHERE P.PEDDTEMIS >= CAST('YYYY-MM-DD' AS DATE)
+  AND P.PEDDTEMIS < DATEADD(1 DAY TO CAST('YYYY-MM-DD' AS DATE))
+
+============================================================
+15. QUERY: PEDIDOS SEM ROMANEIO
+============================================================
+
+SELECT
+  P.ID_PEDIDO,
+  P.PEDCODIGO,
+  P.PEDDTEMIS,
+  P.PEDDTROMAN,
+  P.PEDNRROMAN,
+  P.PEDDTSAIDA,
+  P.PEDHRSAIDA
+FROM PEDID P
+WHERE P.PEDDTEMIS >= CAST('YYYY-MM-DD' AS DATE)
+  AND P.PEDDTEMIS < DATEADD(1 DAY TO CAST('YYYY-MM-DD' AS DATE))
+  AND P.PEDNRROMAN IS NULL
+  AND P.PEDDTROMAN IS NULL
+ORDER BY P.PEDDTEMIS DESC, P.ID_PEDIDO DESC
+
+============================================================
+16. NODE: CODE - NORMALIZAR RETORNO FIREBIRD
+============================================================
+
+Funcoes:
+- Converter datas para formato brasileiro.
+- Identificar se ha romaneio.
+- Identificar se ha saida.
+- Definir status operacional resumido.
+- Preparar uma saida limpa para o agente.
+
+Campos normalizados sugeridos:
+- idPedido
+- codigoPedido
+- dataEmissao
+- dataSaida
+- horaSaida
+- dataRomaneio
+- numeroRomaneio
+- temRomaneio
+- temSaida
+- entregueOperacionalmente
+- statusOperacional
+
+Regras:
+
+temRomaneio:
+- true se PEDNRROMAN ou PEDDTROMAN estiver preenchido.
+
+temSaida:
+- true se PEDDTSAIDA estiver preenchido.
+
+entregueOperacionalmente:
+- true se temRomaneio for true.
+- Se apenas temSaida for true, nao chamar de entregue automaticamente; chamar de saida registrada.
+
+statusOperacional:
+- "Romaneio emitido" se temRomaneio.
+- "Saida registrada sem romaneio localizado" se temSaida e nao temRomaneio.
+- "Sem saida ou romaneio registrado" se nao temSaida e nao temRomaneio.
+
+============================================================
+17. NODE: AI AGENT - RESPONDER PEDIDO
+============================================================
+
+O agente deve receber apenas dados ja normalizados.
+
+Ele nao deve consultar o banco diretamente.
+
+Ele deve responder de forma clara, educada e curta.
+
+============================================================
+18. SYSTEM MESSAGE SUGERIDA PARA O AGENTE DE PEDIDOS
+============================================================
+
+Voce e um agente de atendimento da GS Gestao especializado em consultas de pedidos de laboratorio optico.
+
+Voce recebe dados ja consultados no banco Firebird do laboratorio. Sua funcao e explicar esses dados ao cliente de forma clara, curta e educada.
+
+Regras obrigatorias:
+- Nao invente informacoes.
+- Use apenas os dados recebidos.
+- Quando houver PEDNRROMAN ou PEDDTROMAN, considere que ha romaneio emitido.
+- Quando houver PEDDTSAIDA, considere que ha saida registrada.
+- Nao diga que um pedido foi entregue se so houver saida e nao houver romaneio.
+- Se houver apenas saida, diga "saida registrada".
+- Se houver romaneio, pode dizer que o pedido esta com romaneio emitido.
+- Se nao houver romaneio nem saida, informe que ainda nao consta saida ou romaneio registrado para esse pedido.
+- Quando responder sobre datas, use formato DD/MM/AAAA.
+- Se a consulta retornar muitos pedidos, faca um resumo e mostre no maximo 10 itens.
+- Se houver mais de 10 itens, ofereca continuar listando.
+- Nunca exponha nomes de tabelas, SQL, campos internos ou detalhes tecnicos para o cliente.
+- Se nao localizar o pedido, diga que nao encontrou com os dados informados e peca para conferir o numero.
+
+Tom:
+- Educado.
+- Profissional.
+- Simples.
+- Sem linguagem tecnica desnecessaria.
+
+============================================================
+19. EXEMPLOS DE RESPOSTAS ESPERADAS
+============================================================
+
+Pedido com romaneio:
+"Encontrei o pedido 803249. Ele foi emitido em 15/06/2026 e possui romaneio emitido. Numero do romaneio: 12345."
+
+Pedido com saida, mas sem romaneio:
+"Encontrei o pedido 803249. Ele possui saida registrada em 15/06/2026, mas nao encontrei romaneio emitido nos campos consultados."
+
+Pedido sem saida e sem romaneio:
+"Encontrei o pedido 803249. Ate o momento, nao consta saida ou romaneio registrado para ele."
+
+Pedido nao encontrado:
+"Nao localizei esse pedido com o numero informado. Pode conferir o codigo e me enviar novamente?"
+
+Resumo por periodo:
+"No periodo de 01/06/2026 a 15/06/2026 encontrei 120 pedidos. Desses, 80 possuem romaneio, 40 ainda estao sem romaneio e 90 possuem saida registrada."
+
+============================================================
+20. PONTOS PENDENTES PARA EVOLUCAO
+============================================================
+
+Confirmar:
+- Se PEDCODIGO e sempre o numero que o cliente informa.
+- Se romaneio deve ser considerado entrega final ou apenas etapa de expedicao.
+- Se ha tabelas adicionais para cliente, otica, previsao, celula atual, status e roteiro.
+- Se existem campos de cancelamento no Firebird que precisam ser filtrados.
+- Se cada tenant usa o mesmo schema ou se ha variacoes por laboratorio.
+
+Depois mapear joins para retornar:
+- Cliente/otica.
+- Previsao de entrega.
+- Celula atual.
+- Roteiro.
+- Ocorrencias.
+- Status operacional completo.
+
+============================================================
+21. CUIDADOS DE SEGURANCA
+============================================================
+
+- Nunca montar SQL com texto livre do usuario sem sanitizacao.
+- Para codigos numericos, remover tudo que nao for numero.
+- Para datas, aceitar apenas formato validado YYYY-MM-DD.
+- Nao permitir que o cliente envie filtros arbitrarios.
+- O agente nao deve ter permissao para alterar dados.
+- O acesso Firebird deve ser somente leitura.
+- O flow deve retornar apenas dados do cliente autenticado quando houver identificador de cliente disponivel.
+
+============================================================
+22. DIRETRIZ FINAL
+============================================================
+
+Este flow deve substituir ou complementar a consulta de pedidos por API/cache.
+
+A prioridade agora e usar Firebird para pedidos em tempo real.
+
+Manter a arquitetura multi-tenant:
+- Nada de hardcode global para regras que possam mudar por laboratorio.
+- Sempre preparar o flow para receber tenant.
+- Sempre considerar que cada laboratorio pode ter campos, regras ou interpretacoes diferentes.
+
+Implementar de forma incremental:
+1. Pedido especifico.
+2. Periodo por data.
+3. Resumo por periodo.
+4. Sem romaneio.
+5. Depois joins com cliente, previsao, celula e roteiro.
+
