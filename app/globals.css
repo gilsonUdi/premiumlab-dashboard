@@ -198,6 +198,21 @@ body {
   background: #071224;
 }
 
+.dashboard-input[type="date"] {
+  color-scheme: dark;
+}
+
+.dashboard-input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(78%) sepia(18%) saturate(653%) hue-rotate(173deg) brightness(92%) contrast(92%);
+  opacity: 0.9;
+}
+
+.dashboard-input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  filter: invert(72%) sepia(61%) saturate(537%) hue-rotate(161deg) brightness(91%) contrast(86%);
+}
+
 /* ── Portal input ────────────────────────────────────────── */
 .portal-input {
   width: 100%;
