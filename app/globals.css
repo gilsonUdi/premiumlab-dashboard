@@ -202,15 +202,15 @@ body {
   color-scheme: dark;
 }
 
-.dashboard-input[type="date"]::-webkit-calendar-picker-indicator {
+input.dashboard-input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
-  filter: invert(78%) sepia(18%) saturate(653%) hue-rotate(173deg) brightness(92%) contrast(92%);
-  opacity: 0.9;
+  filter: brightness(0) invert(1) !important;
+  opacity: 0.75;
 }
 
-.dashboard-input[type="date"]::-webkit-calendar-picker-indicator:hover {
+input.dashboard-input[type="date"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
-  filter: invert(72%) sepia(61%) saturate(537%) hue-rotate(161deg) brightness(91%) contrast(86%);
+  filter: brightness(0) invert(1) !important;
 }
 
 /* ── Portal input ────────────────────────────────────────── */
