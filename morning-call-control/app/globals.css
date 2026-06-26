@@ -138,6 +138,43 @@ h2 {
   color: #f5d991;
 }
 
+.configWarning.error {
+  border-color: rgba(248, 113, 113, 0.5);
+  background: rgba(127, 29, 29, 0.22);
+}
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 900px;
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 1px solid rgba(147, 197, 253, 0.45);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #dbeafe;
+}
+
+.notice strong {
+  color: #f8fafc;
+}
+
+.notice p {
+  margin: 0;
+  color: #bfdbfe;
+}
+
+.notice.success {
+  border-color: rgba(74, 222, 128, 0.55);
+  background: rgba(22, 101, 52, 0.18);
+}
+
+.notice.error {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(127, 29, 29, 0.18);
+}
+
 .n8nGuide {
   margin-top: 22px;
   border-color: rgba(99, 179, 255, 0.28);

@@ -66,6 +66,7 @@ const initialPowerBi = {
 function useCollection(name) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(Boolean(db));
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!db) return undefined;
@@ -85,12 +86,16 @@ function useCollection(name) {
 
         setItems(rows);
         setLoading(false);
+        setError('');
       },
-      () => setLoading(false)
+      error => {
+        setLoading(false);
+        setError(error.message || `Nao foi possivel carregar ${name}.`);
+      }
     );
   }, [name]);
 
-  return { items, loading };
+  return { items, loading, error };
 }
 
 function Card({ title, description, icon: Icon, children, action }) {
@@ -158,6 +163,7 @@ export default function Home() {
   const [contactForm, setContactForm] = useState(initialContact);
   const [powerBiForm, setPowerBiForm] = useState(initialPowerBi);
   const [search, setSearch] = useState('');
+  const [notice, setNotice] = useState(null);
 
   const tenants = tenantsState.items;
   const contacts = contactsState.items;
@@ -197,71 +203,135 @@ export default function Home() {
     });
   }, [contacts, search, tenantMap]);
 
+  const collectionErrors = [
+    tenantsState.error,
+    contactsState.error,
+    powerBiState.error,
+    executionsState.error
+  ].filter(Boolean);
+
+  function showNotice(type, message) {
+    setNotice({ type, message });
+  }
+
+  function ensureDb() {
+    if (db) return true;
+
+    showNotice(
+      'error',
+      'Firebase nao configurado. Confira as variaveis NEXT_PUBLIC_FIREBASE_* na Vercel e faca um novo deploy.'
+    );
+    return false;
+  }
+
+  function handleActionError(error, fallbackMessage) {
+    showNotice('error', error?.message || fallbackMessage);
+  }
+
   async function saveTenant(event) {
     event.preventDefault();
-    if (!db || !tenantForm.id.trim()) return;
+    if (!ensureDb()) return;
+    if (!tenantForm.id.trim()) {
+      showNotice('error', 'Informe o ID do tenant antes de salvar.');
+      return;
+    }
 
     const id = tenantForm.id.trim().toLowerCase();
-    await setDoc(
-      doc(db, COLLECTIONS.tenants, id),
-      {
-        name: tenantForm.name.trim(),
-        slug: tenantForm.slug.trim() || id,
-        active: tenantForm.active,
-        updatedAt: serverTimestamp(),
-        createdAt: serverTimestamp()
-      },
-      { merge: true }
-    );
-    setTenantForm(initialTenant);
+    try {
+      await setDoc(
+        doc(db, COLLECTIONS.tenants, id),
+        {
+          name: tenantForm.name.trim(),
+          slug: tenantForm.slug.trim() || id,
+          active: tenantForm.active,
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+      setTenantForm(initialTenant);
+      showNotice('success', `Tenant ${id} salvo com sucesso.`);
+    } catch (error) {
+      handleActionError(error, 'Nao foi possivel salvar o tenant.');
+    }
   }
 
   async function saveContact(event) {
     event.preventDefault();
-    if (!db || !contactForm.tenant || !contactForm.phone.trim()) return;
+    if (!ensureDb()) return;
+    if (!contactForm.tenant || !contactForm.phone.trim()) {
+      showNotice('error', 'Selecione o tenant e informe o telefone antes de salvar.');
+      return;
+    }
 
-    await addDoc(collection(db, COLLECTIONS.contacts), {
-      ...contactForm,
-      phone: normalizePhone(contactForm.phone),
-      name: contactForm.name.trim(),
-      confirmationPhrase: contactForm.confirmationPhrase.trim(),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      lastNoticeSentAt: null,
-      lastReportSentAt: null
-    });
-    setContactForm(current => ({ ...initialContact, tenant: current.tenant }));
+    try {
+      await addDoc(collection(db, COLLECTIONS.contacts), {
+        ...contactForm,
+        phone: normalizePhone(contactForm.phone),
+        name: contactForm.name.trim(),
+        confirmationPhrase: contactForm.confirmationPhrase.trim(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        lastNoticeSentAt: null,
+        lastReportSentAt: null
+      });
+      setContactForm(current => ({ ...initialContact, tenant: current.tenant }));
+      showNotice('success', 'Numero autorizado salvo com sucesso.');
+    } catch (error) {
+      handleActionError(error, 'Nao foi possivel salvar o numero autorizado.');
+    }
   }
 
   async function savePowerBiConfig(event) {
     event.preventDefault();
-    if (!db || !powerBiForm.tenant) return;
+    if (!ensureDb()) return;
+    if (!powerBiForm.tenant) {
+      showNotice('error', 'Selecione o tenant antes de salvar a configuracao do Power BI.');
+      return;
+    }
 
-    await setDoc(
-      doc(db, COLLECTIONS.powerbi, powerBiForm.tenant),
-      {
-        ...powerBiForm,
-        workspaceId: powerBiForm.workspaceId.trim(),
-        datasetId: powerBiForm.datasetId.trim(),
-        updatedAt: serverTimestamp(),
-        createdAt: serverTimestamp()
-      },
-      { merge: true }
-    );
-    setPowerBiForm(current => ({ ...initialPowerBi, tenant: current.tenant }));
+    try {
+      await setDoc(
+        doc(db, COLLECTIONS.powerbi, powerBiForm.tenant),
+        {
+          ...powerBiForm,
+          workspaceId: powerBiForm.workspaceId.trim(),
+          datasetId: powerBiForm.datasetId.trim(),
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+      setPowerBiForm(current => ({ ...initialPowerBi, tenant: current.tenant }));
+      showNotice('success', 'Configuracao do Power BI salva com sucesso.');
+    } catch (error) {
+      handleActionError(error, 'Nao foi possivel salvar a configuracao do Power BI.');
+    }
   }
 
   async function toggleDoc(collectionName, item) {
-    if (!db) return;
-    await updateDoc(doc(db, collectionName, item.id), {
-      active: !item.active,
-      updatedAt: serverTimestamp()
-    });
+    if (!ensureDb()) return;
+
+    try {
+      await updateDoc(doc(db, collectionName, item.id), {
+        active: !item.active,
+        updatedAt: serverTimestamp()
+      });
+      showNotice('success', 'Status atualizado com sucesso.');
+    } catch (error) {
+      handleActionError(error, 'Nao foi possivel atualizar o status.');
+    }
   }
 
   async function removeDoc(collectionName, id) {
-    if (!db) return;
-    await deleteDoc(doc(db, collectionName, id));
+    if (!ensureDb()) return;
+
+    try {
+      await deleteDoc(doc(db, collectionName, id));
+      showNotice('success', 'Registro removido com sucesso.');
+    } catch (error) {
+      handleActionError(error, 'Nao foi possivel remover o registro.');
+    }
   }
 
   return (
@@ -301,6 +371,23 @@ export default function Home() {
               `.env.local` para habilitar leitura e gravacao no Firestore.
             </p>
           </div>
+        </section>
+      ) : null}
+
+      {collectionErrors.length ? (
+        <section className="configWarning error">
+          <Database size={20} />
+          <div>
+            <strong>Firestore retornou erro.</strong>
+            <p>{collectionErrors[0]}</p>
+          </div>
+        </section>
+      ) : null}
+
+      {notice ? (
+        <section className={`notice ${notice.type}`}>
+          <strong>{notice.type === 'error' ? 'Acao nao concluida' : 'Tudo certo'}</strong>
+          <p>{notice.message}</p>
         </section>
       ) : null}
 
