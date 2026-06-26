@@ -1,0 +1,658 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  serverTimestamp,
+  setDoc,
+  updateDoc
+} from 'firebase/firestore';
+import {
+  Activity,
+  BarChart3,
+  CheckCircle2,
+  Clock3,
+  Database,
+  MessageSquareText,
+  Phone,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings2,
+  ShieldCheck,
+  Trash2
+} from 'lucide-react';
+import { db, hasFirebaseConfig } from '@/lib/firebase';
+import { formatPhone, normalizePhone } from '@/lib/phone';
+
+const COLLECTIONS = {
+  tenants: 'tenants',
+  contacts: 'morning_call_contacts',
+  powerbi: 'powerbi_configs',
+  executions: 'morning_call_executions'
+};
+
+const initialTenant = {
+  id: '',
+  name: '',
+  slug: '',
+  active: true
+};
+
+const initialContact = {
+  tenant: '',
+  name: '',
+  phone: '',
+  active: true,
+  confirmationPhrase: 'Receber Morning Call',
+  noticeTime: '07:00',
+  timezone: 'America/Cuiaba',
+  sendNotice: true,
+  allowManualSend: true
+};
+
+const initialPowerBi = {
+  tenant: '',
+  workspaceId: '',
+  datasetId: '',
+  modelType: 'morning_call',
+  active: true
+};
+
+function useCollection(name) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(Boolean(db));
+
+  useEffect(() => {
+    if (!db) return undefined;
+
+    const ref = collection(db, name);
+
+    return onSnapshot(
+      ref,
+      snapshot => {
+        const rows = snapshot.docs
+          .map(item => ({ id: item.id, ...item.data() }))
+          .sort((a, b) => {
+            const aDate = a.createdAt?.toMillis?.() || 0;
+            const bDate = b.createdAt?.toMillis?.() || 0;
+            return bDate - aDate;
+          });
+
+        setItems(rows);
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+  }, [name]);
+
+  return { items, loading };
+}
+
+function Card({ title, description, icon: Icon, children, action }) {
+  return (
+    <section className="panel">
+      <div className="panelHeader">
+        <div className="panelTitleGroup">
+          <span className="panelIcon">{Icon ? <Icon size={18} /> : null}</span>
+          <div>
+            <h2>{title}</h2>
+            {description ? <p>{description}</p> : null}
+          </div>
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function EmptyState({ children }) {
+  return <div className="emptyState">{children}</div>;
+}
+
+function StatusPill({ active, activeText = 'Ativo', inactiveText = 'Inativo' }) {
+  return (
+    <span className={active ? 'pill active' : 'pill inactive'}>
+      {active ? activeText : inactiveText}
+    </span>
+  );
+}
+
+function formatDate(value) {
+  if (!value) return '-';
+
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+export default function Home() {
+  const firebaseReady = hasFirebaseConfig();
+  const tenantsState = useCollection(COLLECTIONS.tenants);
+  const contactsState = useCollection(COLLECTIONS.contacts);
+  const powerBiState = useCollection(COLLECTIONS.powerbi);
+  const executionsState = useCollection(COLLECTIONS.executions);
+
+  const [tenantForm, setTenantForm] = useState(initialTenant);
+  const [contactForm, setContactForm] = useState(initialContact);
+  const [powerBiForm, setPowerBiForm] = useState(initialPowerBi);
+  const [search, setSearch] = useState('');
+
+  const tenants = tenantsState.items;
+  const contacts = contactsState.items;
+  const powerBiConfigs = powerBiState.items;
+  const executions = executionsState.items;
+
+  useEffect(() => {
+    if (!contactForm.tenant && tenants[0]?.id) {
+      setContactForm(current => ({ ...current, tenant: tenants[0].id }));
+    }
+
+    if (!powerBiForm.tenant && tenants[0]?.id) {
+      setPowerBiForm(current => ({ ...current, tenant: tenants[0].id }));
+    }
+  }, [tenants, contactForm.tenant, powerBiForm.tenant]);
+
+  const tenantMap = useMemo(() => {
+    return tenants.reduce((acc, tenant) => {
+      acc[tenant.id] = tenant;
+      return acc;
+    }, {});
+  }, [tenants]);
+
+  const filteredContacts = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return contacts;
+
+    return contacts.filter(contact => {
+      return [
+        contact.name,
+        contact.tenant,
+        contact.phone,
+        tenantMap[contact.tenant]?.name
+      ]
+        .filter(Boolean)
+        .some(value => String(value).toLowerCase().includes(term));
+    });
+  }, [contacts, search, tenantMap]);
+
+  async function saveTenant(event) {
+    event.preventDefault();
+    if (!db || !tenantForm.id.trim()) return;
+
+    const id = tenantForm.id.trim().toLowerCase();
+    await setDoc(
+      doc(db, COLLECTIONS.tenants, id),
+      {
+        name: tenantForm.name.trim(),
+        slug: tenantForm.slug.trim() || id,
+        active: tenantForm.active,
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+    setTenantForm(initialTenant);
+  }
+
+  async function saveContact(event) {
+    event.preventDefault();
+    if (!db || !contactForm.tenant || !contactForm.phone.trim()) return;
+
+    await addDoc(collection(db, COLLECTIONS.contacts), {
+      ...contactForm,
+      phone: normalizePhone(contactForm.phone),
+      name: contactForm.name.trim(),
+      confirmationPhrase: contactForm.confirmationPhrase.trim(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      lastNoticeSentAt: null,
+      lastReportSentAt: null
+    });
+    setContactForm(current => ({ ...initialContact, tenant: current.tenant }));
+  }
+
+  async function savePowerBiConfig(event) {
+    event.preventDefault();
+    if (!db || !powerBiForm.tenant) return;
+
+    await setDoc(
+      doc(db, COLLECTIONS.powerbi, powerBiForm.tenant),
+      {
+        ...powerBiForm,
+        workspaceId: powerBiForm.workspaceId.trim(),
+        datasetId: powerBiForm.datasetId.trim(),
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+    setPowerBiForm(current => ({ ...initialPowerBi, tenant: current.tenant }));
+  }
+
+  async function toggleDoc(collectionName, item) {
+    if (!db) return;
+    await updateDoc(doc(db, collectionName, item.id), {
+      active: !item.active,
+      updatedAt: serverTimestamp()
+    });
+  }
+
+  async function removeDoc(collectionName, id) {
+    if (!db) return;
+    await deleteDoc(doc(db, collectionName, id));
+  }
+
+  return (
+    <main className="page">
+      <header className="hero">
+        <div>
+          <p className="eyebrow">GS Controladoria</p>
+          <h1>Morning Call Control</h1>
+          <p className="heroText">
+            Painel para controlar tenants, numeros autorizados, datasets do Power BI e
+            execucoes do Morning Call enviado pelo WhatsApp.
+          </p>
+        </div>
+        <div className="heroCard">
+          <div className="metric">
+            <span>Tenants</span>
+            <strong>{tenants.length}</strong>
+          </div>
+          <div className="metric">
+            <span>Contatos ativos</span>
+            <strong>{contacts.filter(contact => contact.active).length}</strong>
+          </div>
+          <div className="metric">
+            <span>Execucoes</span>
+            <strong>{executions.length}</strong>
+          </div>
+        </div>
+      </header>
+
+      {!firebaseReady ? (
+        <section className="configWarning">
+          <Database size={20} />
+          <div>
+            <strong>Firebase ainda nao configurado.</strong>
+            <p>
+              Configure as variaveis `NEXT_PUBLIC_FIREBASE_*` na Vercel ou no
+              `.env.local` para habilitar leitura e gravacao no Firestore.
+            </p>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="grid two">
+        <Card
+          title="Tenants"
+          description="Empresas ou laboratorios que podem usar o Morning Call."
+          icon={ShieldCheck}
+        >
+          <form className="form" onSubmit={saveTenant}>
+            <div className="formGrid">
+              <Field label="ID do tenant">
+                <input
+                  value={tenantForm.id}
+                  onChange={event =>
+                    setTenantForm(current => ({ ...current, id: event.target.value }))
+                  }
+                  placeholder="gradual"
+                />
+              </Field>
+              <Field label="Nome">
+                <input
+                  value={tenantForm.name}
+                  onChange={event =>
+                    setTenantForm(current => ({ ...current, name: event.target.value }))
+                  }
+                  placeholder="Lentes Gradual"
+                />
+              </Field>
+              <Field label="Slug">
+                <input
+                  value={tenantForm.slug}
+                  onChange={event =>
+                    setTenantForm(current => ({ ...current, slug: event.target.value }))
+                  }
+                  placeholder="gradual"
+                />
+              </Field>
+              <label className="checkField">
+                <input
+                  type="checkbox"
+                  checked={tenantForm.active}
+                  onChange={event =>
+                    setTenantForm(current => ({
+                      ...current,
+                      active: event.target.checked
+                    }))
+                  }
+                />
+                Tenant ativo
+              </label>
+            </div>
+            <button className="primaryButton" type="submit" disabled={!firebaseReady}>
+              <Plus size={16} />
+              Salvar tenant
+            </button>
+          </form>
+
+          <div className="list">
+            {tenants.length ? (
+              tenants.map(tenant => (
+                <div className="listItem" key={tenant.id}>
+                  <div>
+                    <strong>{tenant.name || tenant.id}</strong>
+                    <span>{tenant.id}</span>
+                  </div>
+                  <div className="rowActions">
+                    <StatusPill active={tenant.active} />
+                    <button onClick={() => toggleDoc(COLLECTIONS.tenants, tenant)}>
+                      <RefreshCw size={15} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <EmptyState>Nenhum tenant cadastrado.</EmptyState>
+            )}
+          </div>
+        </Card>
+
+        <Card
+          title="Power BI"
+          description="Datasets usados pelas tools de geracao do relatorio."
+          icon={BarChart3}
+        >
+          <form className="form" onSubmit={savePowerBiConfig}>
+            <div className="formGrid">
+              <Field label="Tenant">
+                <select
+                  value={powerBiForm.tenant}
+                  onChange={event =>
+                    setPowerBiForm(current => ({ ...current, tenant: event.target.value }))
+                  }
+                >
+                  <option value="">Selecione</option>
+                  {tenants.map(tenant => (
+                    <option key={tenant.id} value={tenant.id}>
+                      {tenant.name || tenant.id}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Workspace ID">
+                <input
+                  value={powerBiForm.workspaceId}
+                  onChange={event =>
+                    setPowerBiForm(current => ({
+                      ...current,
+                      workspaceId: event.target.value
+                    }))
+                  }
+                  placeholder="group id"
+                />
+              </Field>
+              <Field label="Dataset ID">
+                <input
+                  value={powerBiForm.datasetId}
+                  onChange={event =>
+                    setPowerBiForm(current => ({
+                      ...current,
+                      datasetId: event.target.value
+                    }))
+                  }
+                  placeholder="dataset id"
+                />
+              </Field>
+              <label className="checkField">
+                <input
+                  type="checkbox"
+                  checked={powerBiForm.active}
+                  onChange={event =>
+                    setPowerBiForm(current => ({
+                      ...current,
+                      active: event.target.checked
+                    }))
+                  }
+                />
+                Config ativa
+              </label>
+            </div>
+            <button className="primaryButton" type="submit" disabled={!firebaseReady}>
+              <Settings2 size={16} />
+              Salvar Power BI
+            </button>
+          </form>
+
+          <div className="list">
+            {powerBiConfigs.length ? (
+              powerBiConfigs.map(config => (
+                <div className="listItem" key={config.id}>
+                  <div>
+                    <strong>{tenantMap[config.tenant]?.name || config.tenant}</strong>
+                    <span>{config.datasetId || 'Dataset nao informado'}</span>
+                  </div>
+                  <StatusPill active={config.active} />
+                </div>
+              ))
+            ) : (
+              <EmptyState>Nenhuma configuracao de Power BI cadastrada.</EmptyState>
+            )}
+          </div>
+        </Card>
+      </section>
+
+      <Card
+        title="Numeros autorizados"
+        description="Somente estes telefones podem solicitar ou receber Morning Call."
+        icon={Phone}
+        action={
+          <div className="searchBox">
+            <Search size={15} />
+            <input
+              value={search}
+              onChange={event => setSearch(event.target.value)}
+              placeholder="Buscar contato"
+            />
+          </div>
+        }
+      >
+        <form className="form" onSubmit={saveContact}>
+          <div className="formGrid contacts">
+            <Field label="Tenant">
+              <select
+                value={contactForm.tenant}
+                onChange={event =>
+                  setContactForm(current => ({ ...current, tenant: event.target.value }))
+                }
+              >
+                <option value="">Selecione</option>
+                {tenants.map(tenant => (
+                  <option key={tenant.id} value={tenant.id}>
+                    {tenant.name || tenant.id}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Nome">
+              <input
+                value={contactForm.name}
+                onChange={event =>
+                  setContactForm(current => ({ ...current, name: event.target.value }))
+                }
+                placeholder="GS Controladoria Gilson"
+              />
+            </Field>
+            <Field label="Telefone">
+              <input
+                value={contactForm.phone}
+                onChange={event =>
+                  setContactForm(current => ({ ...current, phone: event.target.value }))
+                }
+                placeholder="5566999999999"
+              />
+            </Field>
+            <Field label="Horario aviso">
+              <input
+                type="time"
+                value={contactForm.noticeTime}
+                onChange={event =>
+                  setContactForm(current => ({
+                    ...current,
+                    noticeTime: event.target.value
+                  }))
+                }
+              />
+            </Field>
+            <Field label="Frase de confirmacao">
+              <input
+                value={contactForm.confirmationPhrase}
+                onChange={event =>
+                  setContactForm(current => ({
+                    ...current,
+                    confirmationPhrase: event.target.value
+                  }))
+                }
+              />
+            </Field>
+            <div className="checkGroup">
+              <label className="checkField">
+                <input
+                  type="checkbox"
+                  checked={contactForm.active}
+                  onChange={event =>
+                    setContactForm(current => ({
+                      ...current,
+                      active: event.target.checked
+                    }))
+                  }
+                />
+                Ativo
+              </label>
+              <label className="checkField">
+                <input
+                  type="checkbox"
+                  checked={contactForm.sendNotice}
+                  onChange={event =>
+                    setContactForm(current => ({
+                      ...current,
+                      sendNotice: event.target.checked
+                    }))
+                  }
+                />
+                Aviso diario
+              </label>
+            </div>
+          </div>
+          <button className="primaryButton" type="submit" disabled={!firebaseReady}>
+            <Plus size={16} />
+            Autorizar numero
+          </button>
+        </form>
+
+        <div className="table">
+          <div className="tableHeader contactColumns">
+            <span>Contato</span>
+            <span>Tenant</span>
+            <span>Telefone</span>
+            <span>Confirmacao</span>
+            <span>Status</span>
+            <span></span>
+          </div>
+          {filteredContacts.length ? (
+            filteredContacts.map(contact => (
+              <div className="tableRow contactColumns" key={contact.id}>
+                <strong>{contact.name || '-'}</strong>
+                <span>{tenantMap[contact.tenant]?.name || contact.tenant}</span>
+                <span>{formatPhone(contact.phone)}</span>
+                <span>{contact.confirmationPhrase}</span>
+                <StatusPill active={contact.active} />
+                <div className="rowActions">
+                  <button onClick={() => toggleDoc(COLLECTIONS.contacts, contact)}>
+                    <RefreshCw size={15} />
+                  </button>
+                  <button onClick={() => removeDoc(COLLECTIONS.contacts, contact.id)}>
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <EmptyState>Nenhum numero autorizado encontrado.</EmptyState>
+          )}
+        </div>
+      </Card>
+
+      <Card
+        title="Execucoes"
+        description="Historico usado pelo n8n para auditoria e reenvio."
+        icon={Activity}
+      >
+        <div className="table">
+          <div className="tableHeader executionColumns">
+            <span>Cliente</span>
+            <span>Tenant</span>
+            <span>Status</span>
+            <span>Referencia</span>
+            <span>Atualizado</span>
+          </div>
+          {executions.length ? (
+            executions.slice(0, 20).map(execution => (
+              <div className="tableRow executionColumns" key={execution.id}>
+                <strong>{execution.contactName || execution.phone || '-'}</strong>
+                <span>{tenantMap[execution.tenant]?.name || execution.tenant || '-'}</span>
+                <span className="statusText">
+                  {execution.status === 'report_sent' ? (
+                    <CheckCircle2 size={15} />
+                  ) : (
+                    <Clock3 size={15} />
+                  )}
+                  {execution.status || 'pending'}
+                </span>
+                <span>{execution.referenceDate || '-'}</span>
+                <span>{formatDate(execution.updatedAt || execution.createdAt)}</span>
+              </div>
+            ))
+          ) : (
+            <EmptyState>Nenhuma execucao registrada ainda.</EmptyState>
+          )}
+        </div>
+      </Card>
+
+      <section className="n8nGuide">
+        <MessageSquareText size={20} />
+        <div>
+          <h2>Contrato para o n8n</h2>
+          <p>
+            O flow principal deve normalizar o telefone recebido da Evolution API e
+            procurar em `morning_call_contacts` por `phone`. Se o contato estiver ativo,
+            o `tenant` define qual tool de Morning Call sera chamada.
+          </p>
+        </div>
+      </section>
+    </main>
+  );
+}
