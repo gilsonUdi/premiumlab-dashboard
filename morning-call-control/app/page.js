@@ -632,7 +632,15 @@ export default function Home() {
                     <span>{getPowerBiModelLabel(config.modelType)}</span>
                     <span>{config.datasetId || 'Dataset nao informado'}</span>
                   </div>
-                  <StatusPill active={config.active} />
+                  <div className="rowActions">
+                    <StatusPill active={config.active} />
+                    <button onClick={() => toggleDoc(COLLECTIONS.powerbi, config)}>
+                      <RefreshCw size={15} />
+                    </button>
+                    <button onClick={() => removeDoc(COLLECTIONS.powerbi, config.id)}>
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
               ))
             ) : (
