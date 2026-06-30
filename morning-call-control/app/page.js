@@ -36,6 +36,21 @@ const COLLECTIONS = {
   executions: 'morning_call_executions'
 };
 
+const POWER_BI_MODEL_TYPES = [
+  {
+    id: 'geral',
+    label: 'Dados gerais',
+    description: 'Morning Call, vendas, receber e indicadores financeiros.'
+  },
+  {
+    id: 'precos',
+    label: 'Produtos e precos',
+    description: 'Produtos, tabelas de negociacao, descontos e consulta de precos.'
+  }
+];
+
+const DEFAULT_POWER_BI_MODEL_TYPE = 'geral';
+
 const initialTenant = {
   id: '',
   name: '',
@@ -59,9 +74,38 @@ const initialPowerBi = {
   tenant: '',
   workspaceId: '',
   datasetId: '',
-  modelType: 'morning_call',
+  modelType: DEFAULT_POWER_BI_MODEL_TYPE,
   active: true
 };
+
+function normalizePowerBiModelType(value) {
+  const modelType = String(value || '').trim().toLowerCase();
+
+  if (POWER_BI_MODEL_TYPES.some(model => model.id === modelType)) {
+    return modelType;
+  }
+
+  if (['morning_call', 'dados_gerais', 'dados-gerais', 'general'].includes(modelType)) {
+    return 'geral';
+  }
+
+  if (['produtos', 'products', 'precos', 'preços', 'prices'].includes(modelType)) {
+    return 'precos';
+  }
+
+  return DEFAULT_POWER_BI_MODEL_TYPE;
+}
+
+function getPowerBiDocId(tenant, modelType) {
+  return `${tenant}__${normalizePowerBiModelType(modelType)}`;
+}
+
+function getPowerBiModelLabel(modelType) {
+  return (
+    POWER_BI_MODEL_TYPES.find(model => model.id === normalizePowerBiModelType(modelType))
+      ?.label || 'Dados gerais'
+  );
+}
 
 function useCollection(name) {
   const [items, setItems] = useState([]);
@@ -167,7 +211,17 @@ export default function Home() {
 
   const tenants = tenantsState.items;
   const contacts = contactsState.items;
-  const powerBiConfigs = powerBiState.items;
+  const powerBiConfigs = useMemo(() => {
+    return powerBiState.items.map(config => {
+      const [tenantFromId, modelFromId] = String(config.id || '').split('__');
+
+      return {
+        ...config,
+        tenant: config.tenant || tenantFromId || '',
+        modelType: normalizePowerBiModelType(config.modelType || modelFromId)
+      };
+    });
+  }, [powerBiState.items]);
   const executions = executionsState.items;
 
   useEffect(() => {
@@ -290,20 +344,32 @@ export default function Home() {
       return;
     }
 
+    const tenant = powerBiForm.tenant.trim();
+    const modelType = normalizePowerBiModelType(powerBiForm.modelType);
+
     try {
       await setDoc(
-        doc(db, COLLECTIONS.powerbi, powerBiForm.tenant),
+        doc(db, COLLECTIONS.powerbi, getPowerBiDocId(tenant, modelType)),
         {
-          ...powerBiForm,
+          tenant,
+          modelType,
           workspaceId: powerBiForm.workspaceId.trim(),
           datasetId: powerBiForm.datasetId.trim(),
+          active: powerBiForm.active,
           updatedAt: serverTimestamp(),
           createdAt: serverTimestamp()
         },
         { merge: true }
       );
-      setPowerBiForm(current => ({ ...initialPowerBi, tenant: current.tenant }));
-      showNotice('success', 'Configuracao do Power BI salva com sucesso.');
+      setPowerBiForm(current => ({
+        ...initialPowerBi,
+        tenant: current.tenant,
+        modelType: current.modelType
+      }));
+      showNotice(
+        'success',
+        `Configuracao de Power BI (${getPowerBiModelLabel(modelType)}) salva com sucesso.`
+      );
     } catch (error) {
       handleActionError(error, 'Nao foi possivel salvar a configuracao do Power BI.');
     }
@@ -353,6 +419,10 @@ export default function Home() {
           <div className="metric">
             <span>Contatos ativos</span>
             <strong>{contacts.filter(contact => contact.active).length}</strong>
+          </div>
+          <div className="metric">
+            <span>Configs Power BI</span>
+            <strong>{powerBiConfigs.length}</strong>
           </div>
           <div className="metric">
             <span>Execucoes</span>
@@ -490,6 +560,23 @@ export default function Home() {
                   ))}
                 </select>
               </Field>
+              <Field label="Modelo">
+                <select
+                  value={powerBiForm.modelType}
+                  onChange={event =>
+                    setPowerBiForm(current => ({
+                      ...current,
+                      modelType: normalizePowerBiModelType(event.target.value)
+                    }))
+                  }
+                >
+                  {POWER_BI_MODEL_TYPES.map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
               <Field label="Workspace ID">
                 <input
                   value={powerBiForm.workspaceId}
@@ -539,7 +626,10 @@ export default function Home() {
               powerBiConfigs.map(config => (
                 <div className="listItem" key={config.id}>
                   <div>
-                    <strong>{tenantMap[config.tenant]?.name || config.tenant}</strong>
+                    <strong>
+                      {tenantMap[config.tenant]?.name || config.tenant || config.id}
+                    </strong>
+                    <span>{getPowerBiModelLabel(config.modelType)}</span>
                     <span>{config.datasetId || 'Dataset nao informado'}</span>
                   </div>
                   <StatusPill active={config.active} />

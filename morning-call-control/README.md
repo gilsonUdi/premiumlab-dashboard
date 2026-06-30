@@ -24,6 +24,21 @@ NEXT_PUBLIC_FIREBASE_APP_ID=
 - `powerbi_configs`
 - `morning_call_executions`
 
+### Configuracoes Power BI
+
+Cada tenant pode ter dois modelos do Power BI cadastrados em `powerbi_configs`:
+
+- `{tenant}__geral`: modelo de dados gerais do Morning Call, com vendas, receber e indicadores financeiros.
+- `{tenant}__precos`: modelo de produtos e precos, usado para consultas de produtos, tabelas e descontos.
+
+Campos esperados:
+
+- `tenant`
+- `modelType`: `geral` ou `precos`
+- `workspaceId`
+- `datasetId`
+- `active`
+
 ## Uso pelo n8n
 
-O flow principal do Morning Call deve consultar `morning_call_contacts` pelo telefone normalizado. O contato encontrado define o `tenant`, a frase de confirmacao e se o numero esta autorizado.
+O flow principal do Morning Call deve consultar `morning_call_contacts` pelo telefone normalizado. O contato encontrado define o `tenant`, a frase de confirmacao e se o numero esta autorizado. Depois, o n8n busca em `powerbi_configs` o documento do tenant e modelo necessario para cada tool.
