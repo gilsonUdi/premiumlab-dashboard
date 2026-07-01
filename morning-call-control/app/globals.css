@@ -1,23 +1,23 @@
 :root {
-  color-scheme: light;
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --surface-soft: #f9fafb;
-  --surface-muted: #eef2f6;
-  --line: #dde3ea;
-  --line-strong: #c7d0dc;
-  --text: #17202f;
-  --muted: #657386;
-  --subtle: #8a96a8;
-  --blue: #2563eb;
-  --blue-soft: #eff6ff;
-  --green: #0f9f6e;
-  --green-soft: #ecfdf5;
-  --red: #d92d20;
-  --red-soft: #fef3f2;
-  --yellow: #b7791f;
-  --yellow-soft: #fffbeb;
-  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+  color-scheme: dark;
+  --bg: #080d16;
+  --surface: #101722;
+  --surface-soft: #141d2a;
+  --surface-muted: #1b2635;
+  --line: #263445;
+  --line-strong: #334458;
+  --text: #eef4fb;
+  --muted: #a4b1c2;
+  --subtle: #7f8da0;
+  --blue: #76a9ff;
+  --blue-soft: #13233d;
+  --green: #5ed6a0;
+  --green-soft: #10291f;
+  --red: #ff8a80;
+  --red-soft: #321817;
+  --yellow: #f6c86a;
+  --yellow-soft: #2c2412;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
 }
 
 * {
@@ -57,7 +57,7 @@ p {
 
 h1 {
   margin-bottom: 8px;
-  color: #101828;
+  color: #f8fbff;
   font-size: clamp(1.75rem, 3vw, 2.6rem);
   line-height: 1.05;
   letter-spacing: 0;
@@ -65,7 +65,7 @@ h1 {
 
 h2 {
   margin-bottom: 3px;
-  color: #111827;
+  color: #f5f8fc;
   font-size: 0.98rem;
   font-weight: 760;
 }
@@ -132,7 +132,7 @@ h2 {
 }
 
 .metric strong {
-  color: #101828;
+  color: #f8fbff;
   font-size: 1.75rem;
   line-height: 1;
 }
@@ -152,9 +152,9 @@ h2 {
 }
 
 .configWarning {
-  border-color: #f3d28a;
+  border-color: rgba(246, 200, 106, 0.34);
   background: var(--yellow-soft);
-  color: #7a4f01;
+  color: #ffe2a4;
 }
 
 .configWarning p,
@@ -167,7 +167,7 @@ h2 {
 
 .configWarning.error,
 .notice.error {
-  border-color: #f4b8b2;
+  border-color: rgba(255, 138, 128, 0.35);
   background: var(--red-soft);
   color: var(--red);
 }
@@ -221,7 +221,7 @@ h2 {
 }
 
 .sectionNav button.active {
-  border-color: #bfd3ff;
+  border-color: rgba(118, 169, 255, 0.42);
   background: var(--blue-soft);
   color: var(--blue);
 }
@@ -256,7 +256,7 @@ h2 {
 }
 
 .summaryTile strong {
-  color: #111827;
+  color: #f8fbff;
   font-size: 1.65rem;
   line-height: 1;
 }
@@ -360,7 +360,7 @@ h2 {
   width: 32px;
   height: 32px;
   place-items: center;
-  border: 1px solid #d8e5ff;
+  border: 1px solid rgba(118, 169, 255, 0.26);
   border-radius: 8px;
   background: var(--blue-soft);
   color: var(--blue);
@@ -412,8 +412,8 @@ h2 {
 .field input:focus,
 .field select:focus,
 .searchBox input:focus {
-  border-color: #8fb3ff;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: rgba(118, 169, 255, 0.8);
+  box-shadow: 0 0 0 3px rgba(118, 169, 255, 0.12);
 }
 
 .checkGroup {
@@ -445,9 +445,9 @@ h2 {
   gap: 8px;
   width: fit-content;
   min-height: 38px;
-  border: 1px solid #1d4ed8;
+  border: 1px solid rgba(118, 169, 255, 0.54);
   border-radius: 8px;
-  background: var(--blue);
+  background: #2d63c8;
   color: #fff;
   padding: 0 14px;
   font-size: 0.88rem;
@@ -455,7 +455,7 @@ h2 {
 }
 
 .primaryButton:hover {
-  background: #1d4ed8;
+  background: #3b72dc;
 }
 
 .primaryButton:disabled {
@@ -476,13 +476,13 @@ h2 {
 }
 
 .pill.active {
-  border-color: #b8e6d2;
+  border-color: rgba(94, 214, 160, 0.3);
   background: var(--green-soft);
   color: var(--green);
 }
 
 .pill.inactive {
-  border-color: #f4b8b2;
+  border-color: rgba(255, 138, 128, 0.3);
   background: var(--red-soft);
   color: var(--red);
 }
