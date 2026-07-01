@@ -36,6 +36,31 @@ const COLLECTIONS = {
   executions: 'morning_call_executions'
 };
 
+function timestampToMillis(value) {
+  if (!value) return null;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.toDate === 'function') return value.toDate().getTime();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+  return null;
+}
+
+function normalizeFirestoreValue(value) {
+  if (!value) return value;
+
+  const timestampMillis = timestampToMillis(value);
+  if (timestampMillis !== null) return new Date(timestampMillis).toISOString();
+
+  if (Array.isArray(value)) return value.map(normalizeFirestoreValue);
+
+  if (typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, normalizeFirestoreValue(item)])
+    );
+  }
+
+  return value;
+}
+
 const POWER_BI_MODEL_TYPES = [
   {
     id: 'geral',
@@ -130,13 +155,16 @@ function useCollection(name) {
       snapshot => {
         function dateValue(value) {
           if (!value) return 0;
-          if (value?.toMillis) return value.toMillis();
+          const timestampMillis = timestampToMillis(value);
+          if (timestampMillis !== null) return timestampMillis;
+          if (typeof value === 'object') return 0;
+
           const parsed = new Date(value).getTime();
           return Number.isNaN(parsed) ? 0 : parsed;
         }
 
         const rows = snapshot.docs
-          .map(item => ({ id: item.id, ...item.data() }))
+          .map(item => ({ ...normalizeFirestoreValue(item.data()), id: item.id }))
           .sort((a, b) => {
             const aDate = dateValue(a.updatedAt || a.createdAt);
             const bDate = dateValue(b.updatedAt || b.createdAt);
@@ -199,7 +227,18 @@ function StatusPill({ active, activeText = 'Ativo', inactiveText = 'Inativo' }) 
 function formatDate(value) {
   if (!value) return '-';
 
-  const date = value?.toDate ? value.toDate() : new Date(value);
+  let date;
+  if (typeof value?.toDate === 'function') {
+    date = value.toDate();
+  } else if (typeof value?.toMillis === 'function') {
+    date = new Date(value.toMillis());
+  } else if (typeof value === 'object') {
+    date = typeof value.seconds === 'number' ? new Date(value.seconds * 1000) : null;
+  } else {
+    date = new Date(value);
+  }
+
+  if (!date) return '-';
   if (Number.isNaN(date.getTime())) return '-';
 
   return new Intl.DateTimeFormat('pt-BR', {
@@ -208,6 +247,36 @@ function formatDate(value) {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit'
+  }).format(date);
+}
+
+function formatReferenceDate(...values) {
+  const value = values.find(item => item);
+  if (!value) return '-';
+
+  if (typeof value === 'string') {
+    const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoDate) return `${isoDate[3]}/${isoDate[2]}/${isoDate[1]}`;
+    return value;
+  }
+
+  let date;
+  if (typeof value?.toDate === 'function') {
+    date = value.toDate();
+  } else if (typeof value?.toMillis === 'function') {
+    date = new Date(value.toMillis());
+  } else if (typeof value === 'object') {
+    date = typeof value.seconds === 'number' ? new Date(value.seconds * 1000) : null;
+  } else {
+    date = new Date(value);
+  }
+
+  if (!date || Number.isNaN(date.getTime())) return '-';
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
   }).format(date);
 }
 
@@ -299,10 +368,17 @@ export default function Home() {
   const contactMonitoring = useMemo(() => {
     return contacts.map(contact => {
       const related = executions.filter(execution => {
+        const contactId = String(contact.id || '');
+        const contactPhone = String(contact.phone || '');
+        const contactWhatsappId = String(contact.whatsappId || '');
+        const executionContactId = String(execution.contactId || '');
+        const executionPhone = String(execution.phone || '');
+        const executionWhatsappId = String(execution.whatsappId || '');
+
         return (
-          execution.contactId === contact.id ||
-          execution.phone === contact.phone ||
-          execution.whatsappId === contact.whatsappId
+          (contactId && executionContactId === contactId) ||
+          (contactPhone && executionPhone === contactPhone) ||
+          (contactWhatsappId && executionWhatsappId === contactWhatsappId)
         );
       });
 
@@ -946,7 +1022,13 @@ export default function Home() {
                   )}
                   {statusLabel(execution.status)}
                 </span>
-                <span>{execution.reportDateBr || execution.reportDate || execution.referenceDate || '-'}</span>
+                <span>
+                  {formatReferenceDate(
+                    execution.reportDateBr,
+                    execution.reportDate,
+                    execution.referenceDate
+                  )}
+                </span>
                 <span>{formatDate(execution.updatedAt || execution.createdAt)}</span>
               </div>
             ))
@@ -972,7 +1054,10 @@ export default function Home() {
             </div>
             {contactMonitoring.length ? (
               contactMonitoring.map(row => (
-                <div className="tableRow conversationColumns" key={row.contact.id}>
+                <div
+                  className="tableRow conversationColumns"
+                  key={row.contact.id || row.contact.phone || row.contact.name}
+                >
                   <strong>{row.contact.name || '-'}</strong>
                   <span>{tenantMap[row.contact.tenant]?.name || row.contact.tenant || '-'}</span>
                   <span>{formatPhone(row.contact.phone)}</span>
