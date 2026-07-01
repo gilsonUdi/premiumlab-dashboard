@@ -175,6 +175,104 @@ h2 {
   background: rgba(127, 29, 29, 0.18);
 }
 
+.sectionNav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 20px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(7, 20, 38, 0.72);
+  overflow-x: auto;
+}
+
+.sectionNav button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 12px;
+  font-weight: 800;
+}
+
+.sectionNav button.active {
+  border-color: rgba(99, 179, 255, 0.44);
+  background: rgba(99, 179, 255, 0.12);
+  color: var(--text);
+}
+
+.overviewGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summaryTile {
+  min-height: 112px;
+  padding: 14px;
+  border: 1px solid rgba(99, 179, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(7, 20, 38, 0.72);
+}
+
+.summaryTile span {
+  display: block;
+  margin-bottom: 20px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.summaryTile strong {
+  font-size: 2rem;
+}
+
+.compactList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compactItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(99, 179, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(7, 20, 38, 0.72);
+}
+
+.compactItem div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.compactItem div:last-child {
+  align-items: flex-end;
+}
+
+.compactItem span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .n8nGuide {
   margin-top: 22px;
   border-color: rgba(99, 179, 255, 0.28);
@@ -435,6 +533,10 @@ h2 {
   grid-template-columns: 1.4fr 1fr 150px 150px 190px;
 }
 
+.conversationColumns {
+  grid-template-columns: 1.4fr 1fr 1fr 160px 190px;
+}
+
 .statusText {
   display: flex;
   gap: 8px;
@@ -449,9 +551,14 @@ h2 {
   text-align: center;
 }
 
+.hidden {
+  display: none !important;
+}
+
 @media (max-width: 1100px) {
   .hero,
-  .grid.two {
+  .grid.two,
+  .overviewGrid {
     grid-template-columns: 1fr;
   }
 
@@ -467,6 +574,7 @@ h2 {
   }
 
   .heroCard,
+  .summaryGrid,
   .formGrid,
   .formGrid.contacts {
     grid-template-columns: 1fr;

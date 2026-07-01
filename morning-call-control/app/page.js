@@ -51,6 +51,14 @@ const POWER_BI_MODEL_TYPES = [
 
 const DEFAULT_POWER_BI_MODEL_TYPE = 'geral';
 
+const NAV_ITEMS = [
+  { id: 'overview', label: 'Visao geral', icon: Activity },
+  { id: 'tenants', label: 'Tenants', icon: ShieldCheck },
+  { id: 'contacts', label: 'Clientes', icon: Phone },
+  { id: 'powerbi', label: 'Power BI', icon: BarChart3 },
+  { id: 'monitoring', label: 'Monitoramento', icon: MessageSquareText }
+];
+
 const initialTenant = {
   id: '',
   name: '',
@@ -120,11 +128,18 @@ function useCollection(name) {
     return onSnapshot(
       ref,
       snapshot => {
+        function dateValue(value) {
+          if (!value) return 0;
+          if (value?.toMillis) return value.toMillis();
+          const parsed = new Date(value).getTime();
+          return Number.isNaN(parsed) ? 0 : parsed;
+        }
+
         const rows = snapshot.docs
           .map(item => ({ id: item.id, ...item.data() }))
           .sort((a, b) => {
-            const aDate = a.createdAt?.toMillis?.() || 0;
-            const bDate = b.createdAt?.toMillis?.() || 0;
+            const aDate = dateValue(a.updatedAt || a.createdAt);
+            const bDate = dateValue(b.updatedAt || b.createdAt);
             return bDate - aDate;
           });
 
@@ -142,9 +157,9 @@ function useCollection(name) {
   return { items, loading, error };
 }
 
-function Card({ title, description, icon: Icon, children, action }) {
+function Card({ title, description, icon: Icon, children, action, className = '' }) {
   return (
-    <section className="panel">
+    <section className={`panel ${className}`.trim()}>
       <div className="panelHeader">
         <div className="panelTitleGroup">
           <span className="panelIcon">{Icon ? <Icon size={18} /> : null}</span>
@@ -196,6 +211,20 @@ function formatDate(value) {
   }).format(date);
 }
 
+function statusLabel(status) {
+  const labels = {
+    requested: 'Solicitado',
+    generating: 'Gerando',
+    sent: 'Enviado',
+    report_sent: 'Enviado',
+    notice_sent: 'Aviso enviado',
+    error: 'Erro',
+    pending: 'Pendente'
+  };
+
+  return labels[status] || status || 'Pendente';
+}
+
 export default function Home() {
   const firebaseReady = hasFirebaseConfig();
   const tenantsState = useCollection(COLLECTIONS.tenants);
@@ -208,6 +237,7 @@ export default function Home() {
   const [powerBiForm, setPowerBiForm] = useState(initialPowerBi);
   const [search, setSearch] = useState('');
   const [notice, setNotice] = useState(null);
+  const [activePage, setActivePage] = useState('overview');
 
   const tenants = tenantsState.items;
   const contacts = contactsState.items;
@@ -263,6 +293,26 @@ export default function Home() {
     powerBiState.error,
     executionsState.error
   ].filter(Boolean);
+
+  const latestExecutions = useMemo(() => executions.slice(0, 30), [executions]);
+
+  const contactMonitoring = useMemo(() => {
+    return contacts.map(contact => {
+      const related = executions.filter(execution => {
+        return (
+          execution.contactId === contact.id ||
+          execution.phone === contact.phone ||
+          execution.whatsappId === contact.whatsappId
+        );
+      });
+
+      return {
+        contact,
+        lastExecution: related[0] || null,
+        totalExecutions: related.length
+      };
+    });
+  }, [contacts, executions]);
 
   function showNotice(type, message) {
     setNotice({ type, message });
@@ -461,11 +511,87 @@ export default function Home() {
         </section>
       ) : null}
 
-      <section className="grid two">
+      <nav className="sectionNav" aria-label="Navegacao do painel">
+        {NAV_ITEMS.map(item => {
+          const Icon = item.icon;
+          return (
+            <button
+              className={activePage === item.id ? 'active' : ''}
+              key={item.id}
+              onClick={() => setActivePage(item.id)}
+              type="button"
+            >
+              <Icon size={16} />
+              {item.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      {activePage === 'overview' ? (
+        <section className="overviewGrid">
+          <Card
+            title="Resumo operacional"
+            description="Estado atual da operacao Morning Call."
+            icon={Activity}
+          >
+            <div className="summaryGrid">
+              <div className="summaryTile">
+                <span>Tenants ativos</span>
+                <strong>{tenants.filter(tenant => tenant.active).length}</strong>
+              </div>
+              <div className="summaryTile">
+                <span>Clientes ativos</span>
+                <strong>{contacts.filter(contact => contact.active).length}</strong>
+              </div>
+              <div className="summaryTile">
+                <span>Avisos diarios</span>
+                <strong>{contacts.filter(contact => contact.sendNotice !== false).length}</strong>
+              </div>
+              <div className="summaryTile">
+                <span>Execucoes com erro</span>
+                <strong>{executions.filter(execution => execution.status === 'error').length}</strong>
+              </div>
+            </div>
+          </Card>
+
+          <Card
+            title="Ultimas conversas"
+            description="Eventos recentes registrados pelo n8n."
+            icon={MessageSquareText}
+          >
+            <div className="compactList">
+              {latestExecutions.length ? (
+                latestExecutions.slice(0, 8).map(execution => (
+                  <div className="compactItem" key={execution.id}>
+                    <div>
+                      <strong>{execution.contactName || execution.phone || '-'}</strong>
+                      <span>{tenantMap[execution.tenant]?.name || execution.tenant || '-'}</span>
+                    </div>
+                    <div>
+                      <StatusPill
+                        active={execution.status !== 'error'}
+                        activeText={statusLabel(execution.status)}
+                        inactiveText="Erro"
+                      />
+                      <span>{formatDate(execution.updatedAt || execution.createdAt)}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <EmptyState>Nenhuma execucao registrada ainda.</EmptyState>
+              )}
+            </div>
+          </Card>
+        </section>
+      ) : null}
+
+      <section className={activePage === 'tenants' || activePage === 'powerbi' ? 'grid' : 'hidden'}>
         <Card
           title="Tenants"
           description="Empresas ou laboratorios que podem usar o Morning Call."
           icon={ShieldCheck}
+          className={activePage === 'tenants' ? '' : 'hidden'}
         >
           <form className="form" onSubmit={saveTenant}>
             <div className="formGrid">
@@ -542,6 +668,7 @@ export default function Home() {
           title="Power BI"
           description="Datasets usados pelas tools de geracao do relatorio."
           icon={BarChart3}
+          className={activePage === 'powerbi' ? '' : 'hidden'}
         >
           <form className="form" onSubmit={savePowerBiConfig}>
             <div className="formGrid">
@@ -654,6 +781,7 @@ export default function Home() {
         title="Numeros autorizados"
         description="Somente estes telefones podem solicitar ou receber Morning Call."
         icon={Phone}
+        className={activePage === 'contacts' ? '' : 'hidden'}
         action={
           <div className="searchBox">
             <Search size={15} />
@@ -795,6 +923,7 @@ export default function Home() {
         title="Execucoes"
         description="Historico usado pelo n8n para auditoria e reenvio."
         icon={Activity}
+        className={activePage === 'monitoring' ? '' : 'hidden'}
       >
         <div className="table">
           <div className="tableHeader executionColumns">
@@ -810,14 +939,14 @@ export default function Home() {
                 <strong>{execution.contactName || execution.phone || '-'}</strong>
                 <span>{tenantMap[execution.tenant]?.name || execution.tenant || '-'}</span>
                 <span className="statusText">
-                  {execution.status === 'report_sent' ? (
+                  {execution.status === 'sent' || execution.status === 'report_sent' ? (
                     <CheckCircle2 size={15} />
                   ) : (
                     <Clock3 size={15} />
                   )}
-                  {execution.status || 'pending'}
+                  {statusLabel(execution.status)}
                 </span>
-                <span>{execution.referenceDate || '-'}</span>
+                <span>{execution.reportDateBr || execution.reportDate || execution.referenceDate || '-'}</span>
                 <span>{formatDate(execution.updatedAt || execution.createdAt)}</span>
               </div>
             ))
@@ -827,7 +956,42 @@ export default function Home() {
         </div>
       </Card>
 
-      <section className="n8nGuide">
+      {activePage === 'monitoring' ? (
+        <Card
+          title="Conversas por cliente"
+          description="Ultimo evento conhecido por numero autorizado."
+          icon={Phone}
+        >
+          <div className="table">
+            <div className="tableHeader conversationColumns">
+              <span>Cliente</span>
+              <span>Tenant</span>
+              <span>Telefone</span>
+              <span>Ultimo status</span>
+              <span>Ultima atualizacao</span>
+            </div>
+            {contactMonitoring.length ? (
+              contactMonitoring.map(row => (
+                <div className="tableRow conversationColumns" key={row.contact.id}>
+                  <strong>{row.contact.name || '-'}</strong>
+                  <span>{tenantMap[row.contact.tenant]?.name || row.contact.tenant || '-'}</span>
+                  <span>{formatPhone(row.contact.phone)}</span>
+                  <span>{row.lastExecution ? statusLabel(row.lastExecution.status) : 'Sem eventos'}</span>
+                  <span>
+                    {row.lastExecution
+                      ? formatDate(row.lastExecution.updatedAt || row.lastExecution.createdAt)
+                      : '-'}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <EmptyState>Nenhum cliente autorizado cadastrado.</EmptyState>
+            )}
+          </div>
+        </Card>
+      ) : null}
+
+      <section className={activePage === 'overview' ? 'n8nGuide' : 'hidden'}>
         <MessageSquareText size={20} />
         <div>
           <h2>Contrato para o n8n</h2>
