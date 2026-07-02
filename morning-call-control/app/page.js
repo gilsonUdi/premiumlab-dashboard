@@ -6,293 +6,49 @@ import {
   collection,
   deleteDoc,
   doc,
-  onSnapshot,
   serverTimestamp,
   setDoc,
   updateDoc
 } from 'firebase/firestore';
-import {
-  Activity,
-  BarChart3,
-  CheckCircle2,
-  Clock3,
-  Database,
-  MessageSquareText,
-  Phone,
-  Plus,
-  RefreshCw,
-  Search,
-  Settings2,
-  ShieldCheck,
-  Trash2
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Database, X } from 'lucide-react';
 import { db, hasFirebaseConfig } from '@/lib/firebase';
-import { formatPhone, normalizePhone } from '@/lib/phone';
+import { normalizePhone } from '@/lib/phone';
+import {
+  COLLECTIONS,
+  getPowerBiDocId,
+  getPowerBiModelLabel,
+  normalizePowerBiModelType
+} from '@/lib/constants';
+import { useCollection } from '@/lib/useCollection';
+import Sidebar from '@/components/Sidebar';
+import OverviewPage from '@/components/OverviewPage';
+import CompaniesPage from '@/components/CompaniesPage';
+import ClientsPage from '@/components/ClientsPage';
+import PowerBiPage from '@/components/PowerBiPage';
+import ActivityPage from '@/components/ActivityPage';
 
-const COLLECTIONS = {
-  tenants: 'tenants',
-  contacts: 'morning_call_contacts',
-  powerbi: 'powerbi_configs',
-  executions: 'morning_call_executions'
-};
-
-function timestampToMillis(value) {
-  if (!value) return null;
-  if (typeof value.toMillis === 'function') return value.toMillis();
-  if (typeof value.toDate === 'function') return value.toDate().getTime();
-  if (typeof value.seconds === 'number') return value.seconds * 1000;
-  return null;
-}
-
-function normalizeFirestoreValue(value) {
-  if (!value) return value;
-
-  const timestampMillis = timestampToMillis(value);
-  if (timestampMillis !== null) return new Date(timestampMillis).toISOString();
-
-  if (Array.isArray(value)) return value.map(normalizeFirestoreValue);
-
-  if (typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, normalizeFirestoreValue(item)])
-    );
-  }
-
-  return value;
-}
-
-const POWER_BI_MODEL_TYPES = [
-  {
-    id: 'geral',
-    label: 'Dados gerais',
-    description: 'Morning Call, vendas, receber e indicadores financeiros.'
+const PAGE_META = {
+  overview: {
+    title: 'Visão geral',
+    description: 'Acompanhe a operação do Morning Call em tempo real.'
   },
-  {
-    id: 'precos',
-    label: 'Produtos e precos',
-    description: 'Produtos, tabelas de negociacao, descontos e consulta de precos.'
+  companies: {
+    title: 'Empresas',
+    description: 'Tenants atendidos pelo Morning Call e tudo que pertence a cada um.'
+  },
+  clients: {
+    title: 'Clientes',
+    description: 'Números autorizados a receber ou solicitar o Morning Call.'
+  },
+  powerbi: {
+    title: 'Power BI',
+    description: 'Datasets usados na geração dos relatórios, por empresa e modelo.'
+  },
+  activity: {
+    title: 'Atividade',
+    description: 'Tudo que o fluxo n8n registrou: avisos, solicitações, envios e erros.'
   }
-];
-
-const DEFAULT_POWER_BI_MODEL_TYPE = 'geral';
-
-const NAV_ITEMS = [
-  { id: 'overview', label: 'Visao geral', icon: Activity },
-  { id: 'tenants', label: 'Tenants', icon: ShieldCheck },
-  { id: 'contacts', label: 'Clientes', icon: Phone },
-  { id: 'powerbi', label: 'Power BI', icon: BarChart3 },
-  { id: 'monitoring', label: 'Monitoramento', icon: MessageSquareText }
-];
-
-const initialTenant = {
-  id: '',
-  name: '',
-  slug: '',
-  active: true
 };
-
-const initialContact = {
-  tenant: '',
-  name: '',
-  phone: '',
-  active: true,
-  confirmationPhrase: 'Receber Morning Call',
-  noticeTime: '07:00',
-  timezone: 'America/Cuiaba',
-  sendNotice: true,
-  allowManualSend: true
-};
-
-const initialPowerBi = {
-  tenant: '',
-  workspaceId: '',
-  datasetId: '',
-  modelType: DEFAULT_POWER_BI_MODEL_TYPE,
-  active: true
-};
-
-function normalizePowerBiModelType(value) {
-  const modelType = String(value || '').trim().toLowerCase();
-
-  if (POWER_BI_MODEL_TYPES.some(model => model.id === modelType)) {
-    return modelType;
-  }
-
-  if (['morning_call', 'dados_gerais', 'dados-gerais', 'general'].includes(modelType)) {
-    return 'geral';
-  }
-
-  if (['produtos', 'products', 'precos', 'preços', 'prices'].includes(modelType)) {
-    return 'precos';
-  }
-
-  return DEFAULT_POWER_BI_MODEL_TYPE;
-}
-
-function getPowerBiDocId(tenant, modelType) {
-  return `${tenant}__${normalizePowerBiModelType(modelType)}`;
-}
-
-function getPowerBiModelLabel(modelType) {
-  return (
-    POWER_BI_MODEL_TYPES.find(model => model.id === normalizePowerBiModelType(modelType))
-      ?.label || 'Dados gerais'
-  );
-}
-
-function useCollection(name) {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(Boolean(db));
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (!db) return undefined;
-
-    const ref = collection(db, name);
-
-    return onSnapshot(
-      ref,
-      snapshot => {
-        function dateValue(value) {
-          if (!value) return 0;
-          const timestampMillis = timestampToMillis(value);
-          if (timestampMillis !== null) return timestampMillis;
-          if (typeof value === 'object') return 0;
-
-          const parsed = new Date(value).getTime();
-          return Number.isNaN(parsed) ? 0 : parsed;
-        }
-
-        const rows = snapshot.docs
-          .map(item => ({ ...normalizeFirestoreValue(item.data()), id: item.id }))
-          .sort((a, b) => {
-            const aDate = dateValue(a.updatedAt || a.createdAt);
-            const bDate = dateValue(b.updatedAt || b.createdAt);
-            return bDate - aDate;
-          });
-
-        setItems(rows);
-        setLoading(false);
-        setError('');
-      },
-      error => {
-        setLoading(false);
-        setError(error.message || `Nao foi possivel carregar ${name}.`);
-      }
-    );
-  }, [name]);
-
-  return { items, loading, error };
-}
-
-function Card({ title, description, icon: Icon, children, action, className = '' }) {
-  return (
-    <section className={`panel ${className}`.trim()}>
-      <div className="panelHeader">
-        <div className="panelTitleGroup">
-          <span className="panelIcon">{Icon ? <Icon size={18} /> : null}</span>
-          <div>
-            <h2>{title}</h2>
-            {description ? <p>{description}</p> : null}
-          </div>
-        </div>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function EmptyState({ children }) {
-  return <div className="emptyState">{children}</div>;
-}
-
-function StatusPill({ active, activeText = 'Ativo', inactiveText = 'Inativo' }) {
-  return (
-    <span className={active ? 'pill active' : 'pill inactive'}>
-      {active ? activeText : inactiveText}
-    </span>
-  );
-}
-
-function formatDate(value) {
-  if (!value) return '-';
-
-  let date;
-  if (typeof value?.toDate === 'function') {
-    date = value.toDate();
-  } else if (typeof value?.toMillis === 'function') {
-    date = new Date(value.toMillis());
-  } else if (typeof value === 'object') {
-    date = typeof value.seconds === 'number' ? new Date(value.seconds * 1000) : null;
-  } else {
-    date = new Date(value);
-  }
-
-  if (!date) return '-';
-  if (Number.isNaN(date.getTime())) return '-';
-
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(date);
-}
-
-function formatReferenceDate(...values) {
-  const value = values.find(item => item);
-  if (!value) return '-';
-
-  if (typeof value === 'string') {
-    const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (isoDate) return `${isoDate[3]}/${isoDate[2]}/${isoDate[1]}`;
-    return value;
-  }
-
-  let date;
-  if (typeof value?.toDate === 'function') {
-    date = value.toDate();
-  } else if (typeof value?.toMillis === 'function') {
-    date = new Date(value.toMillis());
-  } else if (typeof value === 'object') {
-    date = typeof value.seconds === 'number' ? new Date(value.seconds * 1000) : null;
-  } else {
-    date = new Date(value);
-  }
-
-  if (!date || Number.isNaN(date.getTime())) return '-';
-
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  }).format(date);
-}
-
-function statusLabel(status) {
-  const labels = {
-    requested: 'Solicitado',
-    generating: 'Gerando',
-    sent: 'Enviado',
-    report_sent: 'Enviado',
-    notice_sent: 'Aviso enviado',
-    error: 'Erro',
-    pending: 'Pendente'
-  };
-
-  return labels[status] || status || 'Pendente';
-}
 
 export default function Home() {
   const firebaseReady = hasFirebaseConfig();
@@ -301,15 +57,15 @@ export default function Home() {
   const powerBiState = useCollection(COLLECTIONS.powerbi);
   const executionsState = useCollection(COLLECTIONS.executions);
 
-  const [tenantForm, setTenantForm] = useState(initialTenant);
-  const [contactForm, setContactForm] = useState(initialContact);
-  const [powerBiForm, setPowerBiForm] = useState(initialPowerBi);
-  const [search, setSearch] = useState('');
+  const [page, setPage] = useState('overview');
+  const [companyTab, setCompanyTab] = useState('all');
+  const [clientFocusId, setClientFocusId] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [activePage, setActivePage] = useState('overview');
 
   const tenants = tenantsState.items;
   const contacts = contactsState.items;
+  const executions = executionsState.items;
+
   const powerBiConfigs = useMemo(() => {
     return powerBiState.items.map(config => {
       const [tenantFromId, modelFromId] = String(config.id || '').split('__');
@@ -321,17 +77,6 @@ export default function Home() {
       };
     });
   }, [powerBiState.items]);
-  const executions = executionsState.items;
-
-  useEffect(() => {
-    if (!contactForm.tenant && tenants[0]?.id) {
-      setContactForm(current => ({ ...current, tenant: tenants[0].id }));
-    }
-
-    if (!powerBiForm.tenant && tenants[0]?.id) {
-      setPowerBiForm(current => ({ ...current, tenant: tenants[0].id }));
-    }
-  }, [tenants, contactForm.tenant, powerBiForm.tenant]);
 
   const tenantMap = useMemo(() => {
     return tenants.reduce((acc, tenant) => {
@@ -340,21 +85,10 @@ export default function Home() {
     }, {});
   }, [tenants]);
 
-  const filteredContacts = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return contacts;
-
-    return contacts.filter(contact => {
-      return [
-        contact.name,
-        contact.tenant,
-        contact.phone,
-        tenantMap[contact.tenant]?.name
-      ]
-        .filter(Boolean)
-        .some(value => String(value).toLowerCase().includes(term));
-    });
-  }, [contacts, search, tenantMap]);
+  const errorCount = useMemo(
+    () => executions.filter(execution => execution.status === 'error').length,
+    [executions]
+  );
 
   const collectionErrors = [
     tenantsState.error,
@@ -363,32 +97,11 @@ export default function Home() {
     executionsState.error
   ].filter(Boolean);
 
-  const latestExecutions = useMemo(() => executions.slice(0, 30), [executions]);
-
-  const contactMonitoring = useMemo(() => {
-    return contacts.map(contact => {
-      const related = executions.filter(execution => {
-        const contactId = String(contact.id || '');
-        const contactPhone = String(contact.phone || '');
-        const contactWhatsappId = String(contact.whatsappId || '');
-        const executionContactId = String(execution.contactId || '');
-        const executionPhone = String(execution.phone || '');
-        const executionWhatsappId = String(execution.whatsappId || '');
-
-        return (
-          (contactId && executionContactId === contactId) ||
-          (contactPhone && executionPhone === contactPhone) ||
-          (contactWhatsappId && executionWhatsappId === contactWhatsappId)
-        );
-      });
-
-      return {
-        contact,
-        lastExecution: related[0] || null,
-        totalExecutions: related.length
-      };
-    });
-  }, [contacts, executions]);
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = setTimeout(() => setNotice(null), 4500);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   function showNotice(type, message) {
     setNotice({ type, message });
@@ -399,7 +112,7 @@ export default function Home() {
 
     showNotice(
       'error',
-      'Firebase nao configurado. Confira as variaveis NEXT_PUBLIC_FIREBASE_* na Vercel e faca um novo deploy.'
+      'Firebase não configurado. Confira as variáveis NEXT_PUBLIC_FIREBASE_* na Vercel e faça um novo deploy.'
     );
     return false;
   }
@@ -408,70 +121,92 @@ export default function Home() {
     showNotice('error', error?.message || fallbackMessage);
   }
 
-  async function saveTenant(event) {
-    event.preventDefault();
-    if (!ensureDb()) return;
-    if (!tenantForm.id.trim()) {
+  async function saveTenant(form) {
+    if (!ensureDb()) return false;
+    if (!form.id.trim()) {
       showNotice('error', 'Informe o ID do tenant antes de salvar.');
-      return;
+      return false;
     }
 
-    const id = tenantForm.id.trim().toLowerCase();
+    const id = form.id.trim().toLowerCase();
     try {
       await setDoc(
         doc(db, COLLECTIONS.tenants, id),
         {
-          name: tenantForm.name.trim(),
-          slug: tenantForm.slug.trim() || id,
-          active: tenantForm.active,
+          name: form.name.trim(),
+          slug: form.slug.trim() || id,
+          active: form.active,
           updatedAt: serverTimestamp(),
           createdAt: serverTimestamp()
         },
         { merge: true }
       );
-      setTenantForm(initialTenant);
-      showNotice('success', `Tenant ${id} salvo com sucesso.`);
+      showNotice('success', `Empresa ${form.name.trim() || id} salva com sucesso.`);
+      return true;
     } catch (error) {
-      handleActionError(error, 'Nao foi possivel salvar o tenant.');
+      handleActionError(error, 'Não foi possível salvar a empresa.');
+      return false;
     }
   }
 
-  async function saveContact(event) {
-    event.preventDefault();
-    if (!ensureDb()) return;
-    if (!contactForm.tenant || !contactForm.phone.trim()) {
-      showNotice('error', 'Selecione o tenant e informe o telefone antes de salvar.');
-      return;
+  async function saveContact(form) {
+    if (!ensureDb()) return false;
+    if (!form.tenant || !form.phone.trim()) {
+      showNotice('error', 'Selecione a empresa e informe o telefone antes de salvar.');
+      return false;
     }
 
     try {
       await addDoc(collection(db, COLLECTIONS.contacts), {
-        ...contactForm,
-        phone: normalizePhone(contactForm.phone),
-        name: contactForm.name.trim(),
-        confirmationPhrase: contactForm.confirmationPhrase.trim(),
+        ...form,
+        phone: normalizePhone(form.phone),
+        name: form.name.trim(),
+        confirmationPhrase: form.confirmationPhrase.trim(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         lastNoticeSentAt: null,
         lastReportSentAt: null
       });
-      setContactForm(current => ({ ...initialContact, tenant: current.tenant }));
-      showNotice('success', 'Numero autorizado salvo com sucesso.');
+      showNotice('success', 'Cliente autorizado com sucesso.');
+      return true;
     } catch (error) {
-      handleActionError(error, 'Nao foi possivel salvar o numero autorizado.');
+      handleActionError(error, 'Não foi possível salvar o cliente.');
+      return false;
     }
   }
 
-  async function savePowerBiConfig(event) {
-    event.preventDefault();
-    if (!ensureDb()) return;
-    if (!powerBiForm.tenant) {
-      showNotice('error', 'Selecione o tenant antes de salvar a configuracao do Power BI.');
-      return;
+  async function updateContact(id, data) {
+    if (!ensureDb()) return false;
+
+    const payload = { ...data };
+    if (typeof payload.phone === 'string') payload.phone = normalizePhone(payload.phone);
+    if (typeof payload.name === 'string') payload.name = payload.name.trim();
+    if (typeof payload.confirmationPhrase === 'string') {
+      payload.confirmationPhrase = payload.confirmationPhrase.trim();
     }
 
-    const tenant = powerBiForm.tenant.trim();
-    const modelType = normalizePowerBiModelType(powerBiForm.modelType);
+    try {
+      await updateDoc(doc(db, COLLECTIONS.contacts, id), {
+        ...payload,
+        updatedAt: serverTimestamp()
+      });
+      showNotice('success', 'Cliente atualizado com sucesso.');
+      return true;
+    } catch (error) {
+      handleActionError(error, 'Não foi possível atualizar o cliente.');
+      return false;
+    }
+  }
+
+  async function savePowerBiConfig(form) {
+    if (!ensureDb()) return false;
+    if (!form.tenant) {
+      showNotice('error', 'Selecione a empresa antes de salvar a configuração do Power BI.');
+      return false;
+    }
+
+    const tenant = form.tenant.trim();
+    const modelType = normalizePowerBiModelType(form.modelType);
 
     try {
       await setDoc(
@@ -479,25 +214,22 @@ export default function Home() {
         {
           tenant,
           modelType,
-          workspaceId: powerBiForm.workspaceId.trim(),
-          datasetId: powerBiForm.datasetId.trim(),
-          active: powerBiForm.active,
+          workspaceId: form.workspaceId.trim(),
+          datasetId: form.datasetId.trim(),
+          active: form.active,
           updatedAt: serverTimestamp(),
           createdAt: serverTimestamp()
         },
         { merge: true }
       );
-      setPowerBiForm(current => ({
-        ...initialPowerBi,
-        tenant: current.tenant,
-        modelType: current.modelType
-      }));
       showNotice(
         'success',
-        `Configuracao de Power BI (${getPowerBiModelLabel(modelType)}) salva com sucesso.`
+        `Configuração de Power BI (${getPowerBiModelLabel(modelType)}) salva com sucesso.`
       );
+      return true;
     } catch (error) {
-      handleActionError(error, 'Nao foi possivel salvar a configuracao do Power BI.');
+      handleActionError(error, 'Não foi possível salvar a configuração do Power BI.');
+      return false;
     }
   }
 
@@ -511,7 +243,7 @@ export default function Home() {
       });
       showNotice('success', 'Status atualizado com sucesso.');
     } catch (error) {
-      handleActionError(error, 'Nao foi possivel atualizar o status.');
+      handleActionError(error, 'Não foi possível atualizar o status.');
     }
   }
 
@@ -522,571 +254,148 @@ export default function Home() {
       await deleteDoc(doc(db, collectionName, id));
       showNotice('success', 'Registro removido com sucesso.');
     } catch (error) {
-      handleActionError(error, 'Nao foi possivel remover o registro.');
+      handleActionError(error, 'Não foi possível remover o registro.');
     }
   }
 
+  function navigate(nextPage) {
+    setPage(nextPage);
+    if (nextPage !== 'clients') setClientFocusId(null);
+  }
+
+  function openCompany(tenantId) {
+    setCompanyTab(tenantId);
+    setPage('companies');
+  }
+
+  function openClient(contactId) {
+    setClientFocusId(contactId);
+    setPage('clients');
+  }
+
+  const meta = PAGE_META[page] || PAGE_META.overview;
+
   return (
-    <main className="page">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">GS Controladoria</p>
-          <h1>Morning Call Control</h1>
-          <p className="heroText">
-            Painel para controlar tenants, numeros autorizados, datasets do Power BI e
-            execucoes do Morning Call enviado pelo WhatsApp.
-          </p>
-        </div>
-        <div className="heroCard">
-          <div className="metric">
-            <span>Tenants</span>
-            <strong>{tenants.length}</strong>
-          </div>
-          <div className="metric">
-            <span>Contatos ativos</span>
-            <strong>{contacts.filter(contact => contact.active).length}</strong>
-          </div>
-          <div className="metric">
-            <span>Configs Power BI</span>
-            <strong>{powerBiConfigs.length}</strong>
-          </div>
-          <div className="metric">
-            <span>Execucoes</span>
-            <strong>{executions.length}</strong>
-          </div>
-        </div>
-      </header>
+    <div className="app">
+      <Sidebar
+        page={page}
+        onNavigate={navigate}
+        counts={{ companies: tenants.length, clients: contacts.length }}
+        errorCount={errorCount}
+        firebaseReady={firebaseReady}
+      />
 
-      {!firebaseReady ? (
-        <section className="configWarning">
-          <Database size={20} />
-          <div>
-            <strong>Firebase ainda nao configurado.</strong>
-            <p>
-              Configure as variaveis `NEXT_PUBLIC_FIREBASE_*` na Vercel ou no
-              `.env.local` para habilitar leitura e gravacao no Firestore.
-            </p>
-          </div>
-        </section>
-      ) : null}
+      <main className="main">
+        <div className="mainInner">
+          <header className="pageHeader">
+            <div>
+              <h1 className="pageTitle">{meta.title}</h1>
+              <p className="pageDesc">{meta.description}</p>
+            </div>
+          </header>
 
-      {collectionErrors.length ? (
-        <section className="configWarning error">
-          <Database size={20} />
-          <div>
-            <strong>Firestore retornou erro.</strong>
-            <p>{collectionErrors[0]}</p>
-          </div>
-        </section>
-      ) : null}
+          {!firebaseReady ? (
+            <div className="banner warning">
+              <Database size={17} />
+              <div>
+                <strong>Firebase ainda não configurado.</strong>
+                <p>
+                  Configure as variáveis <code>NEXT_PUBLIC_FIREBASE_*</code> na Vercel ou no{' '}
+                  <code>.env.local</code> para habilitar leitura e gravação no Firestore.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {collectionErrors.length ? (
+            <div className="banner error">
+              <AlertTriangle size={17} />
+              <div>
+                <strong>O Firestore retornou um erro.</strong>
+                <p>{collectionErrors[0]}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {page === 'overview' ? (
+            <OverviewPage
+              tenants={tenants}
+              contacts={contacts}
+              powerBiConfigs={powerBiConfigs}
+              executions={executions}
+              tenantMap={tenantMap}
+              onOpenCompany={openCompany}
+              onNavigate={navigate}
+            />
+          ) : null}
+
+          {page === 'companies' ? (
+            <CompaniesPage
+              tenants={tenants}
+              contacts={contacts}
+              powerBiConfigs={powerBiConfigs}
+              executions={executions}
+              tenantMap={tenantMap}
+              tab={companyTab === 'all' || tenantMap[companyTab] ? companyTab : 'all'}
+              onTabChange={setCompanyTab}
+              onOpenClient={openClient}
+              saveTenant={saveTenant}
+              toggleDoc={toggleDoc}
+              removeDoc={removeDoc}
+              firebaseReady={firebaseReady}
+            />
+          ) : null}
+
+          {page === 'clients' ? (
+            <ClientsPage
+              contacts={contacts}
+              tenants={tenants}
+              tenantMap={tenantMap}
+              executions={executions}
+              focusId={clientFocusId}
+              onFocus={setClientFocusId}
+              saveContact={saveContact}
+              updateContact={updateContact}
+              removeDoc={removeDoc}
+              firebaseReady={firebaseReady}
+            />
+          ) : null}
+
+          {page === 'powerbi' ? (
+            <PowerBiPage
+              powerBiConfigs={powerBiConfigs}
+              tenants={tenants}
+              tenantMap={tenantMap}
+              savePowerBiConfig={savePowerBiConfig}
+              toggleDoc={toggleDoc}
+              removeDoc={removeDoc}
+              firebaseReady={firebaseReady}
+              onOpenCompany={openCompany}
+            />
+          ) : null}
+
+          {page === 'activity' ? (
+            <ActivityPage
+              executions={executions}
+              tenants={tenants}
+              tenantMap={tenantMap}
+              onOpenClient={execution => {
+                if (execution.contactId) openClient(execution.contactId);
+              }}
+            />
+          ) : null}
+        </div>
+      </main>
 
       {notice ? (
-        <section className={`notice ${notice.type}`}>
-          <strong>{notice.type === 'error' ? 'Acao nao concluida' : 'Tudo certo'}</strong>
-          <p>{notice.message}</p>
-        </section>
-      ) : null}
-
-      <nav className="sectionNav" aria-label="Navegacao do painel">
-        {NAV_ITEMS.map(item => {
-          const Icon = item.icon;
-          return (
-            <button
-              className={activePage === item.id ? 'active' : ''}
-              key={item.id}
-              onClick={() => setActivePage(item.id)}
-              type="button"
-            >
-              <Icon size={16} />
-              {item.label}
-            </button>
-          );
-        })}
-      </nav>
-
-      {activePage === 'overview' ? (
-        <section className="overviewGrid">
-          <Card
-            title="Resumo operacional"
-            description="Estado atual da operacao Morning Call."
-            icon={Activity}
-          >
-            <div className="summaryGrid">
-              <div className="summaryTile">
-                <span>Tenants ativos</span>
-                <strong>{tenants.filter(tenant => tenant.active).length}</strong>
-              </div>
-              <div className="summaryTile">
-                <span>Clientes ativos</span>
-                <strong>{contacts.filter(contact => contact.active).length}</strong>
-              </div>
-              <div className="summaryTile">
-                <span>Avisos diarios</span>
-                <strong>{contacts.filter(contact => contact.sendNotice !== false).length}</strong>
-              </div>
-              <div className="summaryTile">
-                <span>Execucoes com erro</span>
-                <strong>{executions.filter(execution => execution.status === 'error').length}</strong>
-              </div>
-            </div>
-          </Card>
-
-          <Card
-            title="Ultimas conversas"
-            description="Eventos recentes registrados pelo n8n."
-            icon={MessageSquareText}
-          >
-            <div className="compactList">
-              {latestExecutions.length ? (
-                latestExecutions.slice(0, 8).map(execution => (
-                  <div className="compactItem" key={execution.id}>
-                    <div>
-                      <strong>{execution.contactName || execution.phone || '-'}</strong>
-                      <span>{tenantMap[execution.tenant]?.name || execution.tenant || '-'}</span>
-                    </div>
-                    <div>
-                      <StatusPill
-                        active={execution.status !== 'error'}
-                        activeText={statusLabel(execution.status)}
-                        inactiveText="Erro"
-                      />
-                      <span>{formatDate(execution.updatedAt || execution.createdAt)}</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <EmptyState>Nenhuma execucao registrada ainda.</EmptyState>
-              )}
-            </div>
-          </Card>
-        </section>
-      ) : null}
-
-      <section className={activePage === 'tenants' || activePage === 'powerbi' ? 'grid' : 'hidden'}>
-        <Card
-          title="Tenants"
-          description="Empresas ou laboratorios que podem usar o Morning Call."
-          icon={ShieldCheck}
-          className={activePage === 'tenants' ? '' : 'hidden'}
-        >
-          <form className="form" onSubmit={saveTenant}>
-            <div className="formGrid">
-              <Field label="ID do tenant">
-                <input
-                  value={tenantForm.id}
-                  onChange={event =>
-                    setTenantForm(current => ({ ...current, id: event.target.value }))
-                  }
-                  placeholder="gradual"
-                />
-              </Field>
-              <Field label="Nome">
-                <input
-                  value={tenantForm.name}
-                  onChange={event =>
-                    setTenantForm(current => ({ ...current, name: event.target.value }))
-                  }
-                  placeholder="Lentes Gradual"
-                />
-              </Field>
-              <Field label="Slug">
-                <input
-                  value={tenantForm.slug}
-                  onChange={event =>
-                    setTenantForm(current => ({ ...current, slug: event.target.value }))
-                  }
-                  placeholder="gradual"
-                />
-              </Field>
-              <label className="checkField">
-                <input
-                  type="checkbox"
-                  checked={tenantForm.active}
-                  onChange={event =>
-                    setTenantForm(current => ({
-                      ...current,
-                      active: event.target.checked
-                    }))
-                  }
-                />
-                Tenant ativo
-              </label>
-            </div>
-            <button className="primaryButton" type="submit" disabled={!firebaseReady}>
-              <Plus size={16} />
-              Salvar tenant
-            </button>
-          </form>
-
-          <div className="list">
-            {tenants.length ? (
-              tenants.map(tenant => (
-                <div className="listItem" key={tenant.id}>
-                  <div>
-                    <strong>{tenant.name || tenant.id}</strong>
-                    <span>{tenant.id}</span>
-                  </div>
-                  <div className="rowActions">
-                    <StatusPill active={tenant.active} />
-                    <button onClick={() => toggleDoc(COLLECTIONS.tenants, tenant)}>
-                      <RefreshCw size={15} />
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <EmptyState>Nenhum tenant cadastrado.</EmptyState>
-            )}
-          </div>
-        </Card>
-
-        <Card
-          title="Power BI"
-          description="Datasets usados pelas tools de geracao do relatorio."
-          icon={BarChart3}
-          className={activePage === 'powerbi' ? '' : 'hidden'}
-        >
-          <form className="form" onSubmit={savePowerBiConfig}>
-            <div className="formGrid">
-              <Field label="Tenant">
-                <select
-                  value={powerBiForm.tenant}
-                  onChange={event =>
-                    setPowerBiForm(current => ({ ...current, tenant: event.target.value }))
-                  }
-                >
-                  <option value="">Selecione</option>
-                  {tenants.map(tenant => (
-                    <option key={tenant.id} value={tenant.id}>
-                      {tenant.name || tenant.id}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Modelo">
-                <select
-                  value={powerBiForm.modelType}
-                  onChange={event =>
-                    setPowerBiForm(current => ({
-                      ...current,
-                      modelType: normalizePowerBiModelType(event.target.value)
-                    }))
-                  }
-                >
-                  {POWER_BI_MODEL_TYPES.map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Workspace ID">
-                <input
-                  value={powerBiForm.workspaceId}
-                  onChange={event =>
-                    setPowerBiForm(current => ({
-                      ...current,
-                      workspaceId: event.target.value
-                    }))
-                  }
-                  placeholder="group id"
-                />
-              </Field>
-              <Field label="Dataset ID">
-                <input
-                  value={powerBiForm.datasetId}
-                  onChange={event =>
-                    setPowerBiForm(current => ({
-                      ...current,
-                      datasetId: event.target.value
-                    }))
-                  }
-                  placeholder="dataset id"
-                />
-              </Field>
-              <label className="checkField">
-                <input
-                  type="checkbox"
-                  checked={powerBiForm.active}
-                  onChange={event =>
-                    setPowerBiForm(current => ({
-                      ...current,
-                      active: event.target.checked
-                    }))
-                  }
-                />
-                Config ativa
-              </label>
-            </div>
-            <button className="primaryButton" type="submit" disabled={!firebaseReady}>
-              <Settings2 size={16} />
-              Salvar Power BI
-            </button>
-          </form>
-
-          <div className="list">
-            {powerBiConfigs.length ? (
-              powerBiConfigs.map(config => (
-                <div className="listItem" key={config.id}>
-                  <div>
-                    <strong>
-                      {tenantMap[config.tenant]?.name || config.tenant || config.id}
-                    </strong>
-                    <span>{getPowerBiModelLabel(config.modelType)}</span>
-                    <span>{config.datasetId || 'Dataset nao informado'}</span>
-                  </div>
-                  <div className="rowActions">
-                    <StatusPill active={config.active} />
-                    <button onClick={() => toggleDoc(COLLECTIONS.powerbi, config)}>
-                      <RefreshCw size={15} />
-                    </button>
-                    <button onClick={() => removeDoc(COLLECTIONS.powerbi, config.id)}>
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <EmptyState>Nenhuma configuracao de Power BI cadastrada.</EmptyState>
-            )}
-          </div>
-        </Card>
-      </section>
-
-      <Card
-        title="Numeros autorizados"
-        description="Somente estes telefones podem solicitar ou receber Morning Call."
-        icon={Phone}
-        className={activePage === 'contacts' ? '' : 'hidden'}
-        action={
-          <div className="searchBox">
-            <Search size={15} />
-            <input
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-              placeholder="Buscar contato"
-            />
-          </div>
-        }
-      >
-        <form className="form" onSubmit={saveContact}>
-          <div className="formGrid contacts">
-            <Field label="Tenant">
-              <select
-                value={contactForm.tenant}
-                onChange={event =>
-                  setContactForm(current => ({ ...current, tenant: event.target.value }))
-                }
-              >
-                <option value="">Selecione</option>
-                {tenants.map(tenant => (
-                  <option key={tenant.id} value={tenant.id}>
-                    {tenant.name || tenant.id}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Nome">
-              <input
-                value={contactForm.name}
-                onChange={event =>
-                  setContactForm(current => ({ ...current, name: event.target.value }))
-                }
-                placeholder="GS Controladoria Gilson"
-              />
-            </Field>
-            <Field label="Telefone">
-              <input
-                value={contactForm.phone}
-                onChange={event =>
-                  setContactForm(current => ({ ...current, phone: event.target.value }))
-                }
-                placeholder="5566999999999"
-              />
-            </Field>
-            <Field label="Horario aviso">
-              <input
-                type="time"
-                value={contactForm.noticeTime}
-                onChange={event =>
-                  setContactForm(current => ({
-                    ...current,
-                    noticeTime: event.target.value
-                  }))
-                }
-              />
-            </Field>
-            <Field label="Frase de confirmacao">
-              <input
-                value={contactForm.confirmationPhrase}
-                onChange={event =>
-                  setContactForm(current => ({
-                    ...current,
-                    confirmationPhrase: event.target.value
-                  }))
-                }
-              />
-            </Field>
-            <div className="checkGroup">
-              <label className="checkField">
-                <input
-                  type="checkbox"
-                  checked={contactForm.active}
-                  onChange={event =>
-                    setContactForm(current => ({
-                      ...current,
-                      active: event.target.checked
-                    }))
-                  }
-                />
-                Ativo
-              </label>
-              <label className="checkField">
-                <input
-                  type="checkbox"
-                  checked={contactForm.sendNotice}
-                  onChange={event =>
-                    setContactForm(current => ({
-                      ...current,
-                      sendNotice: event.target.checked
-                    }))
-                  }
-                />
-                Aviso diario
-              </label>
-            </div>
-          </div>
-          <button className="primaryButton" type="submit" disabled={!firebaseReady}>
-            <Plus size={16} />
-            Autorizar numero
+        <div className={`toast ${notice.type}`} role="status">
+          {notice.type === 'error' ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+          <span>{notice.message}</span>
+          <button type="button" onClick={() => setNotice(null)} aria-label="Fechar aviso">
+            <X size={14} />
           </button>
-        </form>
-
-        <div className="table">
-          <div className="tableHeader contactColumns">
-            <span>Contato</span>
-            <span>Tenant</span>
-            <span>Telefone</span>
-            <span>Confirmacao</span>
-            <span>Status</span>
-            <span></span>
-          </div>
-          {filteredContacts.length ? (
-            filteredContacts.map(contact => (
-              <div className="tableRow contactColumns" key={contact.id}>
-                <strong>{contact.name || '-'}</strong>
-                <span>{tenantMap[contact.tenant]?.name || contact.tenant}</span>
-                <span>{formatPhone(contact.phone)}</span>
-                <span>{contact.confirmationPhrase}</span>
-                <StatusPill active={contact.active} />
-                <div className="rowActions">
-                  <button onClick={() => toggleDoc(COLLECTIONS.contacts, contact)}>
-                    <RefreshCw size={15} />
-                  </button>
-                  <button onClick={() => removeDoc(COLLECTIONS.contacts, contact.id)}>
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <EmptyState>Nenhum numero autorizado encontrado.</EmptyState>
-          )}
         </div>
-      </Card>
-
-      <Card
-        title="Execucoes"
-        description="Historico usado pelo n8n para auditoria e reenvio."
-        icon={Activity}
-        className={activePage === 'monitoring' ? '' : 'hidden'}
-      >
-        <div className="table">
-          <div className="tableHeader executionColumns">
-            <span>Cliente</span>
-            <span>Tenant</span>
-            <span>Status</span>
-            <span>Referencia</span>
-            <span>Atualizado</span>
-          </div>
-          {executions.length ? (
-            executions.slice(0, 20).map(execution => (
-              <div className="tableRow executionColumns" key={execution.id}>
-                <strong>{execution.contactName || execution.phone || '-'}</strong>
-                <span>{tenantMap[execution.tenant]?.name || execution.tenant || '-'}</span>
-                <span className="statusText">
-                  {execution.status === 'sent' || execution.status === 'report_sent' ? (
-                    <CheckCircle2 size={15} />
-                  ) : (
-                    <Clock3 size={15} />
-                  )}
-                  {statusLabel(execution.status)}
-                </span>
-                <span>
-                  {formatReferenceDate(
-                    execution.reportDateBr,
-                    execution.reportDate,
-                    execution.referenceDate
-                  )}
-                </span>
-                <span>{formatDate(execution.updatedAt || execution.createdAt)}</span>
-              </div>
-            ))
-          ) : (
-            <EmptyState>Nenhuma execucao registrada ainda.</EmptyState>
-          )}
-        </div>
-      </Card>
-
-      {activePage === 'monitoring' ? (
-        <Card
-          title="Conversas por cliente"
-          description="Ultimo evento conhecido por numero autorizado."
-          icon={Phone}
-        >
-          <div className="table">
-            <div className="tableHeader conversationColumns">
-              <span>Cliente</span>
-              <span>Tenant</span>
-              <span>Telefone</span>
-              <span>Ultimo status</span>
-              <span>Ultima atualizacao</span>
-            </div>
-            {contactMonitoring.length ? (
-              contactMonitoring.map(row => (
-                <div
-                  className="tableRow conversationColumns"
-                  key={row.contact.id || row.contact.phone || row.contact.name}
-                >
-                  <strong>{row.contact.name || '-'}</strong>
-                  <span>{tenantMap[row.contact.tenant]?.name || row.contact.tenant || '-'}</span>
-                  <span>{formatPhone(row.contact.phone)}</span>
-                  <span>{row.lastExecution ? statusLabel(row.lastExecution.status) : 'Sem eventos'}</span>
-                  <span>
-                    {row.lastExecution
-                      ? formatDate(row.lastExecution.updatedAt || row.lastExecution.createdAt)
-                      : '-'}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <EmptyState>Nenhum cliente autorizado cadastrado.</EmptyState>
-            )}
-          </div>
-        </Card>
       ) : null}
-
-      <section className={activePage === 'overview' ? 'n8nGuide' : 'hidden'}>
-        <MessageSquareText size={20} />
-        <div>
-          <h2>Contrato para o n8n</h2>
-          <p>
-            O flow principal deve normalizar o telefone recebido da Evolution API e
-            procurar em `morning_call_contacts` por `phone`. Se o contato estiver ativo,
-            o `tenant` define qual tool de Morning Call sera chamada.
-          </p>
-        </div>
-      </section>
-    </main>
+    </div>
   );
 }
