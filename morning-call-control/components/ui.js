@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, Trash2 } from 'lucide-react';
+import { Check, Trash2, UserRound } from 'lucide-react';
 import { getStatusMeta } from '@/lib/constants';
-import { initialsOf } from '@/lib/format';
 
 export function Panel({ title, description, icon: Icon, action, children, className = '' }) {
   return (
@@ -98,8 +97,8 @@ export function SwitchRow({ label, description, checked, onChange, disabled }) {
 
 export function Avatar({ name, size = 'md', tone = 'gold' }) {
   return (
-    <span className={`avatar ${size} ${tone}`}>
-      <span>{initialsOf(name)}</span>
+    <span className={`avatar ${size} ${tone}`} aria-label={name || 'Cliente'}>
+      <UserRound aria-hidden="true" />
     </span>
   );
 }
