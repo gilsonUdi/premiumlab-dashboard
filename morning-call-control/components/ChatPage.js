@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Bot, MessageCircle, Search } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Bot, ChevronDown, MessageCircle, Search } from 'lucide-react';
 import { formatPhone, normalizePhone } from '@/lib/phone';
 import {
   formatDate,
@@ -175,6 +175,7 @@ function buildConversations({ contacts, executions, tenantMap }) {
 export default function ChatPage({ contacts, executions, tenantMap }) {
   const [search, setSearch] = useState('');
   const [activeKey, setActiveKey] = useState('');
+  const timelineRef = useRef(null);
   const [evolutionState, setEvolutionState] = useState({
     key: '',
     loading: false,
@@ -218,6 +219,13 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
     ? mergeMessageRows(buildEvolutionRows(evolutionState.messages), firestoreMessages)
     : firestoreMessages;
   const chatSource = hasEvolutionMessages ? 'Evolution' : 'Firestore';
+
+  function scrollToLatest(behavior = 'smooth') {
+    timelineRef.current?.scrollTo({
+      top: timelineRef.current.scrollHeight,
+      behavior
+    });
+  }
 
   useEffect(() => {
     if (!activeConversation) {
@@ -275,6 +283,10 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
 
     return () => controller.abort();
   }, [activeConversation]);
+
+  useEffect(() => {
+    scrollToLatest('auto');
+  }, [activeConversation?.key, messages.length, evolutionState.loading]);
 
   return (
     <section className="chatShell">
@@ -362,7 +374,8 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
               </div>
             </header>
 
-            <div className="chatTimeline">
+            <div className="chatTimelineWrap">
+              <div className="chatTimeline" ref={timelineRef}>
               {messages.length ? (
                 messages.map(message => (
                   <article
@@ -406,6 +419,18 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
                   A conversa existe porque o contato esta autorizado, mas ainda nao ha execucoes.
                 </EmptyState>
               )}
+              </div>
+              {messages.length ? (
+                <button
+                  type="button"
+                  className="chatLatestButton"
+                  onClick={() => scrollToLatest()}
+                  title="Ir para a mensagem mais recente"
+                >
+                  <ChevronDown size={15} />
+                  Mais recente
+                </button>
+              ) : null}
             </div>
           </>
         ) : (
