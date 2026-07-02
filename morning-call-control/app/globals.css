@@ -1433,7 +1433,7 @@ code {
 }
 
 .chatConversation strong,
-.chatConversation span,
+.chatConversation div > span,
 .chatConversation small {
   display: block;
   overflow: hidden;
@@ -1446,7 +1446,7 @@ code {
   font-size: 0.88rem;
 }
 
-.chatConversation span {
+.chatConversation div > span {
   margin-top: 2px;
   color: var(--subtle);
   font-size: 0.76rem;
@@ -1516,7 +1516,7 @@ code {
 }
 
 .chatHeaderIdentity strong,
-.chatHeaderIdentity span {
+.chatHeaderIdentity div > span {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1528,7 +1528,7 @@ code {
   font-size: 0.98rem;
 }
 
-.chatHeaderIdentity span,
+.chatHeaderIdentity div > span,
 .chatHeaderMeta span {
   color: var(--muted);
   font-size: 0.8rem;
