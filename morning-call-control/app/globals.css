@@ -133,11 +133,14 @@ code {
   width: 38px;
   height: 38px;
   place-items: center;
-  border: 1px solid var(--gold-line);
+  border: 1px solid rgba(242, 205, 127, 0.68);
   border-radius: 11px;
-  background: linear-gradient(160deg, rgba(227, 183, 97, 0.2), rgba(227, 183, 97, 0.06));
+  background:
+    linear-gradient(160deg, rgba(242, 205, 127, 0.38), rgba(227, 183, 97, 0.18)),
+    rgba(227, 183, 97, 0.16);
   color: var(--gold-strong);
   overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 240, 196, 0.22);
 }
 
 .brandMark img {
