@@ -26,6 +26,7 @@ import CompaniesPage from '@/components/CompaniesPage';
 import ClientsPage from '@/components/ClientsPage';
 import PowerBiPage from '@/components/PowerBiPage';
 import ActivityPage from '@/components/ActivityPage';
+import ChatPage from '@/components/ChatPage';
 
 const PAGE_META = {
   overview: {
@@ -43,6 +44,10 @@ const PAGE_META = {
   powerbi: {
     title: 'Power BI',
     description: 'Datasets usados na geração dos relatórios, por empresa e modelo.'
+  },
+  chat: {
+    title: 'Chat',
+    description: 'Veja a conversa dos clientes com o Axis AI em formato de mensagens.'
   },
   activity: {
     title: 'Atividade',
@@ -372,6 +377,10 @@ export default function Home() {
               firebaseReady={firebaseReady}
               onOpenCompany={openCompany}
             />
+          ) : null}
+
+          {page === 'chat' ? (
+            <ChatPage contacts={contacts} executions={executions} tenantMap={tenantMap} />
           ) : null}
 
           {page === 'activity' ? (

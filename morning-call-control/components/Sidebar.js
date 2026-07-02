@@ -5,6 +5,7 @@ import {
   BarChart3,
   Building2,
   LayoutDashboard,
+  MessageCircle,
   Users
 } from 'lucide-react';
 
@@ -13,6 +14,7 @@ const NAV_ITEMS = [
   { id: 'companies', label: 'Empresas', icon: Building2 },
   { id: 'clients', label: 'Clientes', icon: Users },
   { id: 'powerbi', label: 'Power BI', icon: BarChart3 },
+  { id: 'chat', label: 'Chat', icon: MessageCircle },
   { id: 'activity', label: 'Atividade', icon: Activity }
 ];
 
