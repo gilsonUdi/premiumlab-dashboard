@@ -1362,6 +1362,12 @@ code {
   font-weight: 760;
 }
 
+.chatLiveBadge.evolution {
+  border-color: var(--gold-line);
+  background: var(--gold-soft);
+  color: var(--gold-strong);
+}
+
 .chatSearch {
   display: flex;
   gap: 9px;

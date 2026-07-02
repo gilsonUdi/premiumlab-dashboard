@@ -82,6 +82,18 @@ function buildMessageRows(executions) {
     });
 }
 
+function buildEvolutionRows(messages) {
+  return messages.map(message => ({
+    id: message.id,
+    direction: message.fromMe ? 'out' : 'in',
+    text: message.text || `[${message.messageType || 'mensagem'}]`,
+    when: message.timestamp,
+    pushName: message.pushName,
+    status: message.status,
+    execution: {}
+  }));
+}
+
 function buildConversations({ contacts, executions, tenantMap }) {
   const map = new Map();
 
@@ -155,6 +167,12 @@ function buildConversations({ contacts, executions, tenantMap }) {
 export default function ChatPage({ contacts, executions, tenantMap }) {
   const [search, setSearch] = useState('');
   const [activeKey, setActiveKey] = useState('');
+  const [evolutionState, setEvolutionState] = useState({
+    key: '',
+    loading: false,
+    error: '',
+    messages: []
+  });
 
   const conversations = useMemo(
     () => buildConversations({ contacts, executions, tenantMap }),
@@ -185,7 +203,69 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
 
   const activeConversation =
     filtered.find(conversation => conversation.key === activeKey) || filtered[0] || null;
-  const messages = activeConversation ? buildMessageRows(activeConversation.executions) : [];
+  const firestoreMessages = activeConversation ? buildMessageRows(activeConversation.executions) : [];
+  const hasEvolutionMessages =
+    activeConversation && evolutionState.key === activeConversation.key && evolutionState.messages.length > 0;
+  const messages = hasEvolutionMessages
+    ? buildEvolutionRows(evolutionState.messages)
+    : firestoreMessages;
+  const chatSource = hasEvolutionMessages ? 'Evolution' : 'Firestore';
+
+  useEffect(() => {
+    if (!activeConversation) {
+      setEvolutionState({ key: '', loading: false, error: '', messages: [] });
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams();
+
+    if (activeConversation.whatsappId) params.set('whatsappId', activeConversation.whatsappId);
+    if (activeConversation.phone) params.set('phone', activeConversation.phone);
+
+    const remoteJid =
+      activeConversation.whatsappId ||
+      activeConversation.executions?.[0]?.whatsappId ||
+      activeConversation.executions?.[0]?.raw?.data?.key?.remoteJidAlt ||
+      activeConversation.executions?.[0]?.raw?.data?.key?.remoteJid ||
+      '';
+
+    if (remoteJid) params.set('remoteJid', remoteJid);
+    params.set('limit', '160');
+
+    setEvolutionState({
+      key: activeConversation.key,
+      loading: true,
+      error: '',
+      messages: []
+    });
+
+    fetch(`/api/evolution/messages?${params.toString()}`, {
+      signal: controller.signal,
+      cache: 'no-store'
+    })
+      .then(response => response.json())
+      .then(payload => {
+        if (controller.signal.aborted) return;
+        setEvolutionState({
+          key: activeConversation.key,
+          loading: false,
+          error: payload.error || '',
+          messages: Array.isArray(payload.messages) ? payload.messages : []
+        });
+      })
+      .catch(error => {
+        if (controller.signal.aborted) return;
+        setEvolutionState({
+          key: activeConversation.key,
+          loading: false,
+          error: error.message || 'Nao foi possivel carregar a Evolution API.',
+          messages: []
+        });
+      });
+
+    return () => controller.abort();
+  }, [activeConversation]);
 
   return (
     <section className="chatShell">
@@ -195,7 +275,9 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
             <span className="sectionEyebrow">Conversas</span>
             <strong>{filtered.length}</strong>
           </div>
-          <span className="chatLiveBadge">Firestore</span>
+          <span className={`chatLiveBadge ${chatSource === 'Evolution' ? 'evolution' : ''}`}>
+            {chatSource}
+          </span>
         </div>
 
         <div className="chatSearch">
@@ -262,6 +344,12 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
                     ? `Ultima atividade ${timeAgo(activeConversation.lastAt)}`
                     : 'Sem atividade'}
                 </span>
+                {evolutionState.key === activeConversation.key && evolutionState.loading ? (
+                  <span>Carregando Evolution...</span>
+                ) : null}
+                {evolutionState.key === activeConversation.key && evolutionState.error ? (
+                  <span title={evolutionState.error}>Fallback Firestore ativo</span>
+                ) : null}
               </div>
             </header>
 
@@ -275,7 +363,7 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
                   >
                     <div className="chatBubbleAuthor">
                       {message.direction === 'in' ? (
-                        activeConversation.displayName
+                        message.pushName || activeConversation.displayName
                       ) : message.direction === 'error' ? (
                         'Erro'
                       ) : (
@@ -288,15 +376,16 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
                     <p>{String(message.text)}</p>
                     <footer>
                       <span>{formatTime(message.when)}</span>
-                      {message.execution.reportDate ||
-                      message.execution.reportDateBr ||
-                      message.execution.referenceDate ? (
+                      {message.status ? <span>{message.status}</span> : null}
+                      {message.execution?.reportDate ||
+                      message.execution?.reportDateBr ||
+                      message.execution?.referenceDate ? (
                         <span>
                           Ref.{' '}
                           {formatReferenceDate(
-                            message.execution.reportDateBr,
-                            message.execution.reportDate,
-                            message.execution.referenceDate
+                            message.execution?.reportDateBr,
+                            message.execution?.reportDate,
+                            message.execution?.referenceDate
                           )}
                         </span>
                       ) : null}
