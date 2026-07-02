@@ -48,6 +48,20 @@ function asArray(value) {
   return [];
 }
 
+function uniqueBy(items, keyFn) {
+  const seen = new Set();
+  const rows = [];
+
+  items.forEach(item => {
+    const key = keyFn(item);
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.push(item);
+  });
+
+  return rows;
+}
+
 function timestampToIso(value) {
   if (!value) return '';
 
@@ -72,8 +86,17 @@ function textFromMessage(message, messageType) {
   if (!message || typeof message !== 'object') return '';
 
   return (
+    message.text ||
     message.conversation ||
     message.extendedTextMessage?.text ||
+    message.ephemeralMessage?.message?.conversation ||
+    message.ephemeralMessage?.message?.extendedTextMessage?.text ||
+    message.viewOnceMessage?.message?.conversation ||
+    message.viewOnceMessage?.message?.extendedTextMessage?.text ||
+    message.viewOnceMessageV2?.message?.conversation ||
+    message.viewOnceMessageV2?.message?.extendedTextMessage?.text ||
+    message.interactiveMessage?.body?.text ||
+    message.viewOnceMessage?.message?.interactiveMessage?.body?.text ||
     message.imageMessage?.caption ||
     message.videoMessage?.caption ||
     message.documentMessage?.caption ||
@@ -97,7 +120,7 @@ function messageTypeOf(row) {
 
 function normalizeMessage(row, index) {
   const key = row.key || row.messages?.key || {};
-  const message = row.message || row.messages?.message || {};
+  const message = row.message?.message || row.message || row.messages?.message || {};
   const messageType = messageTypeOf(row);
   const remoteJid = key.remoteJid || row.remoteJid || row.keyId?.remoteJid || '';
   const remoteJidAlt = key.remoteJidAlt || row.remoteJidAlt || '';
@@ -121,7 +144,7 @@ function normalizeMessage(row, index) {
     pushName: row.pushName || row.name || '',
     status: row.status || '',
     messageType,
-    text: textFromMessage(message, messageType),
+    text: row.text || row.body || textFromMessage(message, messageType),
     timestamp: timestampToIso(timestamp),
     raw: row
   };
@@ -213,6 +236,32 @@ async function tryRequests(requests) {
   throw new Error(errors[0] || 'Nao foi possivel consultar a Evolution API.');
 }
 
+async function collectMessagesFromRequests(requests) {
+  const errors = [];
+  const results = [];
+  const endpoints = [];
+
+  for (const request of requests) {
+    try {
+      const data = await evolutionFetch(request.path, request);
+      const rows = asArray(data);
+
+      if (rows.length) {
+        results.push(...rows);
+        endpoints.push(`${request.method || 'POST'} ${request.path}`);
+      }
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+
+  if (!results.length && errors.length) {
+    throw new Error(errors[0]);
+  }
+
+  return { rows: results, endpoints };
+}
+
 export async function findEvolutionMessages({ remoteJid, whatsappId, phone, limit = 120 }) {
   const { instance } = evolutionConfig();
   const safeLimit = Math.min(Math.max(Number(limit) || 120, 1), 300);
@@ -227,27 +276,36 @@ export async function findEvolutionMessages({ remoteJid, whatsappId, phone, limi
     };
   }
 
-  const queryJid = remoteJid || whatsappId || (phone ? `${digits(phone)}@s.whatsapp.net` : '');
   const encodedInstance = encodeURIComponent(instance);
-  const encodedJid = encodeURIComponent(queryJid);
-  const bodies = [
-    { where: { key: { remoteJid: queryJid } }, limit: safeLimit },
-    { where: { remoteJid: queryJid }, limit: safeLimit },
-    { remoteJid: queryJid, limit: safeLimit },
-    { jid: queryJid, limit: safeLimit }
-  ];
-  const prefixes = ['/chat/findMessages', '/message/findMessages', '/messages/findMessages'];
-  const requests = prefixes.flatMap(prefix => [
-    ...bodies.map(body => ({ path: `${prefix}/${encodedInstance}`, method: 'POST', body })),
-    {
-      path: `${prefix}/${encodedInstance}?remoteJid=${encodedJid}&limit=${safeLimit}`,
-      method: 'GET'
-    }
-  ]);
+  const queryJids = Array.from(candidates).filter(value => String(value).includes('@'));
+  const fallbackJid = remoteJid || whatsappId || (phone ? `${digits(phone)}@s.whatsapp.net` : '');
+  if (fallbackJid && !queryJids.includes(fallbackJid)) queryJids.push(fallbackJid);
 
-  const result = await tryRequests(requests);
-  const rows = asArray(result.data)
-    .map(normalizeMessage)
+  const prefixes = ['/chat/findMessages', '/message/findMessages', '/messages/findMessages'];
+  const requests = prefixes.flatMap(prefix =>
+    queryJids.flatMap(queryJid => {
+      const encodedJid = encodeURIComponent(queryJid);
+      const bodies = [
+        { where: { key: { remoteJid: queryJid } }, limit: safeLimit },
+        { where: { key: { remoteJid: queryJid, fromMe: true } }, limit: safeLimit },
+        { where: { key: { remoteJid: queryJid, fromMe: false } }, limit: safeLimit },
+        { where: { remoteJid: queryJid }, limit: safeLimit },
+        { remoteJid: queryJid, limit: safeLimit },
+        { jid: queryJid, limit: safeLimit }
+      ];
+
+      return [
+        ...bodies.map(body => ({ path: `${prefix}/${encodedInstance}`, method: 'POST', body })),
+        {
+          path: `${prefix}/${encodedInstance}?remoteJid=${encodedJid}&limit=${safeLimit}`,
+          method: 'GET'
+        }
+      ];
+    })
+  );
+
+  const result = await collectMessagesFromRequests(requests);
+  const rows = uniqueBy(result.rows.map(normalizeMessage), message => message.id)
     .filter(message => message.text || message.messageType)
     .filter(message => matchesConversation(message, candidates))
     .sort((a, b) => {
@@ -258,7 +316,8 @@ export async function findEvolutionMessages({ remoteJid, whatsappId, phone, limi
 
   return {
     source: 'evolution',
-    endpoint: result.endpoint,
+    endpoint: result.endpoints[0] || '',
+    endpoints: result.endpoints,
     messages: rows
   };
 }

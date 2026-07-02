@@ -88,6 +88,28 @@ function buildEvolutionRows(messages) {
   }));
 }
 
+function rowTime(row) {
+  const parsed = row.when ? new Date(row.when).getTime() : 0;
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function mergeMessageRows(primaryRows, fallbackRows) {
+  const rows = [...primaryRows];
+  const signatures = new Set(
+    rows.map(row => `${row.direction}|${String(row.text).slice(0, 120)}|${Math.floor(rowTime(row) / 60000)}`)
+  );
+
+  fallbackRows.forEach(row => {
+    const signature = `${row.direction}|${String(row.text).slice(0, 120)}|${Math.floor(rowTime(row) / 60000)}`;
+    if (signatures.has(signature)) return;
+
+    signatures.add(signature);
+    rows.push(row);
+  });
+
+  return rows.sort((a, b) => rowTime(a) - rowTime(b));
+}
+
 function buildConversations({ contacts, executions, tenantMap }) {
   const map = new Map();
 
@@ -193,7 +215,7 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
   const hasEvolutionMessages =
     activeConversation && evolutionState.key === activeConversation.key && evolutionState.messages.length > 0;
   const messages = hasEvolutionMessages
-    ? buildEvolutionRows(evolutionState.messages)
+    ? mergeMessageRows(buildEvolutionRows(evolutionState.messages), firestoreMessages)
     : firestoreMessages;
   const chatSource = hasEvolutionMessages ? 'Evolution' : 'Firestore';
 
