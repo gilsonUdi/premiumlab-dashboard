@@ -1939,12 +1939,15 @@ code {
 /* --------------------------------------------------------------- avatar */
 
 .avatar {
-  display: grid;
+  display: inline-flex;
   flex: 0 0 auto;
-  place-items: center;
+  align-items: center;
+  justify-content: center;
   border-radius: 999px;
   font-weight: 750;
   letter-spacing: 0.02em;
+  line-height: 1;
+  text-align: center;
 }
 
 .avatar.md {
