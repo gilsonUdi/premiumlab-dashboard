@@ -5,7 +5,6 @@ import {
   BarChart3,
   Building2,
   LayoutDashboard,
-  Sunrise,
   Users
 } from 'lucide-react';
 
@@ -22,10 +21,10 @@ export default function Sidebar({ page, onNavigate, counts, firebaseReady, error
     <aside className="sidebar">
       <div className="sidebarBrand">
         <span className="brandMark">
-          <Sunrise size={18} />
+          <img src="/logo-axis-ai.png" alt="Axis AI" />
         </span>
         <div>
-          <strong>Morning Call</strong>
+          <strong>Axis AI</strong>
           <span>GS Controladoria</span>
         </div>
       </div>

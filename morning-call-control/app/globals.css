@@ -137,6 +137,14 @@ code {
   border-radius: 11px;
   background: linear-gradient(160deg, rgba(227, 183, 97, 0.2), rgba(227, 183, 97, 0.06));
   color: var(--gold-strong);
+  overflow: hidden;
+}
+
+.brandMark img {
+  display: block;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }
 
 .sidebarBrand strong {
