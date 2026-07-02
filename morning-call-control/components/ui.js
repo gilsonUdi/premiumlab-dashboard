@@ -97,7 +97,11 @@ export function SwitchRow({ label, description, checked, onChange, disabled }) {
 }
 
 export function Avatar({ name, size = 'md', tone = 'gold' }) {
-  return <span className={`avatar ${size} ${tone}`}>{initialsOf(name)}</span>;
+  return (
+    <span className={`avatar ${size} ${tone}`}>
+      <span>{initialsOf(name)}</span>
+    </span>
+  );
 }
 
 export function ConfirmDeleteButton({ onConfirm, disabled, label = 'Excluir' }) {

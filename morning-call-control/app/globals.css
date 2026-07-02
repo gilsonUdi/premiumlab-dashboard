@@ -1950,16 +1950,22 @@ code {
   text-align: center;
 }
 
+.avatar > span {
+  display: block;
+  line-height: 1;
+  transform: translateY(0.5px);
+}
+
 .avatar.md {
   width: 36px;
   height: 36px;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
 }
 
 .avatar.lg {
   width: 46px;
   height: 46px;
-  font-size: 0.95rem;
+  font-size: 1.08rem;
 }
 
 .avatar.gold {
