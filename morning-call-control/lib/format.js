@@ -165,17 +165,52 @@ export function initialsOf(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+function digitsOf(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function phoneVariants(...values) {
+  const variants = new Set();
+
+  values.forEach(value => {
+    const raw = String(value || '');
+    const digits = digitsOf(raw);
+
+    if (raw) variants.add(raw);
+    if (!digits) return;
+
+    variants.add(digits);
+    variants.add(`${digits}@s.whatsapp.net`);
+
+    if (!digits.startsWith('55')) {
+      variants.add(`55${digits}`);
+      variants.add(`55${digits}@s.whatsapp.net`);
+    }
+
+    if (digits.startsWith('55') && digits.length === 13 && digits[4] === '9') {
+      const withoutMobileNine = `${digits.slice(0, 4)}${digits.slice(5)}`;
+      variants.add(withoutMobileNine);
+      variants.add(`${withoutMobileNine}@s.whatsapp.net`);
+    }
+  });
+
+  return variants;
+}
+
 export function matchExecutionToContact(execution, contact) {
   const contactId = String(contact.id || '');
-  const contactPhone = String(contact.phone || '');
-  const contactWhatsappId = String(contact.whatsappId || '');
   const executionContactId = String(execution.contactId || '');
-  const executionPhone = String(execution.phone || '');
-  const executionWhatsappId = String(execution.whatsappId || '');
+  const contactValues = phoneVariants(contact.phone, contact.whatsappId);
+  const executionValues = phoneVariants(
+    execution.phone,
+    execution.whatsappId,
+    execution.raw?.data?.key?.remoteJidAlt,
+    execution.raw?.data?.key?.remoteJid,
+    execution.raw?.data?.key?.participant
+  );
 
   return (
     (contactId && executionContactId === contactId) ||
-    (contactPhone && executionPhone === contactPhone) ||
-    (contactWhatsappId && executionWhatsappId === contactWhatsappId)
+    Array.from(contactValues).some(value => executionValues.has(value))
   );
 }

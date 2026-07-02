@@ -141,13 +141,19 @@ function jidCandidates({ remoteJid, whatsappId, phone }) {
     values.add(phoneDigits);
     values.add(`${phoneDigits}@s.whatsapp.net`);
     if (!phoneDigits.startsWith('55')) values.add(`55${phoneDigits}@s.whatsapp.net`);
+
+    if (phoneDigits.startsWith('55') && phoneDigits.length === 13 && phoneDigits[4] === '9') {
+      const withoutMobileNine = `${phoneDigits.slice(0, 4)}${phoneDigits.slice(5)}`;
+      values.add(withoutMobileNine);
+      values.add(`${withoutMobileNine}@s.whatsapp.net`);
+    }
   }
 
   return values;
 }
 
 function matchesConversation(message, candidates) {
-  if (!candidates.size) return true;
+  if (!candidates.size) return false;
 
   const values = [
     message.remoteJid,
@@ -210,6 +216,17 @@ async function tryRequests(requests) {
 export async function findEvolutionMessages({ remoteJid, whatsappId, phone, limit = 120 }) {
   const { instance } = evolutionConfig();
   const safeLimit = Math.min(Math.max(Number(limit) || 120, 1), 300);
+  const candidates = jidCandidates({ remoteJid, whatsappId, phone });
+
+  if (!candidates.size) {
+    return {
+      source: 'evolution',
+      endpoint: '',
+      messages: [],
+      error: 'Informe telefone ou JID do contato para filtrar o historico.'
+    };
+  }
+
   const queryJid = remoteJid || whatsappId || (phone ? `${digits(phone)}@s.whatsapp.net` : '');
   const encodedInstance = encodeURIComponent(instance);
   const encodedJid = encodeURIComponent(queryJid);
@@ -229,7 +246,6 @@ export async function findEvolutionMessages({ remoteJid, whatsappId, phone, limi
   ]);
 
   const result = await tryRequests(requests);
-  const candidates = jidCandidates({ remoteJid, whatsappId, phone });
   const rows = asArray(result.data)
     .map(normalizeMessage)
     .filter(message => message.text || message.messageType)

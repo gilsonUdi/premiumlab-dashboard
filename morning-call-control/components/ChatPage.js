@@ -2,25 +2,19 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Bot, MessageCircle, Search } from 'lucide-react';
-import { formatPhone } from '@/lib/phone';
+import { formatPhone, normalizePhone } from '@/lib/phone';
 import {
   formatDate,
   formatReferenceDate,
   formatTime,
-  initialsOf,
   matchExecutionToContact,
   timeAgo
 } from '@/lib/format';
 import { getStatusMeta } from '@/lib/constants';
 import { Avatar, EmptyState, StatusBadge } from '@/components/ui';
 
-function conversationKey(execution) {
-  return (
-    execution.contactId ||
-    execution.whatsappId ||
-    execution.phone ||
-    `${execution.tenant || 'sem-tenant'}-${execution.contactName || 'sem-contato'}`
-  );
+function contactConversationKey(contact) {
+  return `${contact.tenant || 'sem-tenant'}::${normalizePhone(contact.phone) || contact.whatsappId || contact.id}`;
 }
 
 function getIncomingText(execution) {
@@ -97,48 +91,39 @@ function buildEvolutionRows(messages) {
 function buildConversations({ contacts, executions, tenantMap }) {
   const map = new Map();
 
-  function ensureConversation(key, seed = {}) {
+  function ensureConversation(key, contact) {
     if (!map.has(key)) {
       map.set(key, {
         key,
-        contact: seed.contact || null,
-        tenant: seed.tenant || seed.contact?.tenant || '',
-        name: seed.name || seed.contact?.name || '',
-        phone: seed.phone || seed.contact?.phone || '',
-        whatsappId: seed.whatsappId || seed.contact?.whatsappId || '',
+        contact,
+        contactIds: new Set([contact.id].filter(Boolean)),
+        tenant: contact.tenant || '',
+        name: contact.name || '',
+        phone: normalizePhone(contact.phone),
+        whatsappId: contact.whatsappId || '',
+        active: contact.active !== false,
         executions: []
       });
     }
 
-    return map.get(key);
+    const row = map.get(key);
+    if (contact.id) row.contactIds.add(contact.id);
+    if (!row.name && contact.name) row.name = contact.name;
+    if (!row.whatsappId && contact.whatsappId) row.whatsappId = contact.whatsappId;
+    row.active = row.active || contact.active !== false;
+
+    return row;
   }
 
-  contacts.forEach(contact => {
-    ensureConversation(contact.id || contact.phone, {
-      contact,
-      name: contact.name,
-      tenant: contact.tenant,
-      phone: contact.phone,
-      whatsappId: contact.whatsappId
-    });
-  });
+  contacts
+    .filter(contact => contact.phone || contact.whatsappId || contact.id)
+    .forEach(contact => ensureConversation(contactConversationKey(contact), contact));
 
   executions.forEach(execution => {
     const contact = contacts.find(item => matchExecutionToContact(execution, item));
-    const key = contact?.id || conversationKey(execution);
-    const row = ensureConversation(key, {
-      contact,
-      name: execution.contactName,
-      tenant: execution.tenant,
-      phone: execution.phone,
-      whatsappId: execution.whatsappId
-    });
+    if (!contact) return;
 
-    row.contact = row.contact || contact || null;
-    row.name = row.name || contact?.name || execution.contactName || '';
-    row.tenant = row.tenant || contact?.tenant || execution.tenant || '';
-    row.phone = row.phone || contact?.phone || execution.phone || '';
-    row.whatsappId = row.whatsappId || contact?.whatsappId || execution.whatsappId || '';
+    const row = ensureConversation(contactConversationKey(contact), contact);
     row.executions.push(execution);
   });
 
@@ -150,6 +135,7 @@ function buildConversations({ contacts, executions, tenantMap }) {
 
       return {
         ...row,
+        contactIds: Array.from(row.contactIds),
         displayName,
         tenantName,
         lastExecution,
@@ -225,6 +211,7 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
 
     const remoteJid =
       activeConversation.whatsappId ||
+      (activeConversation.phone ? `${normalizePhone(activeConversation.phone)}@s.whatsapp.net` : '') ||
       activeConversation.executions?.[0]?.whatsappId ||
       activeConversation.executions?.[0]?.raw?.data?.key?.remoteJidAlt ||
       activeConversation.executions?.[0]?.raw?.data?.key?.remoteJid ||
