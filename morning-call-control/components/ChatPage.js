@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, ChevronDown, MessageCircle, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Bot, ChevronDown, MessageCircle, RefreshCw, Search } from 'lucide-react';
 import { formatPhone, normalizePhone } from '@/lib/phone';
 import {
   formatDate,
@@ -12,6 +12,8 @@ import {
 } from '@/lib/format';
 import { getStatusMeta } from '@/lib/constants';
 import { Avatar, EmptyState, StatusBadge } from '@/components/ui';
+
+const EVOLUTION_SYNC_INTERVAL_MS = 8000;
 
 function contactConversationKey(contact) {
   return `${contact.tenant || 'sem-tenant'}::${normalizePhone(contact.phone) || contact.whatsappId || contact.id}`;
@@ -180,7 +182,8 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
     key: '',
     loading: false,
     error: '',
-    messages: []
+    messages: [],
+    lastSyncedAt: ''
   });
 
   const conversations = useMemo(
@@ -212,28 +215,10 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
 
   const activeConversation =
     filtered.find(conversation => conversation.key === activeKey) || filtered[0] || null;
-  const firestoreMessages = activeConversation ? buildMessageRows(activeConversation.executions) : [];
-  const hasEvolutionMessages =
-    activeConversation && evolutionState.key === activeConversation.key && evolutionState.messages.length > 0;
-  const messages = hasEvolutionMessages
-    ? mergeMessageRows(buildEvolutionRows(evolutionState.messages), firestoreMessages)
-    : firestoreMessages;
-  const chatSource = hasEvolutionMessages ? 'Evolution' : 'Firestore';
 
-  function scrollToLatest(behavior = 'smooth') {
-    timelineRef.current?.scrollTo({
-      top: timelineRef.current.scrollHeight,
-      behavior
-    });
-  }
+  const evolutionParams = useMemo(() => {
+    if (!activeConversation) return null;
 
-  useEffect(() => {
-    if (!activeConversation) {
-      setEvolutionState({ key: '', loading: false, error: '', messages: [] });
-      return undefined;
-    }
-
-    const controller = new AbortController();
     const params = new URLSearchParams();
 
     if (activeConversation.whatsappId) params.set('whatsappId', activeConversation.whatsappId);
@@ -250,39 +235,91 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
     if (remoteJid) params.set('remoteJid', remoteJid);
     params.set('limit', '160');
 
-    setEvolutionState({
+    return {
       key: activeConversation.key,
-      loading: true,
-      error: '',
-      messages: []
-    });
+      query: params.toString()
+    };
+  }, [activeConversation]);
 
-    fetch(`/api/evolution/messages?${params.toString()}`, {
-      signal: controller.signal,
-      cache: 'no-store'
-    })
-      .then(response => response.json())
-      .then(payload => {
-        if (controller.signal.aborted) return;
+  const firestoreMessages = activeConversation ? buildMessageRows(activeConversation.executions) : [];
+  const hasEvolutionMessages =
+    activeConversation && evolutionState.key === activeConversation.key && evolutionState.messages.length > 0;
+  const messages = hasEvolutionMessages
+    ? mergeMessageRows(buildEvolutionRows(evolutionState.messages), firestoreMessages)
+    : firestoreMessages;
+  const chatSource = hasEvolutionMessages ? 'Evolution' : 'Firestore';
+
+  function scrollToLatest(behavior = 'smooth') {
+    timelineRef.current?.scrollTo({
+      top: timelineRef.current.scrollHeight,
+      behavior
+    });
+  }
+
+  const syncEvolutionMessages = useCallback(
+    async ({ signal, silent = false } = {}) => {
+      if (!evolutionParams?.query) {
+        setEvolutionState({ key: '', loading: false, error: '', messages: [], lastSyncedAt: '' });
+        return;
+      }
+
+      setEvolutionState(current => ({
+        key: evolutionParams.key,
+        loading: !silent,
+        error: '',
+        messages: current.key === evolutionParams.key ? current.messages : [],
+        lastSyncedAt: current.key === evolutionParams.key ? current.lastSyncedAt : ''
+      }));
+
+      try {
+        const response = await fetch(`/api/evolution/messages?${evolutionParams.query}`, {
+          signal,
+          cache: 'no-store'
+        });
+        const payload = await response.json();
+
+        if (signal?.aborted) return;
+
         setEvolutionState({
-          key: activeConversation.key,
+          key: evolutionParams.key,
           loading: false,
           error: payload.error || '',
-          messages: Array.isArray(payload.messages) ? payload.messages : []
+          messages: Array.isArray(payload.messages) ? payload.messages : [],
+          lastSyncedAt: new Date().toISOString()
         });
-      })
-      .catch(error => {
-        if (controller.signal.aborted) return;
-        setEvolutionState({
-          key: activeConversation.key,
+      } catch (error) {
+        if (signal?.aborted) return;
+
+        setEvolutionState(current => ({
+          key: evolutionParams.key,
           loading: false,
           error: error.message || 'Nao foi possivel carregar a Evolution API.',
-          messages: []
-        });
-      });
+          messages: current.key === evolutionParams.key ? current.messages : [],
+          lastSyncedAt: current.key === evolutionParams.key ? current.lastSyncedAt : ''
+        }));
+      }
+    },
+    [evolutionParams]
+  );
 
-    return () => controller.abort();
-  }, [activeConversation]);
+  useEffect(() => {
+    if (!activeConversation) {
+      setEvolutionState({ key: '', loading: false, error: '', messages: [], lastSyncedAt: '' });
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    syncEvolutionMessages({ signal: controller.signal });
+
+    const timer = setInterval(() => {
+      syncEvolutionMessages({ signal: controller.signal, silent: true });
+    }, EVOLUTION_SYNC_INTERVAL_MS);
+
+    return () => {
+      controller.abort();
+      clearInterval(timer);
+    };
+  }, [activeConversation, syncEvolutionMessages]);
 
   useEffect(() => {
     scrollToLatest('auto');
@@ -368,9 +405,29 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
                 {evolutionState.key === activeConversation.key && evolutionState.loading ? (
                   <span>Carregando Evolution...</span>
                 ) : null}
+                {evolutionState.key === activeConversation.key && evolutionState.lastSyncedAt ? (
+                  <span>Sync {timeAgo(evolutionState.lastSyncedAt)}</span>
+                ) : null}
                 {evolutionState.key === activeConversation.key && evolutionState.error ? (
                   <span title={evolutionState.error}>Fallback Firestore ativo</span>
                 ) : null}
+                <button
+                  type="button"
+                  className="chatSyncButton"
+                  onClick={() => syncEvolutionMessages()}
+                  disabled={evolutionState.key === activeConversation.key && evolutionState.loading}
+                  title="Sincronizar conversa agora"
+                >
+                  <RefreshCw
+                    size={14}
+                    className={
+                      evolutionState.key === activeConversation.key && evolutionState.loading
+                        ? 'spinning'
+                        : ''
+                    }
+                  />
+                  Atualizar
+                </button>
               </div>
             </header>
 

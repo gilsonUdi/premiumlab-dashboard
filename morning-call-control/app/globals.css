@@ -1546,6 +1546,46 @@ code {
   flex-shrink: 0;
 }
 
+.chatSyncButton {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 720;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    background 160ms ease;
+}
+
+.chatSyncButton:hover:not(:disabled) {
+  border-color: var(--gold-line);
+  background: var(--gold-soft);
+  color: var(--gold-strong);
+}
+
+.chatSyncButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.spinning {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .chatTimelineWrap {
   position: relative;
   flex: 1;
