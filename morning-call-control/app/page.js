@@ -346,9 +346,6 @@ export default function Home() {
         ...form,
         name: form.name.trim(),
         phone: normalizePhone(form.phone),
-        document: form.document.trim(),
-        customerCode: form.customerCode.trim(),
-        notes: form.notes.trim(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
@@ -366,9 +363,6 @@ export default function Home() {
     const payload = { ...data };
     if (typeof payload.name === 'string') payload.name = payload.name.trim();
     if (typeof payload.phone === 'string') payload.phone = normalizePhone(payload.phone);
-    if (typeof payload.document === 'string') payload.document = payload.document.trim();
-    if (typeof payload.customerCode === 'string') payload.customerCode = payload.customerCode.trim();
-    if (typeof payload.notes === 'string') payload.notes = payload.notes.trim();
 
     try {
       await updateDoc(doc(db, COLLECTIONS.consultationClients, id), {

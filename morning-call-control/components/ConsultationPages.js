@@ -43,11 +43,8 @@ const EMPTY_CLIENT = {
   companyId: '',
   name: '',
   phone: '',
-  document: '',
-  customerCode: '',
   active: true,
-  canConsult: true,
-  notes: ''
+  canConsult: true
 };
 
 function companyName(company) {
@@ -542,27 +539,6 @@ function ClientForm({ initial, editing, companies, firebaseReady, onSubmit, onCa
               required
             />
           </Field>
-          <Field label="CNPJ/CPF" hint="Opcional, usado para validacao no flow.">
-            <input
-              value={form.document}
-              onChange={event => set('document', event.target.value)}
-              placeholder="00.000.000/0001-00"
-            />
-          </Field>
-          <Field label="Codigo do cliente" hint="Opcional, quando o modelo/API precisar.">
-            <input
-              value={form.customerCode}
-              onChange={event => set('customerCode', event.target.value)}
-              placeholder="1234"
-            />
-          </Field>
-          <Field label="Observacoes">
-            <input
-              value={form.notes}
-              onChange={event => set('notes', event.target.value)}
-              placeholder="Permissoes, restricoes ou contexto"
-            />
-          </Field>
         </div>
 
         <div className="switchGrid">
@@ -654,18 +630,6 @@ function ConsultationClientDetail({
               <strong>{formatPhone(client.phone)}</strong>
             </div>
             <div className="infoItem">
-              <span>CNPJ/CPF</span>
-              <strong>{client.document || '-'}</strong>
-            </div>
-            <div className="infoItem">
-              <span>Codigo do cliente</span>
-              <strong>{client.customerCode || '-'}</strong>
-            </div>
-            <div className="infoItem">
-              <span>Observacoes</span>
-              <strong>{client.notes || '-'}</strong>
-            </div>
-            <div className="infoItem">
               <span>Cadastrado em</span>
               <strong>{formatDate(client.createdAt)}</strong>
             </div>
@@ -701,7 +665,7 @@ export function ConsultationClientsPage({
       if (companyFilter !== 'all' && client.companyId !== companyFilter) return false;
       if (!term) return true;
 
-      return [client.name, client.phone, client.document, client.customerCode, companyMap[client.companyId]?.name]
+      return [client.name, client.phone, companyMap[client.companyId]?.name]
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(term));
     });
@@ -749,11 +713,8 @@ export function ConsultationClientsPage({
                   companyId: editingClient.companyId || '',
                   name: editingClient.name || '',
                   phone: editingClient.phone || '',
-                  document: editingClient.document || '',
-                  customerCode: editingClient.customerCode || '',
                   active: editingClient.active !== false,
-                  canConsult: editingClient.canConsult !== false,
-                  notes: editingClient.notes || ''
+                  canConsult: editingClient.canConsult !== false
                 }
               : { ...EMPTY_CLIENT, companyId: companies[0]?.id || '' }
           }
@@ -774,7 +735,7 @@ export function ConsultationClientsPage({
           <input
             value={search}
             onChange={event => setSearch(event.target.value)}
-            placeholder="Buscar por nome, telefone, documento ou codigo"
+            placeholder="Buscar por nome, telefone ou empresa"
           />
         </div>
         <div className="chipRow">
