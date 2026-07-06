@@ -2,7 +2,10 @@ export const COLLECTIONS = {
   tenants: 'tenants',
   contacts: 'morning_call_contacts',
   powerbi: 'powerbi_configs',
-  executions: 'morning_call_executions'
+  executions: 'morning_call_executions',
+  consultationCompanies: 'consulta_ia_companies',
+  consultationClients: 'consulta_ia_clients',
+  consultationExecutions: 'consulta_ia_executions'
 };
 
 export const POWER_BI_MODEL_TYPES = [

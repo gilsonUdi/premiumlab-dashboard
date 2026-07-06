@@ -1,0 +1,65 @@
+'use client';
+
+import { BarChart3, Bot, MessageSquareText, PhoneCall, Users } from 'lucide-react';
+import { Panel } from '@/components/ui';
+
+export default function ModuleHomePage({
+  morningCallCounts,
+  consultationCounts,
+  onOpenMorningCall,
+  onOpenConsultation
+}) {
+  return (
+    <div className="moduleHome">
+      <div className="moduleHero">
+        <span className="sectionEyebrow">Painel Axis AI</span>
+        <h1>Escolha a ferramenta</h1>
+        <p>
+          Controle os produtos de IA da GS em ambientes separados, com empresas, clientes e
+          configuracoes independentes.
+        </p>
+      </div>
+
+      <div className="moduleGrid">
+        <button type="button" className="moduleCard" onClick={onOpenMorningCall}>
+          <span className="moduleIcon gold">
+            <PhoneCall size={24} />
+          </span>
+          <strong>Morning Call</strong>
+          <span>Relatorios matinais via WhatsApp, avisos diarios e acompanhamento operacional.</span>
+          <div className="moduleStats">
+            <em>{morningCallCounts.companies} empresas</em>
+            <em>{morningCallCounts.clients} clientes</em>
+          </div>
+        </button>
+
+        <button type="button" className="moduleCard" onClick={onOpenConsultation}>
+          <span className="moduleIcon cyan">
+            <Bot size={24} />
+          </span>
+          <strong>Consulta IA</strong>
+          <span>Ferramenta de atendimento por IA para consultas controladas pelo WhatsApp.</span>
+          <div className="moduleStats">
+            <em>{consultationCounts.companies} empresas</em>
+            <em>{consultationCounts.clients} clientes</em>
+          </div>
+        </button>
+      </div>
+
+      <Panel title="Separacao dos dados" icon={BarChart3} className="n8nPanel">
+        <div className="homeInfoGrid">
+          <div>
+            <MessageSquareText size={18} />
+            <strong>Morning Call</strong>
+            <span>Usa colecoes proprias para tenants, contatos, Power BI e execucoes.</span>
+          </div>
+          <div>
+            <Users size={18} />
+            <strong>Consulta IA</strong>
+            <span>Usa empresas e clientes independentes, mesmo quando o laboratorio for o mesmo.</span>
+          </div>
+        </div>
+      </Panel>
+    </div>
+  );
+}

@@ -21,17 +21,27 @@ import {
 } from '@/lib/constants';
 import { useCollection } from '@/lib/useCollection';
 import Sidebar from '@/components/Sidebar';
+import ModuleHomePage from '@/components/ModuleHomePage';
 import OverviewPage from '@/components/OverviewPage';
 import CompaniesPage from '@/components/CompaniesPage';
 import ClientsPage from '@/components/ClientsPage';
 import PowerBiPage from '@/components/PowerBiPage';
 import ActivityPage from '@/components/ActivityPage';
 import ChatPage from '@/components/ChatPage';
+import {
+  ConsultationClientsPage,
+  ConsultationCompaniesPage,
+  ConsultationOverviewPage
+} from '@/components/ConsultationPages';
 
 const PAGE_META = {
+  home: {
+    title: 'Home',
+    description: 'Escolha qual ferramenta do Axis AI deseja controlar.'
+  },
   overview: {
-    title: 'Visão geral',
-    description: 'Acompanhe a operação do Morning Call em tempo real.'
+    title: 'Visao geral',
+    description: 'Acompanhe a operacao do Morning Call em tempo real.'
   },
   companies: {
     title: 'Empresas',
@@ -39,11 +49,11 @@ const PAGE_META = {
   },
   clients: {
     title: 'Clientes',
-    description: 'Números autorizados a receber ou solicitar o Morning Call.'
+    description: 'Numeros autorizados a receber ou solicitar o Morning Call.'
   },
   powerbi: {
     title: 'Power BI',
-    description: 'Datasets usados na geração dos relatórios, por empresa e modelo.'
+    description: 'Datasets usados na geracao dos relatorios, por empresa e modelo.'
   },
   chat: {
     title: 'Chat',
@@ -51,7 +61,19 @@ const PAGE_META = {
   },
   activity: {
     title: 'Atividade',
-    description: 'Tudo que o fluxo n8n registrou: avisos, solicitações, envios e erros.'
+    description: 'Tudo que o fluxo n8n registrou: avisos, solicitacoes, envios e erros.'
+  },
+  'consultation-overview': {
+    title: 'Visao geral',
+    description: 'Acompanhe a estrutura da ferramenta de Consulta IA.'
+  },
+  'consultation-companies': {
+    title: 'Empresas',
+    description: 'Empresas, numeros usados e API Evolution da Consulta IA.'
+  },
+  'consultation-clients': {
+    title: 'Clientes',
+    description: 'Clientes autorizados a usar a ferramenta de Consulta IA.'
   }
 };
 
@@ -61,15 +83,23 @@ export default function Home() {
   const contactsState = useCollection(COLLECTIONS.contacts);
   const powerBiState = useCollection(COLLECTIONS.powerbi);
   const executionsState = useCollection(COLLECTIONS.executions);
+  const consultationCompaniesState = useCollection(COLLECTIONS.consultationCompanies);
+  const consultationClientsState = useCollection(COLLECTIONS.consultationClients);
+  const consultationExecutionsState = useCollection(COLLECTIONS.consultationExecutions);
 
-  const [page, setPage] = useState('overview');
+  const [module, setModule] = useState(null);
+  const [page, setPage] = useState('home');
   const [companyTab, setCompanyTab] = useState('all');
   const [clientFocusId, setClientFocusId] = useState(null);
+  const [consultationClientFocusId, setConsultationClientFocusId] = useState(null);
   const [notice, setNotice] = useState(null);
 
   const tenants = tenantsState.items;
   const contacts = contactsState.items;
   const executions = executionsState.items;
+  const consultationCompanies = consultationCompaniesState.items;
+  const consultationClients = consultationClientsState.items;
+  const consultationExecutions = consultationExecutionsState.items;
 
   const powerBiConfigs = useMemo(() => {
     return powerBiState.items.map(config => {
@@ -90,6 +120,13 @@ export default function Home() {
     }, {});
   }, [tenants]);
 
+  const consultationCompanyMap = useMemo(() => {
+    return consultationCompanies.reduce((acc, company) => {
+      acc[company.id] = company;
+      return acc;
+    }, {});
+  }, [consultationCompanies]);
+
   const errorCount = useMemo(
     () => executions.filter(execution => execution.status === 'error').length,
     [executions]
@@ -99,7 +136,10 @@ export default function Home() {
     tenantsState.error,
     contactsState.error,
     powerBiState.error,
-    executionsState.error
+    executionsState.error,
+    consultationCompaniesState.error,
+    consultationClientsState.error,
+    consultationExecutionsState.error
   ].filter(Boolean);
 
   useEffect(() => {
@@ -117,7 +157,7 @@ export default function Home() {
 
     showNotice(
       'error',
-      'Firebase não configurado. Confira as variáveis NEXT_PUBLIC_FIREBASE_* na Vercel e faça um novo deploy.'
+      'Firebase nao configurado. Confira as variaveis NEXT_PUBLIC_FIREBASE_* na Vercel e faca um novo deploy.'
     );
     return false;
   }
@@ -149,7 +189,7 @@ export default function Home() {
       showNotice('success', `Empresa ${form.name.trim() || id} salva com sucesso.`);
       return true;
     } catch (error) {
-      handleActionError(error, 'Não foi possível salvar a empresa.');
+      handleActionError(error, 'Nao foi possivel salvar a empresa.');
       return false;
     }
   }
@@ -175,7 +215,7 @@ export default function Home() {
       showNotice('success', 'Cliente autorizado com sucesso.');
       return true;
     } catch (error) {
-      handleActionError(error, 'Não foi possível salvar o cliente.');
+      handleActionError(error, 'Nao foi possivel salvar o cliente.');
       return false;
     }
   }
@@ -198,7 +238,7 @@ export default function Home() {
       showNotice('success', 'Cliente atualizado com sucesso.');
       return true;
     } catch (error) {
-      handleActionError(error, 'Não foi possível atualizar o cliente.');
+      handleActionError(error, 'Nao foi possivel atualizar o cliente.');
       return false;
     }
   }
@@ -206,7 +246,7 @@ export default function Home() {
   async function savePowerBiConfig(form) {
     if (!ensureDb()) return false;
     if (!form.tenant) {
-      showNotice('error', 'Selecione a empresa antes de salvar a configuração do Power BI.');
+      showNotice('error', 'Selecione a empresa antes de salvar a configuracao do Power BI.');
       return false;
     }
 
@@ -229,11 +269,116 @@ export default function Home() {
       );
       showNotice(
         'success',
-        `Configuração de Power BI (${getPowerBiModelLabel(modelType)}) salva com sucesso.`
+        `Configuracao de Power BI (${getPowerBiModelLabel(modelType)}) salva com sucesso.`
       );
       return true;
     } catch (error) {
-      handleActionError(error, 'Não foi possível salvar a configuração do Power BI.');
+      handleActionError(error, 'Nao foi possivel salvar a configuracao do Power BI.');
+      return false;
+    }
+  }
+
+  async function saveConsultationCompany(form) {
+    if (!ensureDb()) return false;
+    if (!form.id.trim() || !form.name.trim() || !form.phoneUsed.trim()) {
+      showNotice('error', 'Informe ID, nome e telefone usado antes de salvar.');
+      return false;
+    }
+
+    const id = form.id.trim().toLowerCase();
+
+    try {
+      await setDoc(
+        doc(db, COLLECTIONS.consultationCompanies, id),
+        {
+          name: form.name.trim(),
+          phoneUsed: normalizePhone(form.phoneUsed),
+          evolutionBaseUrl: form.evolutionBaseUrl.trim(),
+          evolutionInstance: form.evolutionInstance.trim(),
+          evolutionApiKey: form.evolutionApiKey.trim(),
+          active: form.active,
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+      showNotice('success', `Empresa ${form.name.trim()} salva na Consulta IA.`);
+      return true;
+    } catch (error) {
+      handleActionError(error, 'Nao foi possivel salvar a empresa da Consulta IA.');
+      return false;
+    }
+  }
+
+  async function updateConsultationCompany(id, data) {
+    if (!ensureDb()) return false;
+
+    const payload = { ...data };
+    delete payload.id;
+    if (typeof payload.name === 'string') payload.name = payload.name.trim();
+    if (typeof payload.phoneUsed === 'string') payload.phoneUsed = normalizePhone(payload.phoneUsed);
+    if (typeof payload.evolutionBaseUrl === 'string') payload.evolutionBaseUrl = payload.evolutionBaseUrl.trim();
+    if (typeof payload.evolutionInstance === 'string') payload.evolutionInstance = payload.evolutionInstance.trim();
+    if (typeof payload.evolutionApiKey === 'string') payload.evolutionApiKey = payload.evolutionApiKey.trim();
+
+    try {
+      await updateDoc(doc(db, COLLECTIONS.consultationCompanies, id), {
+        ...payload,
+        updatedAt: serverTimestamp()
+      });
+      showNotice('success', 'Empresa da Consulta IA atualizada com sucesso.');
+      return true;
+    } catch (error) {
+      handleActionError(error, 'Nao foi possivel atualizar a empresa da Consulta IA.');
+      return false;
+    }
+  }
+
+  async function saveConsultationClient(form) {
+    if (!ensureDb()) return false;
+    if (!form.companyId || !form.name.trim() || !form.phone.trim()) {
+      showNotice('error', 'Selecione a empresa e informe nome e telefone antes de salvar.');
+      return false;
+    }
+
+    try {
+      await addDoc(collection(db, COLLECTIONS.consultationClients), {
+        ...form,
+        name: form.name.trim(),
+        phone: normalizePhone(form.phone),
+        document: form.document.trim(),
+        customerCode: form.customerCode.trim(),
+        notes: form.notes.trim(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      showNotice('success', 'Cliente cadastrado na Consulta IA.');
+      return true;
+    } catch (error) {
+      handleActionError(error, 'Nao foi possivel salvar o cliente da Consulta IA.');
+      return false;
+    }
+  }
+
+  async function updateConsultationClient(id, data) {
+    if (!ensureDb()) return false;
+
+    const payload = { ...data };
+    if (typeof payload.name === 'string') payload.name = payload.name.trim();
+    if (typeof payload.phone === 'string') payload.phone = normalizePhone(payload.phone);
+    if (typeof payload.document === 'string') payload.document = payload.document.trim();
+    if (typeof payload.customerCode === 'string') payload.customerCode = payload.customerCode.trim();
+    if (typeof payload.notes === 'string') payload.notes = payload.notes.trim();
+
+    try {
+      await updateDoc(doc(db, COLLECTIONS.consultationClients, id), {
+        ...payload,
+        updatedAt: serverTimestamp()
+      });
+      showNotice('success', 'Cliente da Consulta IA atualizado com sucesso.');
+      return true;
+    } catch (error) {
+      handleActionError(error, 'Nao foi possivel atualizar o cliente da Consulta IA.');
       return false;
     }
   }
@@ -248,7 +393,7 @@ export default function Home() {
       });
       showNotice('success', 'Status atualizado com sucesso.');
     } catch (error) {
-      handleActionError(error, 'Não foi possível atualizar o status.');
+      handleActionError(error, 'Nao foi possivel atualizar o status.');
     }
   }
 
@@ -259,13 +404,33 @@ export default function Home() {
       await deleteDoc(doc(db, collectionName, id));
       showNotice('success', 'Registro removido com sucesso.');
     } catch (error) {
-      handleActionError(error, 'Não foi possível remover o registro.');
+      handleActionError(error, 'Nao foi possivel remover o registro.');
     }
   }
 
   function navigate(nextPage) {
     setPage(nextPage);
     if (nextPage !== 'clients') setClientFocusId(null);
+    if (nextPage !== 'consultation-clients') setConsultationClientFocusId(null);
+  }
+
+  function openHome() {
+    setModule(null);
+    setPage('home');
+    setClientFocusId(null);
+    setConsultationClientFocusId(null);
+  }
+
+  function openMorningCall() {
+    setModule('morning-call');
+    setPage('overview');
+    setClientFocusId(null);
+  }
+
+  function openConsultation() {
+    setModule('consultation');
+    setPage('consultation-overview');
+    setConsultationClientFocusId(null);
   }
 
   function openCompany(tenantId) {
@@ -278,14 +443,21 @@ export default function Home() {
     setPage('clients');
   }
 
-  const meta = PAGE_META[page] || PAGE_META.overview;
+  const meta = PAGE_META[page] || PAGE_META.home;
 
   return (
     <div className="app">
       <Sidebar
         page={page}
+        module={module}
         onNavigate={navigate}
-        counts={{ companies: tenants.length, clients: contacts.length }}
+        onHome={openHome}
+        counts={{
+          companies: tenants.length,
+          clients: contacts.length,
+          'consultation-companies': consultationCompanies.length,
+          'consultation-clients': consultationClients.length
+        }}
         errorCount={errorCount}
         firebaseReady={firebaseReady}
       />
@@ -303,10 +475,10 @@ export default function Home() {
             <div className="banner warning">
               <Database size={17} />
               <div>
-                <strong>Firebase ainda não configurado.</strong>
+                <strong>Firebase ainda nao configurado.</strong>
                 <p>
-                  Configure as variáveis <code>NEXT_PUBLIC_FIREBASE_*</code> na Vercel ou no{' '}
-                  <code>.env.local</code> para habilitar leitura e gravação no Firestore.
+                  Configure as variaveis <code>NEXT_PUBLIC_FIREBASE_*</code> na Vercel ou no{' '}
+                  <code>.env.local</code> para habilitar leitura e gravacao no Firestore.
                 </p>
               </div>
             </div>
@@ -320,6 +492,18 @@ export default function Home() {
                 <p>{collectionErrors[0]}</p>
               </div>
             </div>
+          ) : null}
+
+          {page === 'home' ? (
+            <ModuleHomePage
+              morningCallCounts={{ companies: tenants.length, clients: contacts.length }}
+              consultationCounts={{
+                companies: consultationCompanies.length,
+                clients: consultationClients.length
+              }}
+              onOpenMorningCall={openMorningCall}
+              onOpenConsultation={openConsultation}
+            />
           ) : null}
 
           {page === 'overview' ? (
@@ -391,6 +575,42 @@ export default function Home() {
               onOpenClient={execution => {
                 if (execution.contactId) openClient(execution.contactId);
               }}
+            />
+          ) : null}
+
+          {page === 'consultation-overview' ? (
+            <ConsultationOverviewPage
+              companies={consultationCompanies}
+              clients={consultationClients}
+              executions={consultationExecutions}
+              onNavigate={navigate}
+            />
+          ) : null}
+
+          {page === 'consultation-companies' ? (
+            <ConsultationCompaniesPage
+              companies={consultationCompanies}
+              clients={consultationClients}
+              companyMap={consultationCompanyMap}
+              firebaseReady={firebaseReady}
+              saveCompany={saveConsultationCompany}
+              updateCompany={updateConsultationCompany}
+              toggleDoc={toggleDoc}
+              removeDoc={removeDoc}
+            />
+          ) : null}
+
+          {page === 'consultation-clients' ? (
+            <ConsultationClientsPage
+              clients={consultationClients}
+              companies={consultationCompanies}
+              companyMap={consultationCompanyMap}
+              focusId={consultationClientFocusId}
+              onFocus={setConsultationClientFocusId}
+              firebaseReady={firebaseReady}
+              saveClient={saveConsultationClient}
+              updateClient={updateConsultationClient}
+              removeDoc={removeDoc}
             />
           ) : null}
         </div>
