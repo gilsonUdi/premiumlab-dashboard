@@ -34,5 +34,33 @@ service cloud.firestore {
     match /companySecrets/{companyId} {
       allow read, write: if false;
     }
+
+    match /tenants/{tenantId} {
+      allow read, write: if true;
+    }
+
+    match /morning_call_contacts/{contactId} {
+      allow read, write: if true;
+    }
+
+    match /powerbi_configs/{configId} {
+      allow read, write: if true;
+    }
+
+    match /morning_call_executions/{executionId} {
+      allow read, write: if true;
+    }
+
+    match /consulta_ia_companies/{companyId} {
+      allow read, write: if true;
+    }
+
+    match /consulta_ia_clients/{clientId} {
+      allow read, write: if true;
+    }
+
+    match /consulta_ia_executions/{executionId} {
+      allow read, write: if true;
+    }
   }
 }
