@@ -492,7 +492,7 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
           </>
         ) : (
           <EmptyState icon={MessageCircle} title="Nenhuma conversa">
-            Assim que os contatos interagirem com o Morning Call, o historico aparece aqui.
+            Assim que os contatos interagirem com a IA 360°, o historico aparece aqui.
           </EmptyState>
         )}
       </section>

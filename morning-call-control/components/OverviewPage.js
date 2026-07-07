@@ -153,7 +153,7 @@ export default function OverviewPage({
             <p className="n8nText">
               O fluxo normaliza o telefone recebido da Evolution API e busca em{' '}
               <code>morning_call_contacts</code> por <code>phone</code>. Se o contato estiver
-              ativo, o <code>tenant</code> define qual tool de Morning Call será chamada.
+              ativo, o <code>tenant</code> define qual tool da IA 360° será chamada.
             </p>
           </Panel>
         </div>

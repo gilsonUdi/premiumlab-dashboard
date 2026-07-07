@@ -12,7 +12,7 @@ export const POWER_BI_MODEL_TYPES = [
   {
     id: 'geral',
     label: 'Dados gerais',
-    description: 'Morning Call, vendas, receber e indicadores financeiros.'
+    description: 'IA 360°, vendas, receber e indicadores financeiros.'
   },
   {
     id: 'precos',

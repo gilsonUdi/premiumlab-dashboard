@@ -348,7 +348,7 @@ export default function CompaniesPage({
 
               <Panel
                 title="Atividade recente"
-                description="Execuções do Morning Call desta empresa."
+                description="Execuções da IA 360° desta empresa."
                 icon={MessageSquareText}
               >
                 <ExecutionFeed

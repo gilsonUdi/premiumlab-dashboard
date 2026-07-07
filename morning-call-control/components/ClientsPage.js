@@ -51,7 +51,7 @@ function ContactForm({ initial, editing, tenants, firebaseReady, onSubmit, onCan
   return (
     <Panel
       title={editing ? `Editar cliente · ${initial.name || formatPhone(initial.phone)}` : 'Novo cliente'}
-      description="Somente números autorizados podem solicitar ou receber o Morning Call."
+      description="Somente números autorizados podem solicitar ou receber a IA 360°."
       icon={Users}
       className="formPanel"
       action={
@@ -204,7 +204,7 @@ function ClientDetail({
           <Panel title="Preferências" icon={Bell}>
             <SwitchRow
               label="Cliente ativo"
-              description="Autorizado a interagir com o Morning Call."
+              description="Autorizado a interagir com a IA 360°."
               checked={Boolean(contact.active)}
               onChange={value => onToggleField('active', value)}
               disabled={!firebaseReady}

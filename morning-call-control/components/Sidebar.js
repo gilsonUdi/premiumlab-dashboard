@@ -65,7 +65,7 @@ export default function Sidebar({
         {module ? (
           <div className="moduleBadge">
             <Bot size={14} />
-            <span>{module === 'consultation' ? 'Consulta IA' : 'Morning Call'}</span>
+            <span>{module === 'consultation' ? 'Atendimento AI' : 'IA 360°'}</span>
           </div>
         ) : null}
 

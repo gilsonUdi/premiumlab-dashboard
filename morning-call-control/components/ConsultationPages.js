@@ -61,7 +61,7 @@ function CompanyForm({ initial, editing, firebaseReady, onSubmit, onCancel }) {
   return (
     <Panel
       title={editing ? `Editar empresa · ${initial.id}` : 'Nova empresa de consulta'}
-      description="Cadastro independente da ferramenta Morning Call."
+      description="Cadastro independente da IA 360°."
       icon={Building2}
       className="formPanel"
       action={
@@ -113,7 +113,7 @@ function CompanyForm({ initial, editing, firebaseReady, onSubmit, onCancel }) {
             <input
               value={form.evolutionInstance}
               onChange={event => set('evolutionInstance', event.target.value)}
-              placeholder="Consulta IA"
+              placeholder="Atendimento AI"
             />
           </Field>
           <Field label="API key Evolution" hint="Independente por numero/instancia.">
@@ -244,7 +244,7 @@ export function ConsultationOverviewPage({ companies, clients, executions, onNav
       <div className="overviewGrid">
         <Panel
           title="Empresas de consulta"
-          description="Numeros e instancias Evolution usados apenas pela ferramenta de Consulta IA."
+          description="Numeros e instancias Evolution usados apenas pelo Atendimento AI."
           icon={Building2}
           action={
             <button type="button" className="btn primary" onClick={() => onNavigate('consultation-companies')}>
@@ -275,7 +275,7 @@ export function ConsultationOverviewPage({ companies, clients, executions, onNav
             </div>
           ) : (
             <EmptyState icon={Building2} title="Nenhuma empresa cadastrada">
-              Cadastre a empresa que usara a Consulta IA pelo WhatsApp.
+              Cadastre a empresa que usara o Atendimento AI pelo WhatsApp.
             </EmptyState>
           )}
         </Panel>
@@ -283,7 +283,7 @@ export function ConsultationOverviewPage({ companies, clients, executions, onNav
         <Panel title="Configuracao esperada" icon={Server} className="n8nPanel">
           <div className="n8nText">
             <p>
-              As empresas e clientes deste modulo sao independentes do Morning Call. A Evolution
+              As empresas e clientes deste modulo sao independentes da IA 360°. A Evolution
               pode reaproveitar URL/base da infraestrutura, mas a API key fica por numero/instancia.
             </p>
           </div>
@@ -406,7 +406,7 @@ export function ConsultationCompaniesPage({
           </div>
         ) : (
           <EmptyState icon={Building2} title="Nenhuma empresa cadastrada">
-            Use o botao Nova empresa para cadastrar a primeira ferramenta de Consulta.
+            Use o botao Nova empresa para cadastrar a primeira ferramenta de atendimento.
           </EmptyState>
         )
       ) : selectedCompany ? (
@@ -492,7 +492,7 @@ function ClientForm({ initial, editing, companies, firebaseReady, onSubmit, onCa
   return (
     <Panel
       title={editing ? `Editar cliente · ${initial.name || formatPhone(initial.phone)}` : 'Novo cliente de consulta'}
-      description="Cliente autorizado a conversar com a ferramenta de Consulta IA."
+      description="Cliente autorizado a conversar com o Atendimento AI."
       icon={Users}
       className="formPanel"
       action={
@@ -609,7 +609,7 @@ function ConsultationClientDetail({
         <Panel title="Permissoes" icon={KeyRound}>
           <SwitchRow
             label="Cliente ativo"
-            description="Autorizado a interagir com a Consulta IA."
+            description="Autorizado a interagir com o Atendimento AI."
             checked={Boolean(client.active)}
             onChange={value => onToggleField('active', value)}
             disabled={!firebaseReady}
@@ -802,7 +802,7 @@ export function ConsultationClientsPage({
         </div>
       ) : (
         <EmptyState icon={Users} title="Nenhum cliente encontrado">
-          {clients.length ? 'Ajuste a busca ou o filtro.' : 'Cadastre o primeiro cliente da Consulta IA.'}
+          {clients.length ? 'Ajuste a busca ou o filtro.' : 'Cadastre o primeiro cliente do Atendimento AI.'}
         </EmptyState>
       )}
     </>

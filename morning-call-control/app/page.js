@@ -41,15 +41,15 @@ const PAGE_META = {
   },
   overview: {
     title: 'Visao geral',
-    description: 'Acompanhe a operacao do Morning Call em tempo real.'
+    description: 'Acompanhe a operacao da IA 360° em tempo real.'
   },
   companies: {
     title: 'Empresas',
-    description: 'Tenants atendidos pelo Morning Call e tudo que pertence a cada um.'
+    description: 'Tenants atendidos pela IA 360° e tudo que pertence a cada um.'
   },
   clients: {
     title: 'Clientes',
-    description: 'Numeros autorizados a receber ou solicitar o Morning Call.'
+    description: 'Numeros autorizados a receber ou solicitar a IA 360°.'
   },
   powerbi: {
     title: 'Power BI',
@@ -65,15 +65,15 @@ const PAGE_META = {
   },
   'consultation-overview': {
     title: 'Visao geral',
-    description: 'Acompanhe a estrutura da ferramenta de Consulta IA.'
+    description: 'Acompanhe a estrutura do Atendimento AI.'
   },
   'consultation-companies': {
     title: 'Empresas',
-    description: 'Empresas, numeros usados e API Evolution da Consulta IA.'
+    description: 'Empresas, numeros usados e API Evolution do Atendimento AI.'
   },
   'consultation-clients': {
     title: 'Clientes',
-    description: 'Clientes autorizados a usar a ferramenta de Consulta IA.'
+    description: 'Clientes autorizados a usar o Atendimento AI.'
   }
 };
 
@@ -302,10 +302,10 @@ export default function Home() {
         },
         { merge: true }
       );
-      showNotice('success', `Empresa ${form.name.trim()} salva na Consulta IA.`);
+      showNotice('success', `Empresa ${form.name.trim()} salva no Atendimento AI.`);
       return true;
     } catch (error) {
-      handleActionError(error, 'Nao foi possivel salvar a empresa da Consulta IA.');
+      handleActionError(error, 'Nao foi possivel salvar a empresa do Atendimento AI.');
       return false;
     }
   }
@@ -326,10 +326,10 @@ export default function Home() {
         ...payload,
         updatedAt: serverTimestamp()
       });
-      showNotice('success', 'Empresa da Consulta IA atualizada com sucesso.');
+      showNotice('success', 'Empresa do Atendimento AI atualizada com sucesso.');
       return true;
     } catch (error) {
-      handleActionError(error, 'Nao foi possivel atualizar a empresa da Consulta IA.');
+      handleActionError(error, 'Nao foi possivel atualizar a empresa do Atendimento AI.');
       return false;
     }
   }
@@ -349,10 +349,10 @@ export default function Home() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      showNotice('success', 'Cliente cadastrado na Consulta IA.');
+      showNotice('success', 'Cliente cadastrado no Atendimento AI.');
       return true;
     } catch (error) {
-      handleActionError(error, 'Nao foi possivel salvar o cliente da Consulta IA.');
+      handleActionError(error, 'Nao foi possivel salvar o cliente do Atendimento AI.');
       return false;
     }
   }
@@ -369,10 +369,10 @@ export default function Home() {
         ...payload,
         updatedAt: serverTimestamp()
       });
-      showNotice('success', 'Cliente da Consulta IA atualizado com sucesso.');
+      showNotice('success', 'Cliente do Atendimento AI atualizado com sucesso.');
       return true;
     } catch (error) {
-      handleActionError(error, 'Nao foi possivel atualizar o cliente da Consulta IA.');
+      handleActionError(error, 'Nao foi possivel atualizar o cliente do Atendimento AI.');
       return false;
     }
   }

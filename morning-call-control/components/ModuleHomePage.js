@@ -25,7 +25,7 @@ export default function ModuleHomePage({
           <span className="moduleIcon gold">
             <PhoneCall size={24} />
           </span>
-          <strong>Morning Call</strong>
+          <strong>IA 360°</strong>
           <span>Relatorios matinais via WhatsApp, avisos diarios e acompanhamento operacional.</span>
           <div className="moduleStats">
             <em>{morningCallCounts.companies} empresas</em>
@@ -37,7 +37,7 @@ export default function ModuleHomePage({
           <span className="moduleIcon cyan">
             <Bot size={24} />
           </span>
-          <strong>Consulta IA</strong>
+          <strong>Atendimento AI</strong>
           <span>Ferramenta de atendimento por IA para consultas controladas pelo WhatsApp.</span>
           <div className="moduleStats">
             <em>{consultationCounts.companies} empresas</em>
@@ -50,12 +50,12 @@ export default function ModuleHomePage({
         <div className="homeInfoGrid">
           <div>
             <MessageSquareText size={18} />
-            <strong>Morning Call</strong>
+            <strong>IA 360°</strong>
             <span>Usa colecoes proprias para tenants, contatos, Power BI e execucoes.</span>
           </div>
           <div>
             <Users size={18} />
-            <strong>Consulta IA</strong>
+            <strong>Atendimento AI</strong>
             <span>Usa empresas e clientes independentes, mesmo quando o laboratorio for o mesmo.</span>
           </div>
         </div>
