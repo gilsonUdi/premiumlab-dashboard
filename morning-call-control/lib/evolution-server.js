@@ -4,18 +4,30 @@ function cleanUrl(value) {
   return String(value || '').replace(/\/+$/, '');
 }
 
-function evolutionConfig() {
+function evolutionConfig(override = {}) {
+  const strict = Boolean(override.strict);
   const baseUrl = cleanUrl(
-    process.env.EVOLUTION_BASE_URL ||
-      process.env.EVOLUTION_API_URL ||
-      process.env.NEXT_PUBLIC_EVOLUTION_BASE_URL
+    override.baseUrl ||
+      override.evolutionBaseUrl ||
+      (!strict
+        ? process.env.EVOLUTION_BASE_URL ||
+          process.env.EVOLUTION_API_URL ||
+          process.env.NEXT_PUBLIC_EVOLUTION_BASE_URL
+        : '')
   );
-  const apiKey = process.env.EVOLUTION_API_KEY || process.env.EVOLUTION_GLOBAL_API_KEY || '';
+  const apiKey =
+    override.apiKey ||
+    override.evolutionApiKey ||
+    (!strict ? process.env.EVOLUTION_API_KEY || process.env.EVOLUTION_GLOBAL_API_KEY || '' : '');
   const instance =
-    process.env.EVOLUTION_INSTANCE_NAME ||
-    process.env.EVOLUTION_INSTANCE ||
-    process.env.NEXT_PUBLIC_EVOLUTION_INSTANCE ||
-    DEFAULT_INSTANCE;
+    override.instance ||
+    override.evolutionInstance ||
+    (!strict
+      ? process.env.EVOLUTION_INSTANCE_NAME ||
+        process.env.EVOLUTION_INSTANCE ||
+        process.env.NEXT_PUBLIC_EVOLUTION_INSTANCE ||
+        DEFAULT_INSTANCE
+      : '');
 
   if (!baseUrl || !apiKey) {
     throw new Error('Evolution API nao configurada. Defina EVOLUTION_BASE_URL e EVOLUTION_API_KEY.');
@@ -190,8 +202,8 @@ function matchesConversation(message, candidates) {
   return values.some(value => candidates.has(value));
 }
 
-async function evolutionFetch(path, { method = 'POST', body } = {}) {
-  const { baseUrl, apiKey } = evolutionConfig();
+async function evolutionFetch(path, { method = 'POST', body, config } = {}) {
+  const { baseUrl, apiKey } = evolutionConfig(config);
   const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers: {
@@ -219,13 +231,13 @@ async function evolutionFetch(path, { method = 'POST', body } = {}) {
   return data;
 }
 
-async function tryRequests(requests) {
+async function tryRequests(requests, config) {
   const errors = [];
 
   for (const request of requests) {
     try {
       return {
-        data: await evolutionFetch(request.path, request),
+        data: await evolutionFetch(request.path, { ...request, config }),
         endpoint: `${request.method || 'POST'} ${request.path}`
       };
     } catch (error) {
@@ -236,14 +248,14 @@ async function tryRequests(requests) {
   throw new Error(errors[0] || 'Nao foi possivel consultar a Evolution API.');
 }
 
-async function collectMessagesFromRequests(requests) {
+async function collectMessagesFromRequests(requests, config) {
   const errors = [];
   const results = [];
   const endpoints = [];
 
   for (const request of requests) {
     try {
-      const data = await evolutionFetch(request.path, request);
+      const data = await evolutionFetch(request.path, { ...request, config });
       const rows = asArray(data);
 
       if (rows.length) {
@@ -262,8 +274,14 @@ async function collectMessagesFromRequests(requests) {
   return { rows: results, endpoints };
 }
 
-export async function findEvolutionMessages({ remoteJid, whatsappId, phone, limit = 120 }) {
-  const { instance } = evolutionConfig();
+export async function findEvolutionMessages({
+  remoteJid,
+  whatsappId,
+  phone,
+  limit = 120,
+  evolutionConfig: config
+}) {
+  const { instance } = evolutionConfig(config);
   const safeLimit = Math.min(Math.max(Number(limit) || 120, 1), 300);
   const candidates = jidCandidates({ remoteJid, whatsappId, phone });
 
@@ -304,7 +322,7 @@ export async function findEvolutionMessages({ remoteJid, whatsappId, phone, limi
     })
   );
 
-  const result = await collectMessagesFromRequests(requests);
+  const result = await collectMessagesFromRequests(requests, config);
   const rows = uniqueBy(result.rows.map(normalizeMessage), message => message.id)
     .filter(message => message.text || message.messageType)
     .filter(message => matchesConversation(message, candidates))
@@ -322,15 +340,15 @@ export async function findEvolutionMessages({ remoteJid, whatsappId, phone, limi
   };
 }
 
-export async function findEvolutionChats({ limit = 100 } = {}) {
-  const { instance } = evolutionConfig();
+export async function findEvolutionChats({ limit = 100, evolutionConfig: config } = {}) {
+  const { instance } = evolutionConfig(config);
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 300);
   const encodedInstance = encodeURIComponent(instance);
   const result = await tryRequests([
     { path: `/chat/findChats/${encodedInstance}`, method: 'POST', body: { limit: safeLimit } },
     { path: `/chat/findChats/${encodedInstance}`, method: 'GET' },
     { path: `/chat/findChats/${encodedInstance}?limit=${safeLimit}`, method: 'GET' }
-  ]);
+  ], config);
 
   return {
     source: 'evolution',

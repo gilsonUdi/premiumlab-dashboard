@@ -74,6 +74,10 @@ const PAGE_META = {
   'consultation-clients': {
     title: 'Clientes',
     description: 'Clientes autorizados a usar o Atendimento AI.'
+  },
+  'consultation-chat': {
+    title: 'Chat',
+    description: 'Conversas do Atendimento AI separadas por empresa e instancia Evolution.'
   }
 };
 
@@ -123,6 +127,18 @@ export default function Home() {
   const consultationCompanyMap = useMemo(() => {
     return consultationCompanies.reduce((acc, company) => {
       acc[company.id] = company;
+      return acc;
+    }, {});
+  }, [consultationCompanies]);
+
+  const consultationEvolutionConfigMap = useMemo(() => {
+    return consultationCompanies.reduce((acc, company) => {
+      acc[company.id] = {
+        baseUrl: company.evolutionBaseUrl || '',
+        instance: company.evolutionInstance || '',
+        apiKey: company.evolutionApiKey || '',
+        strict: true
+      };
       return acc;
     }, {});
   }, [consultationCompanies]);
@@ -450,7 +466,8 @@ export default function Home() {
           companies: tenants.length,
           clients: contacts.length,
           'consultation-companies': consultationCompanies.length,
-          'consultation-clients': consultationClients.length
+          'consultation-clients': consultationClients.length,
+          'consultation-chat': consultationClients.length
         }}
         errorCount={errorCount}
         firebaseReady={firebaseReady}
@@ -605,6 +622,19 @@ export default function Home() {
               saveClient={saveConsultationClient}
               updateClient={updateConsultationClient}
               removeDoc={removeDoc}
+            />
+          ) : null}
+
+          {page === 'consultation-chat' ? (
+            <ChatPage
+              contacts={consultationClients}
+              executions={consultationExecutions}
+              tenantMap={consultationCompanyMap}
+              assistantName="Atendimento AI"
+              emptyDescription="Assim que os clientes conversarem com o Atendimento AI, o historico aparece aqui."
+              segmentByTenant
+              tenantLabel="Empresa"
+              evolutionConfigByTenant={consultationEvolutionConfigMap}
             />
           ) : null}
         </div>

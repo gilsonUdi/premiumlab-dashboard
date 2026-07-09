@@ -24,3 +24,27 @@ export async function GET(request) {
     );
   }
 }
+
+export async function POST(request) {
+  try {
+    const body = await request.json();
+    const result = await findEvolutionMessages({
+      remoteJid: body.remoteJid || '',
+      whatsappId: body.whatsappId || '',
+      phone: body.phone || '',
+      limit: body.limit || 120,
+      evolutionConfig: body.evolutionConfig || {}
+    });
+
+    return NextResponse.json(result);
+  } catch (error) {
+    return NextResponse.json(
+      {
+        source: 'evolution',
+        messages: [],
+        error: error.message || 'Nao foi possivel carregar mensagens da Evolution API.'
+      },
+      { status: 200 }
+    );
+  }
+}

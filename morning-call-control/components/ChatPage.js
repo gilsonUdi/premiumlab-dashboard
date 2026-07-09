@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, ChevronDown, MessageCircle, RefreshCw, Search } from 'lucide-react';
+import { Bot, Building2, ChevronDown, MessageCircle, RefreshCw, Search } from 'lucide-react';
 import { formatPhone, normalizePhone } from '@/lib/phone';
 import {
   formatDate,
@@ -16,7 +16,9 @@ import { Avatar, EmptyState, StatusBadge } from '@/components/ui';
 const EVOLUTION_SYNC_INTERVAL_MS = 8000;
 
 function contactConversationKey(contact) {
-  return `${contact.tenant || 'sem-tenant'}::${normalizePhone(contact.phone) || contact.whatsappId || contact.id}`;
+  return `${contact.tenant || contact.tenantId || contact.companyId || 'sem-empresa'}::${
+    normalizePhone(contact.phone) || contact.whatsappId || contact.id
+  }`;
 }
 
 function getIncomingText(execution) {
@@ -121,7 +123,7 @@ function buildConversations({ contacts, executions, tenantMap }) {
         key,
         contact,
         contactIds: new Set([contact.id].filter(Boolean)),
-        tenant: contact.tenant || '',
+        tenant: contact.tenant || contact.tenantId || contact.companyId || '',
         name: contact.name || '',
         phone: normalizePhone(contact.phone),
         whatsappId: contact.whatsappId || '',
@@ -146,6 +148,10 @@ function buildConversations({ contacts, executions, tenantMap }) {
   executions.forEach(execution => {
     const contact = contacts.find(item => matchExecutionToContact(execution, item));
     if (!contact) return;
+
+    const contactTenant = contact.tenant || contact.tenantId || contact.companyId || '';
+    const executionTenant = execution.tenant || execution.tenantId || execution.companyId || '';
+    if (contactTenant && executionTenant && contactTenant !== executionTenant) return;
 
     const row = ensureConversation(contactConversationKey(contact), contact);
     row.executions.push(execution);
@@ -174,9 +180,19 @@ function buildConversations({ contacts, executions, tenantMap }) {
     });
 }
 
-export default function ChatPage({ contacts, executions, tenantMap }) {
+export default function ChatPage({
+  contacts,
+  executions,
+  tenantMap,
+  assistantName = 'Axis AI',
+  emptyDescription = 'Assim que os contatos interagirem com a IA 360°, o historico aparece aqui.',
+  segmentByTenant = false,
+  tenantLabel = 'Empresa',
+  evolutionConfigByTenant = {}
+}) {
   const [search, setSearch] = useState('');
   const [activeKey, setActiveKey] = useState('');
+  const [activeTenant, setActiveTenant] = useState('');
   const timelineRef = useRef(null);
   const [evolutionState, setEvolutionState] = useState({
     key: '',
@@ -191,11 +207,32 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
     [contacts, executions, tenantMap]
   );
 
+  const tenantOptions = useMemo(() => {
+    const ids = Array.from(new Set(conversations.map(conversation => conversation.tenant).filter(Boolean)));
+    return ids.map(id => ({
+      id,
+      name: tenantMap?.[id]?.name || id,
+      total: conversations.filter(conversation => conversation.tenant === id).length
+    }));
+  }, [conversations, tenantMap]);
+
+  useEffect(() => {
+    if (!segmentByTenant) return;
+    if (activeTenant && tenantOptions.some(option => option.id === activeTenant)) return;
+    setActiveTenant(tenantOptions[0]?.id || '');
+  }, [activeTenant, segmentByTenant, tenantOptions]);
+
+  const scopedConversations = useMemo(() => {
+    if (!segmentByTenant) return conversations;
+    if (!activeTenant) return [];
+    return conversations.filter(conversation => conversation.tenant === activeTenant);
+  }, [activeTenant, conversations, segmentByTenant]);
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return conversations;
+    if (!term) return scopedConversations;
 
-    return conversations.filter(conversation =>
+    return scopedConversations.filter(conversation =>
       [
         conversation.displayName,
         conversation.tenantName,
@@ -206,12 +243,12 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(term))
     );
-  }, [conversations, search]);
+  }, [scopedConversations, search]);
 
   useEffect(() => {
-    if (activeKey && conversations.some(conversation => conversation.key === activeKey)) return;
-    setActiveKey(conversations[0]?.key || '');
-  }, [activeKey, conversations]);
+    if (activeKey && scopedConversations.some(conversation => conversation.key === activeKey)) return;
+    setActiveKey(scopedConversations[0]?.key || '');
+  }, [activeKey, scopedConversations]);
 
   const activeConversation =
     filtered.find(conversation => conversation.key === activeKey) || filtered[0] || null;
@@ -235,11 +272,22 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
     if (remoteJid) params.set('remoteJid', remoteJid);
     params.set('limit', '160');
 
+    const companyConfig = evolutionConfigByTenant?.[activeConversation.tenant] || null;
+
     return {
       key: activeConversation.key,
-      query: params.toString()
+      query: params.toString(),
+      body: companyConfig
+        ? {
+            remoteJid,
+            whatsappId: activeConversation.whatsappId || '',
+            phone: activeConversation.phone || '',
+            limit: 160,
+            evolutionConfig: companyConfig
+          }
+        : null
     };
-  }, [activeConversation]);
+  }, [activeConversation, evolutionConfigByTenant]);
 
   const firestoreMessages = activeConversation ? buildMessageRows(activeConversation.executions) : [];
   const hasEvolutionMessages =
@@ -272,10 +320,23 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
       }));
 
       try {
-        const response = await fetch(`/api/evolution/messages?${evolutionParams.query}`, {
-          signal,
-          cache: 'no-store'
-        });
+        const response = await fetch(
+          evolutionParams.body ? '/api/evolution/messages' : `/api/evolution/messages?${evolutionParams.query}`,
+          evolutionParams.body
+            ? {
+                method: 'POST',
+                signal,
+                cache: 'no-store',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(evolutionParams.body)
+              }
+            : {
+                signal,
+                cache: 'no-store'
+              }
+        );
         const payload = await response.json();
 
         if (signal?.aborted) return;
@@ -326,6 +387,31 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
   }, [activeConversation?.key, messages.length, evolutionState.loading]);
 
   return (
+    <>
+    {segmentByTenant ? (
+      <div className="tabBar chatCompanyTabs">
+        {tenantOptions.length ? (
+          tenantOptions.map(option => (
+            <button
+              key={option.id}
+              type="button"
+              className={`tab ${activeTenant === option.id ? 'active' : ''}`.trim()}
+              onClick={() => {
+                setActiveTenant(option.id);
+                setActiveKey('');
+              }}
+            >
+              <Building2 size={14} />
+              {option.name}
+              <em>{option.total}</em>
+            </button>
+          ))
+        ) : (
+          <span className="mutedInline">Nenhuma {tenantLabel.toLowerCase()} com conversas.</span>
+        )}
+      </div>
+    ) : null}
+
     <section className="chatShell">
       <aside className="chatListPanel">
         <div className="chatListHead">
@@ -448,7 +534,7 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
                       ) : (
                         <>
                           <Bot size={13} />
-                          Axis AI
+                          {assistantName}
                         </>
                       )}
                     </div>
@@ -492,10 +578,11 @@ export default function ChatPage({ contacts, executions, tenantMap }) {
           </>
         ) : (
           <EmptyState icon={MessageCircle} title="Nenhuma conversa">
-            Assim que os contatos interagirem com a IA 360°, o historico aparece aqui.
+            {emptyDescription}
           </EmptyState>
         )}
       </section>
     </section>
+    </>
   );
 }

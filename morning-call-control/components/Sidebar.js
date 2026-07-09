@@ -23,7 +23,8 @@ const MORNING_CALL_NAV_ITEMS = [
 const CONSULTATION_NAV_ITEMS = [
   { id: 'consultation-overview', label: 'Visao geral', icon: LayoutDashboard },
   { id: 'consultation-companies', label: 'Empresas', icon: Building2 },
-  { id: 'consultation-clients', label: 'Clientes', icon: Users }
+  { id: 'consultation-clients', label: 'Clientes', icon: Users },
+  { id: 'consultation-chat', label: 'Chat', icon: MessageCircle }
 ];
 
 export default function Sidebar({

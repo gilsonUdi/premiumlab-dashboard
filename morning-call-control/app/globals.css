@@ -774,6 +774,20 @@ code {
   font-weight: 700;
 }
 
+.chatCompanyTabs {
+  margin-bottom: 0;
+  padding: 0 0 12px;
+}
+
+.chatCompanyTabs + .chatShell {
+  height: calc(100vh - 214px);
+}
+
+.mutedInline {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
 .tab.active em {
   background: rgba(227, 183, 97, 0.18);
   color: var(--gold-strong);
