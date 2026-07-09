@@ -109,11 +109,12 @@ function CompanyForm({ initial, editing, firebaseReady, onSubmit, onCancel }) {
               placeholder="https://evolution.gsgestao.com.br"
             />
           </Field>
-          <Field label="Instancia Evolution">
+          <Field label="Instancia Evolution" hint="Nome exato da instancia conectada para esta empresa.">
             <input
               value={form.evolutionInstance}
               onChange={event => set('evolutionInstance', event.target.value)}
-              placeholder="Atendimento AI"
+              placeholder="Nome da instancia"
+              required
             />
           </Field>
           <Field label="API key Evolution" hint="Independente por numero/instancia.">

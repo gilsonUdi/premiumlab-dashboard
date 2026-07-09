@@ -29,8 +29,10 @@ function evolutionConfig(override = {}) {
         DEFAULT_INSTANCE
       : '');
 
-  if (!baseUrl || !apiKey) {
-    throw new Error('Evolution API nao configurada. Defina EVOLUTION_BASE_URL e EVOLUTION_API_KEY.');
+  if (!baseUrl || !apiKey || !instance) {
+    throw new Error(
+      'Evolution API nao configurada. Informe URL, instancia e API key da empresa.'
+    );
   }
 
   return { baseUrl, apiKey, instance };

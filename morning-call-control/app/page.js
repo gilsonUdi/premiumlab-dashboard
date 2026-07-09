@@ -296,8 +296,18 @@ export default function Home() {
 
   async function saveConsultationCompany(form) {
     if (!ensureDb()) return false;
-    if (!form.id.trim() || !form.name.trim() || !form.phoneUsed.trim()) {
-      showNotice('error', 'Informe ID, nome e telefone usado antes de salvar.');
+    if (
+      !form.id.trim() ||
+      !form.name.trim() ||
+      !form.phoneUsed.trim() ||
+      !form.evolutionBaseUrl.trim() ||
+      !form.evolutionInstance.trim() ||
+      !form.evolutionApiKey.trim()
+    ) {
+      showNotice(
+        'error',
+        'Informe ID, nome, telefone usado, URL, instancia e API key da Evolution antes de salvar.'
+      );
       return false;
     }
 
@@ -336,6 +346,20 @@ export default function Home() {
     if (typeof payload.evolutionBaseUrl === 'string') payload.evolutionBaseUrl = payload.evolutionBaseUrl.trim();
     if (typeof payload.evolutionInstance === 'string') payload.evolutionInstance = payload.evolutionInstance.trim();
     if (typeof payload.evolutionApiKey === 'string') payload.evolutionApiKey = payload.evolutionApiKey.trim();
+
+    if (
+      !payload.name ||
+      !payload.phoneUsed ||
+      !payload.evolutionBaseUrl ||
+      !payload.evolutionInstance ||
+      !payload.evolutionApiKey
+    ) {
+      showNotice(
+        'error',
+        'Informe nome, telefone usado, URL, instancia e API key da Evolution antes de salvar.'
+      );
+      return false;
+    }
 
     try {
       await updateDoc(doc(db, COLLECTIONS.consultationCompanies, id), {
