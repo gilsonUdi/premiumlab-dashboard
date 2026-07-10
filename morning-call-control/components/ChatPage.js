@@ -327,12 +327,18 @@ export default function ChatPage({
   }, [activeConversation, evolutionConfigByTenant]);
 
   const firestoreMessages = activeConversation ? buildMessageRows(activeConversation.executions) : [];
-  const hasEvolutionMessages =
-    activeConversation && evolutionState.key === activeConversation.key && evolutionState.messages.length > 0;
-  const messages = hasEvolutionMessages
-    ? mergeMessageRows(buildEvolutionRows(evolutionState.messages), firestoreMessages)
-    : firestoreMessages;
-  const chatSource = hasEvolutionMessages ? 'Evolution' : 'Firestore';
+  const evolutionMessages =
+    activeConversation && evolutionState.key === activeConversation.key
+      ? buildEvolutionRows(evolutionState.messages)
+      : [];
+  const messages = mergeMessageRows(firestoreMessages, evolutionMessages);
+  const chatSource = firestoreMessages.length
+    ? evolutionMessages.length
+      ? 'Firestore + Evolution'
+      : 'Firestore'
+    : evolutionMessages.length
+      ? 'Evolution'
+      : 'Firestore';
 
   function scrollToLatest(behavior = 'smooth') {
     timelineRef.current?.scrollTo({
@@ -466,7 +472,7 @@ export default function ChatPage({
             <span className="sectionEyebrow">Conversas</span>
             <strong>{filtered.length}</strong>
           </div>
-          <span className={`chatLiveBadge ${chatSource === 'Evolution' ? 'evolution' : ''}`}>
+          <span className={`chatLiveBadge ${chatSource.includes('Evolution') ? 'evolution' : ''}`}>
             {chatSource}
           </span>
         </div>
