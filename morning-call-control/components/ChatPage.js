@@ -27,7 +27,24 @@ function getIncomingText(execution) {
     execution.message ||
     execution.mensagem ||
     execution.requestMessage ||
+    execution.input ||
+    execution.inputText ||
+    execution.userMessage ||
+    execution.clientMessage ||
+    execution.customerMessage ||
+    execution.pergunta ||
+    execution.question ||
+    execution.text ||
+    execution.body?.data?.message?.conversation ||
+    execution.body?.data?.message?.extendedTextMessage?.text ||
+    execution.body?.message?.conversation ||
+    execution.raw?.body?.data?.message?.conversation ||
+    execution.raw?.body?.data?.message?.extendedTextMessage?.text ||
+    execution.raw?.body?.message?.conversation ||
     execution.raw?.data?.message?.conversation ||
+    execution.raw?.data?.message?.extendedTextMessage?.text ||
+    execution.raw?.message?.conversation ||
+    execution.raw?.message?.extendedTextMessage?.text ||
     ''
   );
 }

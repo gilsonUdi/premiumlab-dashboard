@@ -139,17 +139,22 @@ function textFromMessage(message, messageType) {
 
 function messageTypeOf(row) {
   if (row.messageType) return row.messageType;
-  const message = row.message || row.messages?.message || {};
+  const message = row.message?.message || row.message || row.messages?.message || row.data?.message || {};
   return Object.keys(message).find(key => key.endsWith('Message')) || '';
 }
 
 function normalizeMessage(row, index) {
-  const key = row.key || row.messages?.key || {};
-  const message = row.message?.message || row.message || row.messages?.message || {};
+  const key = row.key || row.message?.key || row.messages?.key || row.data?.key || {};
+  const message =
+    row.message?.message ||
+    row.message ||
+    row.messages?.message ||
+    row.data?.message ||
+    {};
   const messageType = messageTypeOf(row);
-  const remoteJid = key.remoteJid || row.remoteJid || row.keyId?.remoteJid || '';
-  const remoteJidAlt = key.remoteJidAlt || row.remoteJidAlt || '';
-  const participant = key.participant || row.participant || '';
+  const remoteJid = key.remoteJid || row.remoteJid || row.keyId?.remoteJid || row.data?.remoteJid || '';
+  const remoteJidAlt = key.remoteJidAlt || row.remoteJidAlt || row.data?.remoteJidAlt || '';
+  const participant = key.participant || row.participant || row.data?.participant || '';
   const fromMe = toBoolean(key.fromMe ?? row.fromMe);
   const timestamp =
     row.messageTimestamp ||
@@ -213,6 +218,10 @@ function matchesConversation(message, candidates) {
   ].filter(Boolean);
 
   return values.some(value => candidates.has(value));
+}
+
+function hasIncomingMessage(messages) {
+  return messages.some(message => !message.fromMe);
 }
 
 async function evolutionFetch(path, { method = 'POST', body, config } = {}) {
@@ -335,8 +344,34 @@ export async function findEvolutionMessages({
     })
   );
 
+  const broadRequests = prefixes.flatMap(prefix => [
+    { path: `${prefix}/${encodedInstance}`, method: 'POST', body: { limit: safeLimit } },
+    { path: `${prefix}/${encodedInstance}?limit=${safeLimit}`, method: 'GET' }
+  ]);
+
   const result = await collectMessagesFromRequests(requests, config);
-  const rows = uniqueBy(result.rows.map(normalizeMessage), message => message.id)
+  let normalizedRows = uniqueBy(result.rows.map(normalizeMessage), message => message.id);
+  let endpoints = [...result.endpoints];
+
+  const filteredScopedRows = normalizedRows
+    .filter(message => message.text || message.messageType)
+    .filter(message => matchesConversation(message, candidates));
+
+  if (!hasIncomingMessage(filteredScopedRows)) {
+    try {
+      const broadResult = await collectMessagesFromRequests(broadRequests, config);
+      normalizedRows = uniqueBy(
+        [...normalizedRows, ...broadResult.rows.map(normalizeMessage)],
+        message => message.id
+      );
+      endpoints = [...endpoints, ...broadResult.endpoints];
+    } catch {
+      // A busca ampla e apenas um reforco para casos em que a Evolution salva
+      // mensagens recebidas em outro JID. Se falhar, mantemos o retorno direto.
+    }
+  }
+
+  const rows = normalizedRows
     .filter(message => message.text || message.messageType)
     .filter(message => matchesConversation(message, candidates))
     .sort((a, b) => {
@@ -347,8 +382,8 @@ export async function findEvolutionMessages({
 
   return {
     source: 'evolution',
-    endpoint: result.endpoints[0] || '',
-    endpoints: result.endpoints,
+    endpoint: endpoints[0] || '',
+    endpoints,
     messages: rows
   };
 }
