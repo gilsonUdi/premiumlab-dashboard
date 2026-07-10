@@ -114,6 +114,26 @@ function mergeMessageRows(primaryRows, fallbackRows) {
   return rows.sort((a, b) => rowTime(a) - rowTime(b));
 }
 
+function mergeEvolutionMessages(previousMessages, nextMessages) {
+  const map = new Map();
+
+  [...previousMessages, ...nextMessages].forEach((message, index) => {
+    const key =
+      message.id ||
+      `${message.fromMe ? 'out' : 'in'}|${String(message.text || '').slice(0, 140)}|${
+        message.timestamp || index
+      }`;
+
+    map.set(key, message);
+  });
+
+  return Array.from(map.values()).sort((a, b) => {
+    const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return aTime - bTime;
+  });
+}
+
 function buildConversations({ contacts, executions, tenantMap }) {
   const map = new Map();
 
@@ -341,12 +361,22 @@ export default function ChatPage({
 
         if (signal?.aborted) return;
 
-        setEvolutionState({
-          key: evolutionParams.key,
-          loading: false,
-          error: payload.error || '',
-          messages: Array.isArray(payload.messages) ? payload.messages : [],
-          lastSyncedAt: new Date().toISOString()
+        setEvolutionState(current => {
+          const nextMessages = Array.isArray(payload.messages) ? payload.messages : [];
+          const shouldMerge = current.key === evolutionParams.key && nextMessages.length > 0;
+          const shouldPreserve = current.key === evolutionParams.key && nextMessages.length === 0 && !payload.error;
+
+          return {
+            key: evolutionParams.key,
+            loading: false,
+            error: payload.error || '',
+            messages: shouldMerge
+              ? mergeEvolutionMessages(current.messages, nextMessages)
+              : shouldPreserve
+                ? current.messages
+                : nextMessages,
+            lastSyncedAt: new Date().toISOString()
+          };
         });
       } catch (error) {
         if (signal?.aborted) return;

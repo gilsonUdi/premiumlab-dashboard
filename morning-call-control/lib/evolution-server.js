@@ -96,6 +96,17 @@ function timestampToIso(value) {
   return '';
 }
 
+function toBoolean(value) {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0 || value === null || value === undefined) return false;
+
+  const text = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'sim'].includes(text)) return true;
+  if (['false', '0', 'no', 'nao', 'não', ''].includes(text)) return false;
+
+  return Boolean(value);
+}
+
 function textFromMessage(message, messageType) {
   if (!message || typeof message !== 'object') return '';
 
@@ -139,7 +150,7 @@ function normalizeMessage(row, index) {
   const remoteJid = key.remoteJid || row.remoteJid || row.keyId?.remoteJid || '';
   const remoteJidAlt = key.remoteJidAlt || row.remoteJidAlt || '';
   const participant = key.participant || row.participant || '';
-  const fromMe = Boolean(key.fromMe ?? row.fromMe);
+  const fromMe = toBoolean(key.fromMe ?? row.fromMe);
   const timestamp =
     row.messageTimestamp ||
     row.timestamp ||
