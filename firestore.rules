@@ -62,5 +62,9 @@ service cloud.firestore {
     match /consulta_ia_executions/{executionId} {
       allow read, write: if true;
     }
+
+    match /sac_companies/{companyId} {
+      allow read, write: if true;
+    }
   }
 }

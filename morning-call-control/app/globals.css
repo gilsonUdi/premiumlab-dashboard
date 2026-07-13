@@ -623,7 +623,7 @@ code {
 
 .moduleGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -678,6 +678,12 @@ code {
   color: var(--cyan);
 }
 
+.moduleIcon.green {
+  border: 1px solid color-mix(in srgb, var(--green) 35%, transparent);
+  background: color-mix(in srgb, var(--green) 10%, transparent);
+  color: var(--green);
+}
+
 .moduleStats {
   display: flex;
   gap: 8px;
@@ -698,7 +704,7 @@ code {
 
 .homeInfoGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -930,6 +936,14 @@ code {
   grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr);
   gap: 16px;
   align-items: start;
+}
+
+.companyDetailGrid.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.companyCardStats.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 /* -------------------------------------------------------------- toolbar */

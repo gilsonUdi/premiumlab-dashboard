@@ -78,6 +78,10 @@ const PAGE_META = {
   'consultation-chat': {
     title: 'Chat',
     description: 'Conversas do Atendimento AI separadas por empresa e instancia Evolution.'
+  },
+  'sac-companies': {
+    title: 'Empresas',
+    description: 'Empresas e conexoes Evolution usadas pelas notificacoes de SAC.'
   }
 };
 
@@ -90,6 +94,7 @@ export default function Home() {
   const consultationCompaniesState = useCollection(COLLECTIONS.consultationCompanies);
   const consultationClientsState = useCollection(COLLECTIONS.consultationClients);
   const consultationExecutionsState = useCollection(COLLECTIONS.consultationExecutions);
+  const sacCompaniesState = useCollection(COLLECTIONS.sacCompanies);
 
   const [module, setModule] = useState(null);
   const [page, setPage] = useState('home');
@@ -104,6 +109,7 @@ export default function Home() {
   const consultationCompanies = consultationCompaniesState.items;
   const consultationClients = consultationClientsState.items;
   const consultationExecutions = consultationExecutionsState.items;
+  const sacCompanies = sacCompaniesState.items;
 
   const powerBiConfigs = useMemo(() => {
     return powerBiState.items.map(config => {
@@ -131,6 +137,13 @@ export default function Home() {
     }, {});
   }, [consultationCompanies]);
 
+  const sacCompanyMap = useMemo(() => {
+    return sacCompanies.reduce((acc, company) => {
+      acc[company.id] = company;
+      return acc;
+    }, {});
+  }, [sacCompanies]);
+
   const consultationEvolutionConfigMap = useMemo(() => {
     return consultationCompanies.reduce((acc, company) => {
       acc[company.id] = {
@@ -155,7 +168,8 @@ export default function Home() {
     executionsState.error,
     consultationCompaniesState.error,
     consultationClientsState.error,
-    consultationExecutionsState.error
+    consultationExecutionsState.error,
+    sacCompaniesState.error
   ].filter(Boolean);
 
   useEffect(() => {
@@ -374,6 +388,86 @@ export default function Home() {
     }
   }
 
+  async function saveSacCompany(form) {
+    if (!ensureDb()) return false;
+    if (
+      !form.id.trim() ||
+      !form.name.trim() ||
+      !form.phoneUsed.trim() ||
+      !form.evolutionBaseUrl.trim() ||
+      !form.evolutionInstance.trim() ||
+      !form.evolutionApiKey.trim()
+    ) {
+      showNotice(
+        'error',
+        'Informe ID, nome, telefone usado, URL, instancia e API key da Evolution antes de salvar.'
+      );
+      return false;
+    }
+
+    const id = form.id.trim().toLowerCase();
+
+    try {
+      await setDoc(
+        doc(db, COLLECTIONS.sacCompanies, id),
+        {
+          name: form.name.trim(),
+          phoneUsed: normalizePhone(form.phoneUsed),
+          evolutionBaseUrl: form.evolutionBaseUrl.trim(),
+          evolutionInstance: form.evolutionInstance.trim(),
+          evolutionApiKey: form.evolutionApiKey.trim(),
+          active: form.active,
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+      showNotice('success', `Empresa ${form.name.trim()} salva no SAC.`);
+      return true;
+    } catch (error) {
+      handleActionError(error, 'Nao foi possivel salvar a empresa do SAC.');
+      return false;
+    }
+  }
+
+  async function updateSacCompany(id, data) {
+    if (!ensureDb()) return false;
+
+    const payload = { ...data };
+    delete payload.id;
+    if (typeof payload.name === 'string') payload.name = payload.name.trim();
+    if (typeof payload.phoneUsed === 'string') payload.phoneUsed = normalizePhone(payload.phoneUsed);
+    if (typeof payload.evolutionBaseUrl === 'string') payload.evolutionBaseUrl = payload.evolutionBaseUrl.trim();
+    if (typeof payload.evolutionInstance === 'string') payload.evolutionInstance = payload.evolutionInstance.trim();
+    if (typeof payload.evolutionApiKey === 'string') payload.evolutionApiKey = payload.evolutionApiKey.trim();
+
+    if (
+      !payload.name ||
+      !payload.phoneUsed ||
+      !payload.evolutionBaseUrl ||
+      !payload.evolutionInstance ||
+      !payload.evolutionApiKey
+    ) {
+      showNotice(
+        'error',
+        'Informe nome, telefone usado, URL, instancia e API key da Evolution antes de salvar.'
+      );
+      return false;
+    }
+
+    try {
+      await updateDoc(doc(db, COLLECTIONS.sacCompanies, id), {
+        ...payload,
+        updatedAt: serverTimestamp()
+      });
+      showNotice('success', 'Empresa do SAC atualizada com sucesso.');
+      return true;
+    } catch (error) {
+      handleActionError(error, 'Nao foi possivel atualizar a empresa do SAC.');
+      return false;
+    }
+  }
+
   async function saveConsultationClient(form) {
     if (!ensureDb()) return false;
     if (!form.companyId || !form.name.trim() || !form.phone.trim()) {
@@ -467,6 +561,11 @@ export default function Home() {
     setConsultationClientFocusId(null);
   }
 
+  function openSac() {
+    setModule('sac');
+    setPage('sac-companies');
+  }
+
   function openCompany(tenantId) {
     setCompanyTab(tenantId);
     setPage('companies');
@@ -491,7 +590,8 @@ export default function Home() {
           clients: contacts.length,
           'consultation-companies': consultationCompanies.length,
           'consultation-clients': consultationClients.length,
-          'consultation-chat': consultationClients.length
+          'consultation-chat': consultationClients.length,
+          'sac-companies': sacCompanies.length
         }}
         errorCount={errorCount}
         firebaseReady={firebaseReady}
@@ -536,8 +636,10 @@ export default function Home() {
                 companies: consultationCompanies.length,
                 clients: consultationClients.length
               }}
+              sacCounts={{ companies: sacCompanies.length }}
               onOpenMorningCall={openMorningCall}
               onOpenConsultation={openConsultation}
+              onOpenSac={openSac}
             />
           ) : null}
 
@@ -659,6 +761,23 @@ export default function Home() {
               segmentByTenant
               tenantLabel="Empresa"
               evolutionConfigByTenant={consultationEvolutionConfigMap}
+            />
+          ) : null}
+
+          {page === 'sac-companies' ? (
+            <ConsultationCompaniesPage
+              companies={sacCompanies}
+              clients={[]}
+              companyMap={sacCompanyMap}
+              firebaseReady={firebaseReady}
+              saveCompany={saveSacCompany}
+              updateCompany={updateSacCompany}
+              toggleDoc={toggleDoc}
+              removeDoc={removeDoc}
+              moduleName="SAC"
+              collectionName={COLLECTIONS.sacCompanies}
+              connectionBasePath="/conexao-whatsapp/sac"
+              showClients={false}
             />
           ) : null}
         </div>

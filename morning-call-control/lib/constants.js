@@ -5,7 +5,8 @@ export const COLLECTIONS = {
   executions: 'morning_call_executions',
   consultationCompanies: 'consulta_ia_companies',
   consultationClients: 'consulta_ia_clients',
-  consultationExecutions: 'consulta_ia_executions'
+  consultationExecutions: 'consulta_ia_executions',
+  sacCompanies: 'sac_companies'
 };
 
 export const POWER_BI_MODEL_TYPES = [

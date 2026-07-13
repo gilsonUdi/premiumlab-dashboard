@@ -229,7 +229,7 @@ export function ConsultationConnectionPage({ company, onBack }) {
   );
 }
 
-function CompanyForm({ initial, editing, firebaseReady, onSubmit, onCancel }) {
+function CompanyForm({ initial, editing, firebaseReady, moduleName, onSubmit, onCancel }) {
   const [form, setForm] = useState(initial);
 
   function set(key, value) {
@@ -238,8 +238,8 @@ function CompanyForm({ initial, editing, firebaseReady, onSubmit, onCancel }) {
 
   return (
     <Panel
-      title={editing ? `Editar empresa · ${initial.id}` : 'Nova empresa de consulta'}
-      description="Cadastro independente da IA 360°."
+      title={editing ? `Editar empresa · ${initial.id}` : `Nova empresa do ${moduleName}`}
+      description={`Cadastro independente para o modulo ${moduleName}.`}
       icon={Building2}
       className="formPanel"
       action={
@@ -326,7 +326,16 @@ function CompanyForm({ initial, editing, firebaseReady, onSubmit, onCancel }) {
   );
 }
 
-function ConsultationCompanyCard({ company, stats, firebaseReady, onOpen, onEdit, onToggle, onRemove }) {
+function ConsultationCompanyCard({
+  company,
+  stats,
+  showClients,
+  firebaseReady,
+  onOpen,
+  onEdit,
+  onToggle,
+  onRemove
+}) {
   return (
     <article className="companyCard">
       <button type="button" className="companyCardMain" onClick={onOpen}>
@@ -337,11 +346,13 @@ function ConsultationCompanyCard({ company, stats, firebaseReady, onOpen, onEdit
             <span className="mono">{company.id}</span>
           </div>
         </div>
-        <div className="companyCardStats">
-          <div>
-            <strong>{stats.clients}</strong>
-            <span>clientes</span>
-          </div>
+        <div className={`companyCardStats ${showClients ? '' : 'two'}`.trim()}>
+          {showClients ? (
+            <div>
+              <strong>{stats.clients}</strong>
+              <span>clientes</span>
+            </div>
+          ) : null}
           <div>
             <strong>{company.evolutionInstance || '-'}</strong>
             <span>instancia</span>
@@ -474,13 +485,17 @@ export function ConsultationOverviewPage({ companies, clients, executions, onNav
 
 export function ConsultationCompaniesPage({
   companies,
-  clients,
+  clients = [],
   companyMap,
   firebaseReady,
   saveCompany,
   updateCompany,
   toggleDoc,
-  removeDoc
+  removeDoc,
+  moduleName = 'Atendimento AI',
+  collectionName = COLLECTIONS.consultationCompanies,
+  connectionBasePath = '/conexao-whatsapp',
+  showClients = true
 }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState(null);
@@ -559,6 +574,7 @@ export function ConsultationCompaniesPage({
           }
           editing={Boolean(editingCompany)}
           firebaseReady={firebaseReady}
+          moduleName={moduleName}
           onSubmit={handleSubmit}
           onCancel={() => {
             setFormOpen(false);
@@ -575,21 +591,22 @@ export function ConsultationCompaniesPage({
                 key={company.id}
                 company={company}
                 stats={stats[company.id] || { clients: 0 }}
+                showClients={showClients}
                 firebaseReady={firebaseReady}
                 onOpen={() => setSelectedCompanyId(company.id)}
                 onEdit={() => openForm(company)}
-                onToggle={() => toggleDoc(COLLECTIONS.consultationCompanies, company)}
-                onRemove={() => removeDoc(COLLECTIONS.consultationCompanies, company.id)}
+                onToggle={() => toggleDoc(collectionName, company)}
+                onRemove={() => removeDoc(collectionName, company.id)}
               />
             ))}
           </div>
         ) : (
           <EmptyState icon={Building2} title="Nenhuma empresa cadastrada">
-            Use o botao Nova empresa para cadastrar a primeira ferramenta de atendimento.
+            Use o botao Nova empresa para cadastrar o primeiro laboratorio no {moduleName}.
           </EmptyState>
         )
       ) : selectedCompany ? (
-        <div className="companyDetailGrid">
+        <div className={`companyDetailGrid ${showClients ? '' : 'single'}`.trim()}>
           <Panel title={companyName(selectedCompany)} icon={Building2}>
             <div className="infoList">
               <div className="infoItem">
@@ -620,7 +637,7 @@ export function ConsultationCompaniesPage({
             <div className="formActions">
               <a
                 className="btn primary"
-                href={`/conexao-whatsapp/${encodeURIComponent(selectedCompany.id)}`}
+                href={`${connectionBasePath}/${encodeURIComponent(selectedCompany.id)}`}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -633,14 +650,15 @@ export function ConsultationCompaniesPage({
               </button>
               <Switch
                 checked={Boolean(selectedCompany.active)}
-                onChange={() => toggleDoc(COLLECTIONS.consultationCompanies, selectedCompany)}
+                onChange={() => toggleDoc(collectionName, selectedCompany)}
                 disabled={!firebaseReady}
                 label="Ativar empresa"
               />
             </div>
           </Panel>
 
-          <Panel title="Clientes vinculados" icon={Users}>
+          {showClients ? (
+            <Panel title="Clientes vinculados" icon={Users}>
             {clients.filter(client => client.companyId === selectedCompany.id).length ? (
               <div className="clientList">
                 {clients
@@ -661,7 +679,8 @@ export function ConsultationCompaniesPage({
                 Cadastre clientes para esta empresa na aba Clientes.
               </EmptyState>
             )}
-          </Panel>
+            </Panel>
+          ) : null}
         </div>
       ) : (
         <EmptyState icon={Building2} title="Empresa nao encontrada" />

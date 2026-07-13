@@ -27,6 +27,10 @@ const CONSULTATION_NAV_ITEMS = [
   { id: 'consultation-chat', label: 'Chat', icon: MessageCircle }
 ];
 
+const SAC_NAV_ITEMS = [
+  { id: 'sac-companies', label: 'Empresas', icon: Building2 }
+];
+
 export default function Sidebar({
   page,
   module,
@@ -37,7 +41,9 @@ export default function Sidebar({
   errorCount
 }) {
   const navItems =
-    module === 'consultation'
+    module === 'sac'
+      ? SAC_NAV_ITEMS
+      : module === 'consultation'
       ? CONSULTATION_NAV_ITEMS
       : module === 'morning-call'
         ? MORNING_CALL_NAV_ITEMS
@@ -66,7 +72,13 @@ export default function Sidebar({
         {module ? (
           <div className="moduleBadge">
             <Bot size={14} />
-            <span>{module === 'consultation' ? 'Atendimento AI' : 'IA 360°'}</span>
+            <span>
+              {module === 'consultation'
+                ? 'Atendimento AI'
+                : module === 'sac'
+                  ? 'SAC'
+                  : 'IA 360°'}
+            </span>
           </div>
         ) : null}
 

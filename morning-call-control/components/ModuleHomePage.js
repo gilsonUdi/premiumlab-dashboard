@@ -1,13 +1,15 @@
 'use client';
 
-import { BarChart3, Bot, MessageSquareText, PhoneCall, Users } from 'lucide-react';
+import { BarChart3, Bot, LifeBuoy, MessageSquareText, PhoneCall, Users } from 'lucide-react';
 import { Panel } from '@/components/ui';
 
 export default function ModuleHomePage({
   morningCallCounts,
   consultationCounts,
+  sacCounts,
   onOpenMorningCall,
-  onOpenConsultation
+  onOpenConsultation,
+  onOpenSac
 }) {
   return (
     <div className="moduleHome">
@@ -44,6 +46,17 @@ export default function ModuleHomePage({
             <em>{consultationCounts.clients} clientes</em>
           </div>
         </button>
+
+        <button type="button" className="moduleCard" onClick={onOpenSac}>
+          <span className="moduleIcon green">
+            <LifeBuoy size={24} />
+          </span>
+          <strong>SAC</strong>
+          <span>Notificacoes de abertura e atualizacao de solicitacoes pelo WhatsApp.</span>
+          <div className="moduleStats">
+            <em>{sacCounts.companies} empresas</em>
+          </div>
+        </button>
       </div>
 
       <Panel title="Separacao dos dados" icon={BarChart3} className="n8nPanel">
@@ -57,6 +70,11 @@ export default function ModuleHomePage({
             <Users size={18} />
             <strong>Atendimento AI</strong>
             <span>Usa empresas e clientes independentes, mesmo quando o laboratorio for o mesmo.</span>
+          </div>
+          <div>
+            <LifeBuoy size={18} />
+            <strong>SAC</strong>
+            <span>Mantem empresas e conexoes Evolution exclusivas para notificacoes de SAC.</span>
           </div>
         </div>
       </Panel>
