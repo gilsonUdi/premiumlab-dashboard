@@ -1,18 +1,23 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Bot,
   Building2,
+  CheckCircle2,
   KeyRound,
+  LoaderCircle,
   MessageCircle,
   Pencil,
   Phone,
   Plus,
+  QrCode,
+  RefreshCw,
   Search,
   Server,
   Users,
+  WifiOff,
   X
 } from 'lucide-react';
 import { COLLECTIONS } from '@/lib/constants';
@@ -49,6 +54,175 @@ const EMPTY_CLIENT = {
 
 function companyName(company) {
   return company?.name || company?.id || 'Empresa';
+}
+
+function companyEvolutionConfig(company) {
+  return {
+    baseUrl: company?.evolutionBaseUrl || '',
+    instance: company?.evolutionInstance || '',
+    apiKey: company?.evolutionApiKey || '',
+    strict: true
+  };
+}
+
+export function ConsultationConnectionPage({ company, onBack }) {
+  const [state, setState] = useState('loading');
+  const [qrCode, setQrCode] = useState('');
+  const [error, setError] = useState('');
+  const qrRequestRunning = useRef(false);
+  const qrAvailable = useRef(false);
+  const connectionOpen = useRef(false);
+  const connected = state === 'open' || state === 'connected';
+
+  useEffect(() => {
+    let active = true;
+    let qrTimer;
+    let statusTimer;
+
+    async function requestConnection(action) {
+      const response = await fetch('/api/evolution/connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          evolutionConfig: companyEvolutionConfig(company)
+        })
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Nao foi possivel consultar a Evolution API.');
+      }
+
+      return data;
+    }
+
+    async function loadQr() {
+      if (qrRequestRunning.current || !active) return;
+      qrRequestRunning.current = true;
+
+      try {
+        const data = await requestConnection('qr');
+        if (!active) return;
+        setQrCode(data.qrCode || '');
+        qrAvailable.current = Boolean(data.qrCode);
+        setError('');
+        setState(current => (current === 'loading' ? data.state || 'close' : current));
+      } catch (requestError) {
+        if (active) setError(requestError.message);
+      } finally {
+        qrRequestRunning.current = false;
+      }
+    }
+
+    async function checkState({ initial = false } = {}) {
+      try {
+        const data = await requestConnection('status');
+        if (!active) return;
+
+        const nextState = String(data.state || 'close').toLowerCase();
+        connectionOpen.current = nextState === 'open' || nextState === 'connected';
+        setState(nextState);
+        setError('');
+
+        if (connectionOpen.current) {
+          setQrCode('');
+          qrAvailable.current = false;
+          return;
+        }
+
+        if (initial || !qrAvailable.current) await loadQr();
+      } catch (requestError) {
+        if (!active) return;
+        setState('error');
+        setError(requestError.message);
+      }
+    }
+
+    if (!company?.evolutionBaseUrl || !company?.evolutionInstance || !company?.evolutionApiKey) {
+      setState('error');
+      setError('Configure URL, instancia e API key da Evolution nesta empresa.');
+      return () => {
+        active = false;
+      };
+    }
+
+    checkState({ initial: true });
+    statusTimer = window.setInterval(() => checkState(), 4000);
+    qrTimer = window.setInterval(() => {
+      if (!connectionOpen.current) loadQr();
+    }, 25000);
+
+    return () => {
+      active = false;
+      window.clearInterval(statusTimer);
+      window.clearInterval(qrTimer);
+    };
+  }, [
+    company?.id,
+    company?.evolutionBaseUrl,
+    company?.evolutionInstance,
+    company?.evolutionApiKey
+  ]);
+
+  if (!company) {
+    return (
+      <EmptyState icon={Building2} title="Empresa nao encontrada">
+        <button type="button" className="btn ghost" onClick={onBack}>
+          <ArrowLeft size={15} />
+          Voltar para empresas
+        </button>
+      </EmptyState>
+    );
+  }
+
+  return (
+    <section className="connectionPage">
+      <button type="button" className="btn ghost connectionBack" onClick={onBack}>
+        <ArrowLeft size={15} />
+        Voltar para {companyName(company)}
+      </button>
+
+      {connected ? (
+        <div className="connectionConnected" role="status">
+          <span className="connectionStateIcon connected">
+            <CheckCircle2 size={34} />
+          </span>
+          <h2>Numero conectado na Evolution API</h2>
+        </div>
+      ) : (
+        <div className="connectionQrArea">
+          <div className="connectionHeading">
+            <span className="connectionStateIcon">
+              <QrCode size={26} />
+            </span>
+            <div>
+              <h2>Conectar WhatsApp</h2>
+              <p>{company.evolutionInstance}</p>
+            </div>
+          </div>
+
+          <div className="connectionQrFrame" aria-live="polite">
+            {qrCode ? (
+              <img src={qrCode} alt={`QR Code para conectar ${companyName(company)}`} />
+            ) : state === 'error' ? (
+              <WifiOff size={42} />
+            ) : (
+              <LoaderCircle className="spinning" size={42} />
+            )}
+          </div>
+
+          {error ? <p className="connectionError">{error}</p> : null}
+          {!error ? (
+            <p className="connectionRefresh">
+              <RefreshCw size={14} />
+              O QR Code e renovado automaticamente ate a conexao ser concluida.
+            </p>
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function CompanyForm({ initial, editing, firebaseReady, onSubmit, onCancel }) {
@@ -302,7 +476,8 @@ export function ConsultationCompaniesPage({
   saveCompany,
   updateCompany,
   toggleDoc,
-  removeDoc
+  removeDoc,
+  onConnect
 }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState(null);
@@ -440,6 +615,10 @@ export function ConsultationCompaniesPage({
               </div>
             </div>
             <div className="formActions">
+              <button type="button" className="btn primary" onClick={() => onConnect(selectedCompany)}>
+                <QrCode size={14} />
+                QR Code de conexao
+              </button>
               <button type="button" className="btn ghost" onClick={() => openForm(selectedCompany)}>
                 <Pencil size={14} />
                 Editar

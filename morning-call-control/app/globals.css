@@ -1747,6 +1747,104 @@ code {
   }
 }
 
+/* --------------------------------------------------- Evolution connection */
+
+.connectionPage {
+  width: min(100%, 680px);
+  margin: 0 auto;
+}
+
+.connectionBack {
+  margin-bottom: 18px;
+}
+
+.connectionQrArea,
+.connectionConnected {
+  display: flex;
+  min-height: 480px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.connectionHeading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.connectionHeading h2,
+.connectionConnected h2 {
+  font-size: 1.08rem;
+  letter-spacing: 0;
+}
+
+.connectionHeading p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.connectionStateIcon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius-sm);
+  color: var(--gold-strong);
+  background: var(--gold-soft);
+}
+
+.connectionStateIcon.connected {
+  width: 60px;
+  height: 60px;
+  margin-bottom: 18px;
+  border-color: color-mix(in srgb, var(--green) 35%, transparent);
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 10%, transparent);
+}
+
+.connectionQrFrame {
+  display: grid;
+  width: min(100%, 380px);
+  aspect-ratio: 1;
+  place-items: center;
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--muted);
+  background: #ffffff;
+}
+
+.connectionQrFrame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.connectionRefresh,
+.connectionError {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  max-width: 440px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.connectionError {
+  color: var(--red);
+}
+
 .chatTimelineWrap {
   position: relative;
   flex: 1;

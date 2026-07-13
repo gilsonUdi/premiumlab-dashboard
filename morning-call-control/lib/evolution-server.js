@@ -1,3 +1,5 @@
+import QRCode from 'qrcode';
+
 const DEFAULT_INSTANCE = 'Morning Call';
 
 function cleanUrl(value) {
@@ -251,6 +253,79 @@ async function evolutionFetch(path, { method = 'POST', body, config } = {}) {
   }
 
   return data;
+}
+
+function connectionStateFrom(data) {
+  return String(
+    data?.instance?.state ||
+      data?.instance?.status ||
+      data?.state ||
+      data?.status ||
+      data?.connectionState ||
+      'close'
+  ).toLowerCase();
+}
+
+function qrImageFrom(data) {
+  const value =
+    data?.base64 ||
+    data?.qrcode?.base64 ||
+    data?.qrCode?.base64 ||
+    data?.qr?.base64 ||
+    '';
+
+  if (!value) return '';
+  if (String(value).startsWith('data:image/')) return String(value);
+  return `data:image/png;base64,${value}`;
+}
+
+export async function getEvolutionConnectionState({ evolutionConfig: config } = {}) {
+  const { instance } = evolutionConfig(config);
+  const encodedInstance = encodeURIComponent(instance);
+  const data = await evolutionFetch(`/instance/connectionState/${encodedInstance}`, {
+    method: 'GET',
+    config
+  });
+
+  return {
+    state: connectionStateFrom(data),
+    connectedNumber:
+      data?.instance?.ownerJid || data?.instance?.number || data?.ownerJid || data?.number || ''
+  };
+}
+
+export async function getEvolutionConnectionQr({ evolutionConfig: config } = {}) {
+  const { instance } = evolutionConfig(config);
+  const encodedInstance = encodeURIComponent(instance);
+  const data = await evolutionFetch(`/instance/connect/${encodedInstance}`, {
+    method: 'GET',
+    config
+  });
+
+  let qrCode = qrImageFrom(data);
+  const rawCode = data?.code || data?.qrcode?.code || data?.qrCode?.code || '';
+
+  if (!qrCode && rawCode) {
+    qrCode = await QRCode.toDataURL(String(rawCode), {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      width: 440,
+      color: {
+        dark: '#10120f',
+        light: '#ffffff'
+      }
+    });
+  }
+
+  if (!qrCode) {
+    throw new Error('A Evolution nao retornou um QR Code para esta instancia.');
+  }
+
+  return {
+    state: connectionStateFrom(data),
+    qrCode,
+    count: Number(data?.count || 0)
+  };
 }
 
 async function tryRequests(requests, config) {
