@@ -168,20 +168,24 @@ export function ConsultationConnectionPage({ company, onBack }) {
   if (!company) {
     return (
       <EmptyState icon={Building2} title="Empresa nao encontrada">
-        <button type="button" className="btn ghost" onClick={onBack}>
-          <ArrowLeft size={15} />
-          Voltar para empresas
-        </button>
+        {onBack ? (
+          <button type="button" className="btn ghost" onClick={onBack}>
+            <ArrowLeft size={15} />
+            Voltar para empresas
+          </button>
+        ) : null}
       </EmptyState>
     );
   }
 
   return (
     <section className="connectionPage">
-      <button type="button" className="btn ghost connectionBack" onClick={onBack}>
-        <ArrowLeft size={15} />
-        Voltar para {companyName(company)}
-      </button>
+      {onBack ? (
+        <button type="button" className="btn ghost connectionBack" onClick={onBack}>
+          <ArrowLeft size={15} />
+          Voltar para {companyName(company)}
+        </button>
+      ) : null}
 
       {connected ? (
         <div className="connectionConnected" role="status">
@@ -476,8 +480,7 @@ export function ConsultationCompaniesPage({
   saveCompany,
   updateCompany,
   toggleDoc,
-  removeDoc,
-  onConnect
+  removeDoc
 }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState(null);
@@ -615,10 +618,15 @@ export function ConsultationCompaniesPage({
               </div>
             </div>
             <div className="formActions">
-              <button type="button" className="btn primary" onClick={() => onConnect(selectedCompany)}>
+              <a
+                className="btn primary"
+                href={`/conexao-whatsapp/${encodeURIComponent(selectedCompany.id)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <QrCode size={14} />
                 QR Code de conexao
-              </button>
+              </a>
               <button type="button" className="btn ghost" onClick={() => openForm(selectedCompany)}>
                 <Pencil size={14} />
                 Editar

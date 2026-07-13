@@ -31,7 +31,6 @@ import ChatPage from '@/components/ChatPage';
 import {
   ConsultationClientsPage,
   ConsultationCompaniesPage,
-  ConsultationConnectionPage,
   ConsultationOverviewPage
 } from '@/components/ConsultationPages';
 
@@ -72,10 +71,6 @@ const PAGE_META = {
     title: 'Empresas',
     description: 'Empresas, numeros usados e API Evolution do Atendimento AI.'
   },
-  'consultation-connection': {
-    title: 'Conexao WhatsApp',
-    description: 'Conecte a instancia Evolution da empresa.'
-  },
   'consultation-clients': {
     title: 'Clientes',
     description: 'Clientes autorizados a usar o Atendimento AI.'
@@ -101,7 +96,6 @@ export default function Home() {
   const [companyTab, setCompanyTab] = useState('all');
   const [clientFocusId, setClientFocusId] = useState(null);
   const [consultationClientFocusId, setConsultationClientFocusId] = useState(null);
-  const [consultationConnectionCompanyId, setConsultationConnectionCompanyId] = useState(null);
   const [notice, setNotice] = useState(null);
 
   const tenants = tenantsState.items;
@@ -473,11 +467,6 @@ export default function Home() {
     setConsultationClientFocusId(null);
   }
 
-  function openConsultationConnection(company) {
-    setConsultationConnectionCompanyId(company.id);
-    setPage('consultation-connection');
-  }
-
   function openCompany(tenantId) {
     setCompanyTab(tenantId);
     setPage('companies');
@@ -643,14 +632,6 @@ export default function Home() {
               updateCompany={updateConsultationCompany}
               toggleDoc={toggleDoc}
               removeDoc={removeDoc}
-              onConnect={openConsultationConnection}
-            />
-          ) : null}
-
-          {page === 'consultation-connection' ? (
-            <ConsultationConnectionPage
-              company={consultationCompanyMap[consultationConnectionCompanyId]}
-              onBack={() => setPage('consultation-companies')}
             />
           ) : null}
 

@@ -1754,6 +1754,33 @@ code {
   margin: 0 auto;
 }
 
+.connectionStandalone {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background: var(--background);
+}
+
+.connectionStandalone .connectionPage {
+  width: min(100%, 680px);
+}
+
+.connectionStandaloneState {
+  display: flex;
+  min-height: 320px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.connectionStandaloneState.error {
+  color: var(--red);
+}
+
 .connectionBack {
   margin-bottom: 18px;
 }
