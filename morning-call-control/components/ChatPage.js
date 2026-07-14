@@ -199,6 +199,8 @@ function buildConversations({ contacts, executions, tenantMap }) {
       const lastExecution = row.executions[0] || null;
       const tenantName = tenantMap?.[row.tenant]?.name || row.tenant || 'Sem empresa';
       const displayName = row.name || formatPhone(row.phone) || row.whatsappId || 'Contato sem nome';
+      const contactLastAt = row.contact?.lastAt || row.contact?.updatedAt || '';
+      const contactLastText = row.contact?.lastText || '';
 
       return {
         ...row,
@@ -206,8 +208,14 @@ function buildConversations({ contacts, executions, tenantMap }) {
         displayName,
         tenantName,
         lastExecution,
-        lastAt: lastExecution?.updatedAt || lastExecution?.sentAt || lastExecution?.createdAt || '',
-        lastText: lastExecution ? getOutgoingText(lastExecution) || getIncomingText(lastExecution) : ''
+        lastAt:
+          lastExecution?.updatedAt ||
+          lastExecution?.sentAt ||
+          lastExecution?.createdAt ||
+          contactLastAt,
+        lastText: lastExecution
+          ? getOutgoingText(lastExecution) || getIncomingText(lastExecution)
+          : contactLastText
       };
     })
     .sort((a, b) => {
@@ -225,7 +233,8 @@ export default function ChatPage({
   emptyDescription = 'Assim que os contatos interagirem com a IA 360°, o historico aparece aqui.',
   segmentByTenant = false,
   tenantLabel = 'Empresa',
-  evolutionConfigByTenant = {}
+  evolutionConfigByTenant = {},
+  sourceMode = 'hybrid'
 }) {
   const [search, setSearch] = useState('');
   const [activeKey, setActiveKey] = useState('');
@@ -331,14 +340,20 @@ export default function ChatPage({
     activeConversation && evolutionState.key === activeConversation.key
       ? buildEvolutionRows(evolutionState.messages)
       : [];
-  const messages = mergeMessageRows(firestoreMessages, evolutionMessages);
-  const chatSource = firestoreMessages.length
-    ? evolutionMessages.length
-      ? 'Firestore + Evolution'
-      : 'Firestore'
-    : evolutionMessages.length
+  const messages =
+    sourceMode === 'evolution'
+      ? evolutionMessages
+      : mergeMessageRows(firestoreMessages, evolutionMessages);
+  const chatSource =
+    sourceMode === 'evolution'
       ? 'Evolution'
-      : 'Firestore';
+      : firestoreMessages.length
+        ? evolutionMessages.length
+          ? 'Firestore + Evolution'
+          : 'Firestore'
+        : evolutionMessages.length
+          ? 'Evolution'
+          : 'Firestore';
 
   function scrollToLatest(behavior = 'smooth') {
     timelineRef.current?.scrollTo({
@@ -512,7 +527,9 @@ export default function ChatPage({
             })
           ) : (
             <EmptyState icon={MessageCircle} title="Nenhuma conversa">
-              Nenhum contato ou execucao corresponde a busca.
+              {sourceMode === 'evolution'
+                ? 'Nenhuma conversa retornada pela Evolution corresponde a busca.'
+                : 'Nenhum contato ou execucao corresponde a busca.'}
             </EmptyState>
           )}
         </div>
@@ -548,7 +565,9 @@ export default function ChatPage({
                   <span>Sync {timeAgo(evolutionState.lastSyncedAt)}</span>
                 ) : null}
                 {evolutionState.key === activeConversation.key && evolutionState.error ? (
-                  <span title={evolutionState.error}>Fallback Firestore ativo</span>
+                  <span title={evolutionState.error}>
+                    {sourceMode === 'evolution' ? 'Falha na Evolution' : 'Fallback Firestore ativo'}
+                  </span>
                 ) : null}
                 <button
                   type="button"
@@ -612,7 +631,9 @@ export default function ChatPage({
                 ))
               ) : (
                 <EmptyState icon={MessageCircle} title="Sem mensagens">
-                  A conversa existe porque o contato esta autorizado, mas ainda nao ha execucoes.
+                  {sourceMode === 'evolution'
+                    ? 'A Evolution ainda nao retornou mensagens para esta conversa.'
+                    : 'A conversa existe porque o contato esta autorizado, mas ainda nao ha execucoes.'}
                 </EmptyState>
               )}
               </div>

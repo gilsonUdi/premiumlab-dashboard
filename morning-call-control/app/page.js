@@ -29,6 +29,7 @@ import ClientsPage from '@/components/ClientsPage';
 import PowerBiPage from '@/components/PowerBiPage';
 import ActivityPage from '@/components/ActivityPage';
 import ChatPage from '@/components/ChatPage';
+import EvolutionChatPage from '@/components/EvolutionChatPage';
 import {
   ConsultationClientsPage,
   ConsultationCompaniesPage,
@@ -83,6 +84,10 @@ const PAGE_META = {
   'sac-companies': {
     title: 'Empresas',
     description: 'Empresas e conexoes Evolution usadas pelas notificacoes de SAC.'
+  },
+  'sac-chat': {
+    title: 'Chat',
+    description: 'Conversas de SAC separadas por empresa e carregadas diretamente da Evolution.'
   }
 };
 
@@ -156,6 +161,18 @@ export default function Home() {
       return acc;
     }, {});
   }, [consultationCompanies]);
+
+  const sacEvolutionConfigMap = useMemo(() => {
+    return sacCompanies.reduce((acc, company) => {
+      acc[company.id] = {
+        baseUrl: company.evolutionBaseUrl || DEFAULT_EVOLUTION_BASE_URL,
+        instance: company.evolutionInstance || '',
+        apiKey: company.evolutionApiKey || '',
+        strict: true
+      };
+      return acc;
+    }, {});
+  }, [sacCompanies]);
 
   const errorCount = useMemo(
     () => executions.filter(execution => execution.status === 'error').length,
@@ -779,6 +796,14 @@ export default function Home() {
               collectionName={COLLECTIONS.sacCompanies}
               connectionBasePath="/conexao-whatsapp/sac"
               showClients={false}
+            />
+          ) : null}
+
+          {page === 'sac-chat' ? (
+            <EvolutionChatPage
+              companies={sacCompanies}
+              companyMap={sacCompanyMap}
+              evolutionConfigByTenant={sacEvolutionConfigMap}
             />
           ) : null}
         </div>

@@ -28,7 +28,8 @@ const CONSULTATION_NAV_ITEMS = [
 ];
 
 const SAC_NAV_ITEMS = [
-  { id: 'sac-companies', label: 'Empresas', icon: Building2 }
+  { id: 'sac-companies', label: 'Empresas', icon: Building2 },
+  { id: 'sac-chat', label: 'Chat', icon: MessageCircle }
 ];
 
 export default function Sidebar({
