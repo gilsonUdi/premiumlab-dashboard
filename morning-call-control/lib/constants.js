@@ -9,6 +9,8 @@ export const COLLECTIONS = {
   sacCompanies: 'sac_companies'
 };
 
+export const DEFAULT_EVOLUTION_BASE_URL = 'https://evolution.gsgestao.com.br';
+
 export const POWER_BI_MODEL_TYPES = [
   {
     id: 'geral',

@@ -20,7 +20,7 @@ import {
   WifiOff,
   X
 } from 'lucide-react';
-import { COLLECTIONS } from '@/lib/constants';
+import { COLLECTIONS, DEFAULT_EVOLUTION_BASE_URL } from '@/lib/constants';
 import { formatDate } from '@/lib/format';
 import { formatPhone } from '@/lib/phone';
 import {
@@ -38,7 +38,7 @@ const EMPTY_COMPANY = {
   id: '',
   name: '',
   phoneUsed: '',
-  evolutionBaseUrl: '',
+  evolutionBaseUrl: DEFAULT_EVOLUTION_BASE_URL,
   evolutionInstance: '',
   evolutionApiKey: '',
   active: true
@@ -58,11 +58,19 @@ function companyName(company) {
 
 function companyEvolutionConfig(company) {
   return {
-    baseUrl: company?.evolutionBaseUrl || '',
+    baseUrl: company?.evolutionBaseUrl || DEFAULT_EVOLUTION_BASE_URL,
     instance: company?.evolutionInstance || '',
     apiKey: company?.evolutionApiKey || '',
     strict: true
   };
+}
+
+function isCustomEvolutionBaseUrl(value) {
+  const normalized = String(value || '')
+    .trim()
+    .replace(/\/+$/, '');
+
+  return Boolean(normalized && normalized !== DEFAULT_EVOLUTION_BASE_URL);
 }
 
 export function ConsultationConnectionPage({ company, onBack }) {
@@ -139,9 +147,9 @@ export function ConsultationConnectionPage({ company, onBack }) {
       }
     }
 
-    if (!company?.evolutionBaseUrl || !company?.evolutionInstance || !company?.evolutionApiKey) {
+    if (!company?.evolutionInstance || !company?.evolutionApiKey) {
       setState('error');
-      setError('Configure URL, instancia e API key da Evolution nesta empresa.');
+      setError('Configure instancia e API key da Evolution nesta empresa.');
       return () => {
         active = false;
       };
@@ -230,10 +238,22 @@ export function ConsultationConnectionPage({ company, onBack }) {
 }
 
 function CompanyForm({ initial, editing, firebaseReady, moduleName, onSubmit, onCancel }) {
-  const [form, setForm] = useState(initial);
+  const initialBaseUrl = initial.evolutionBaseUrl || DEFAULT_EVOLUTION_BASE_URL;
+  const [form, setForm] = useState({
+    ...initial,
+    evolutionBaseUrl: initialBaseUrl
+  });
+  const [useCustomEvolutionUrl, setUseCustomEvolutionUrl] = useState(
+    isCustomEvolutionBaseUrl(initialBaseUrl)
+  );
 
   function set(key, value) {
     setForm(current => ({ ...current, [key]: value }));
+  }
+
+  function toggleCustomEvolutionUrl(value) {
+    setUseCustomEvolutionUrl(value);
+    set('evolutionBaseUrl', value ? '' : DEFAULT_EVOLUTION_BASE_URL);
   }
 
   return (
@@ -280,13 +300,17 @@ function CompanyForm({ initial, editing, firebaseReady, moduleName, onSubmit, on
               required
             />
           </Field>
-          <Field label="URL da Evolution">
-            <input
-              value={form.evolutionBaseUrl}
-              onChange={event => set('evolutionBaseUrl', event.target.value)}
-              placeholder="https://evolution.gsgestao.com.br"
-            />
-          </Field>
+          {useCustomEvolutionUrl ? (
+            <Field label="URL personalizada da Evolution" hint="Informe a URL base da outra aplicacao Evolution.">
+              <input
+                value={form.evolutionBaseUrl}
+                onChange={event => set('evolutionBaseUrl', event.target.value)}
+                placeholder="https://evolution.exemplo.com.br"
+                type="url"
+                required
+              />
+            </Field>
+          ) : null}
           <Field label="Instancia Evolution" hint="Nome exato da instancia conectada para esta empresa.">
             <input
               value={form.evolutionInstance}
@@ -306,6 +330,14 @@ function CompanyForm({ initial, editing, firebaseReady, moduleName, onSubmit, on
         </div>
 
         <div className="switchGrid">
+          <div className="switchInline">
+            <Switch
+              checked={useCustomEvolutionUrl}
+              onChange={toggleCustomEvolutionUrl}
+              label="Usar URL personalizada da Evolution"
+            />
+            <span>Usar URL personalizada</span>
+          </div>
           <div className="switchInline">
             <Switch checked={form.active} onChange={value => set('active', value)} label="Empresa ativa" />
             <span>Empresa ativa</span>
@@ -623,7 +655,7 @@ export function ConsultationCompaniesPage({
               </div>
               <div className="infoItem">
                 <span>URL Evolution</span>
-                <strong>{selectedCompany.evolutionBaseUrl || '-'}</strong>
+                <strong>{selectedCompany.evolutionBaseUrl || DEFAULT_EVOLUTION_BASE_URL}</strong>
               </div>
               <div className="infoItem">
                 <span>API key</span>

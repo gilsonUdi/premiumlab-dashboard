@@ -15,6 +15,7 @@ import { db, hasFirebaseConfig } from '@/lib/firebase';
 import { normalizePhone } from '@/lib/phone';
 import {
   COLLECTIONS,
+  DEFAULT_EVOLUTION_BASE_URL,
   getPowerBiDocId,
   getPowerBiModelLabel,
   normalizePowerBiModelType
@@ -147,7 +148,7 @@ export default function Home() {
   const consultationEvolutionConfigMap = useMemo(() => {
     return consultationCompanies.reduce((acc, company) => {
       acc[company.id] = {
-        baseUrl: company.evolutionBaseUrl || '',
+        baseUrl: company.evolutionBaseUrl || DEFAULT_EVOLUTION_BASE_URL,
         instance: company.evolutionInstance || '',
         apiKey: company.evolutionApiKey || '',
         strict: true
