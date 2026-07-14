@@ -1510,7 +1510,7 @@ export default function AdminPage() {
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-black"
                 style={{ background: 'rgba(201, 164, 92,0.12)', color: '#C9A45C', border: '1px solid rgba(201, 164, 92,0.18)' }}
               >
-                GS
+                AX
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#28497E' }}>Portal</p>

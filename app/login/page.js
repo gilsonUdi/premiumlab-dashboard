@@ -83,11 +83,11 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="mb-10">
           <Image
-            src="/gs-logo.png"
-            alt="GS Consultoria & Gestao"
-            width={160}
-            height={90}
-            className="h-10 w-auto"
+            src="/axis-logo.png"
+            alt="Axis Governance"
+            width={176}
+            height={56}
+            className="h-14 w-44 object-cover"
             style={{ opacity: 'var(--portal-logo-opacity)' }}
           />
         </div>
@@ -109,7 +109,7 @@ export default function LoginPage() {
                 border: '1px solid var(--portal-gold-border)',
               }}
             >
-              GS Gestão
+              AXIS
             </span>
             <h1 className="portal-title mt-3 text-xl font-bold tracking-tight">Entrar no portal</h1>
             <p className="portal-muted mt-1 text-sm">
@@ -160,7 +160,7 @@ export default function LoginPage() {
         </div>
 
         <p className="portal-muted mt-6 text-xs">
-          Acesso restrito — use as credenciais fornecidas pela GS Gestão.
+          Acesso restrito — use as credenciais fornecidas pela Axis.
         </p>
       </div>
     </main>

@@ -17,7 +17,7 @@ export default function ModuleHomePage({
         <span className="sectionEyebrow">Painel Axis AI</span>
         <h1>Escolha a ferramenta</h1>
         <p>
-          Controle os produtos de IA da GS em ambientes separados, com empresas, clientes e
+          Controle os produtos de IA da Axis em ambientes separados, com empresas, clientes e
           configuracoes independentes.
         </p>
       </div>

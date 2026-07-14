@@ -465,7 +465,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                         <ArrowLeft size={14} />
                       </Link>
                       <span className="truncate text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: '#C9A45C' }}>
-                        GSControladoria
+                        Axis
                       </span>
                     </div>
                     {!isMobileDevice ? (

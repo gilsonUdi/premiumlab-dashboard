@@ -317,7 +317,7 @@ export default function CompanyHomePage({ slug }) {
 
         {/* Top bar — minimal */}
         <header className="mb-12 flex items-center justify-between gap-4">
-          <Image src="/gs-logo.png" alt="GS Consultoria & Gestao" width={180} height={100} className="h-8 w-auto" style={{ opacity: 'var(--portal-logo-opacity)' }} />
+          <Image src="/axis-logo.png" alt="Axis Governance" width={144} height={48} className="h-12 w-36 object-cover" />
           <div className="flex items-center gap-2">
             <Link href="/" className="portal-ghost-button">
               <ArrowLeft size={14} />
@@ -427,7 +427,7 @@ export default function CompanyHomePage({ slug }) {
             >
               <h3 className="text-base font-semibold">Sem ferramentas liberadas</h3>
               <p className="portal-copy mt-2 text-sm leading-6">
-                A administração da GS ainda não liberou módulos para este tenant.
+                A administração da Axis ainda não liberou módulos para este tenant.
               </p>
             </div>
           )}
@@ -469,7 +469,7 @@ export default function CompanyHomePage({ slug }) {
                 </div>
                 <div>
                   <h2 className="portal-title text-sm font-semibold">Solicitar melhoria</h2>
-                  <p className="text-xs" style={{ color: '#AEC3DF' }}>Envie sugestões ou necessidades para a equipe da GS.</p>
+                  <p className="text-xs" style={{ color: '#AEC3DF' }}>Envie sugestões ou necessidades para a equipe da Axis.</p>
                 </div>
               </div>
               <button type="button" className="portal-ghost-button h-9 px-3 text-xs" onClick={() => setIsFeedbackPopupOpen(false)}>
@@ -583,4 +583,3 @@ export default function CompanyHomePage({ slug }) {
     </main>
   )
 }
-

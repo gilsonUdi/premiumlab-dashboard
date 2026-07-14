@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'GS Morning Call Control',
-  description: 'Painel de controle do Morning Call GS'
+  title: 'Axis Morning Call Control',
+  description: 'Painel de controle do Morning Call Axis'
 };
 
 export default function RootLayout({ children }) {

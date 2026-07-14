@@ -86,7 +86,7 @@ function ContactForm({ initial, editing, tenants, firebaseReady, onSubmit, onCan
             <input
               value={form.name}
               onChange={event => set('name', event.target.value)}
-              placeholder="GS Controladoria Gilson"
+              placeholder="Axis Controladoria Gilson"
             />
           </Field>
           <Field label="Telefone" hint="Somente números, com DDD. O 55 é adicionado automaticamente.">

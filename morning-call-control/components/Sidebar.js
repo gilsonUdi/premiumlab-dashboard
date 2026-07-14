@@ -58,7 +58,7 @@ export default function Sidebar({
         </span>
         <div>
           <strong>Axis AI</strong>
-          <span>GS Controladoria</span>
+          <span>Axis Governance</span>
         </div>
       </div>
 

@@ -1,8 +1,8 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'GS Portal - Multi-tenant',
-  description: 'Portal multi-tenant para dashboards e ferramentas das empresas atendidas pela GS Consultoria & Gestao',
+  title: 'Axis Portal - Multi-tenant',
+  description: 'Portal multi-tenant para dashboards e ferramentas das empresas atendidas pela Axis Governance',
   icons: {
     icon: '/site-icon.png',
     shortcut: '/site-icon.png',
