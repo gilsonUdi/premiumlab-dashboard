@@ -32,8 +32,39 @@ function toIso(value) {
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
 }
 
+function timestampMillis(value) {
+  const iso = toIso(value);
+  return iso ? new Date(iso).getTime() : 0;
+}
+
+function messageTimestamp(message) {
+  return firstValue(
+    message?.messageTimestamp,
+    message?.timestamp,
+    message?.updatedAt,
+    message?.updated_at,
+    message?.createdAt,
+    message?.created_at
+  );
+}
+
+function latestChatMessage(chat) {
+  const nestedMessages = Array.isArray(chat.messages)
+    ? chat.messages
+    : Array.isArray(chat.messages?.records)
+      ? chat.messages.records
+      : [];
+  const candidates = [chat.lastMessage, chat.last_message, ...nestedMessages].filter(
+    message => message && typeof message === 'object'
+  );
+
+  return candidates.sort(
+    (a, b) => timestampMillis(messageTimestamp(b)) - timestampMillis(messageTimestamp(a))
+  )[0] || {};
+}
+
 function normalizeChat(chat, index, companyId) {
-  const lastMessage = chat.lastMessage || chat.last_message || chat.messages?.[0] || {};
+  const lastMessage = latestChatMessage(chat);
   const key = lastMessage.key || chat.key || {};
   const remoteJid = String(
     firstValue(
@@ -52,11 +83,11 @@ function normalizeChat(chat, index, companyId) {
   const lastText = String(firstValue(chat.lastMessageText, chat.last_message_text, messageText(message)));
   const lastAt = toIso(
     firstValue(
-      lastMessage.messageTimestamp,
-      lastMessage.timestamp,
+      messageTimestamp(lastMessage),
       chat.updatedAt,
       chat.updated_at,
-      chat.createdAt
+      chat.createdAt,
+      chat.created_at
     )
   );
   const isIndividual =
@@ -124,7 +155,7 @@ export default function EvolutionChatPage({ companies, companyMap, evolutionConf
       const contacts = (Array.isArray(payload.chats) ? payload.chats : [])
         .map((chat, index) => normalizeChat(chat, index, activeCompanyId))
         .filter(Boolean)
-        .sort((a, b) => String(b.lastAt).localeCompare(String(a.lastAt)));
+        .sort((a, b) => timestampMillis(b.lastAt) - timestampMillis(a.lastAt));
 
       setState({ loading: false, error: payload.error || '', contacts });
     } catch (error) {

@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, Building2, ChevronDown, MessageCircle, RefreshCw, Search } from 'lucide-react';
 import { formatPhone, normalizePhone } from '@/lib/phone';
 import {
+  dayKey,
+  dayLabel,
   formatDate,
   formatReferenceDate,
   formatTime,
@@ -196,7 +198,12 @@ function buildConversations({ contacts, executions, tenantMap }) {
 
   return Array.from(map.values())
     .map(row => {
-      const lastExecution = row.executions[0] || null;
+      const sortedExecutions = row.executions.slice().sort((a, b) => {
+        const aWhen = a.updatedAt || a.sentAt || a.createdAt;
+        const bWhen = b.updatedAt || b.sentAt || b.createdAt;
+        return rowTime({ when: bWhen }) - rowTime({ when: aWhen });
+      });
+      const lastExecution = sortedExecutions[0] || null;
       const tenantName = tenantMap?.[row.tenant]?.name || row.tenant || 'Sem empresa';
       const displayName = row.name || formatPhone(row.phone) || row.whatsappId || 'Contato sem nome';
       const contactLastAt = row.contact?.lastAt || row.contact?.updatedAt || '';
@@ -204,6 +211,7 @@ function buildConversations({ contacts, executions, tenantMap }) {
 
       return {
         ...row,
+        executions: sortedExecutions,
         contactIds: Array.from(row.contactIds),
         displayName,
         tenantName,
@@ -603,43 +611,55 @@ export default function ChatPage({
                 tabIndex={0}
               >
               {messages.length ? (
-                messages.map(message => (
-                  <article
-                    key={message.id}
-                    className={`chatBubble ${message.direction}`.trim()}
-                    title={formatDate(message.when)}
-                  >
-                    <div className="chatBubbleAuthor">
-                      {message.direction === 'in' ? (
-                        message.pushName || activeConversation.displayName
-                      ) : message.direction === 'error' ? (
-                        'Erro'
-                      ) : (
-                        <>
-                          <Bot size={13} />
-                          {assistantName}
-                        </>
-                      )}
-                    </div>
-                    <p>{String(message.text)}</p>
-                    <footer>
-                      <span>{formatTime(message.when)}</span>
-                      {message.status ? <span>{message.status}</span> : null}
-                      {message.execution?.reportDate ||
-                      message.execution?.reportDateBr ||
-                      message.execution?.referenceDate ? (
-                        <span>
-                          Ref.{' '}
-                          {formatReferenceDate(
-                            message.execution?.reportDateBr,
-                            message.execution?.reportDate,
-                            message.execution?.referenceDate
-                          )}
-                        </span>
+                messages.map((message, index) => {
+                  const currentDay = dayKey(message.when);
+                  const previousDay = index > 0 ? dayKey(messages[index - 1].when) : '';
+                  const showDayDivider = index === 0 || currentDay !== previousDay;
+
+                  return (
+                    <Fragment key={message.id}>
+                      {showDayDivider ? (
+                        <div className="chatDayDivider" role="separator">
+                          <span>{dayLabel(message.when)}</span>
+                        </div>
                       ) : null}
-                    </footer>
-                  </article>
-                ))
+                      <article
+                        className={`chatBubble ${message.direction}`.trim()}
+                        title={formatDate(message.when)}
+                      >
+                        <div className="chatBubbleAuthor">
+                          {message.direction === 'in' ? (
+                            message.pushName || activeConversation.displayName
+                          ) : message.direction === 'error' ? (
+                            'Erro'
+                          ) : (
+                            <>
+                              <Bot size={13} />
+                              {assistantName}
+                            </>
+                          )}
+                        </div>
+                        <p>{String(message.text)}</p>
+                        <footer>
+                          <span>{formatTime(message.when)}</span>
+                          {message.status ? <span>{message.status}</span> : null}
+                          {message.execution?.reportDate ||
+                          message.execution?.reportDateBr ||
+                          message.execution?.referenceDate ? (
+                            <span>
+                              Ref.{' '}
+                              {formatReferenceDate(
+                                message.execution?.reportDateBr,
+                                message.execution?.reportDate,
+                                message.execution?.referenceDate
+                              )}
+                            </span>
+                          ) : null}
+                        </footer>
+                      </article>
+                    </Fragment>
+                  );
+                })
               ) : (
                 <EmptyState icon={MessageCircle} title="Sem mensagens">
                   {sourceMode === 'evolution'

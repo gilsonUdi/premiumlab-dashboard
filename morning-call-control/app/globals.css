@@ -1917,6 +1917,36 @@ code {
   scrollbar-gutter: stable;
 }
 
+.chatDayDivider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 4px 0;
+}
+
+.chatDayDivider::before,
+.chatDayDivider::after {
+  flex: 1;
+  height: 1px;
+  content: '';
+  background: var(--line);
+}
+
+.chatDayDivider span {
+  flex: 0 0 auto;
+  margin: 0 12px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(16, 16, 22, 0.92);
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: capitalize;
+}
+
 .chatConversationList,
 .chatTimeline {
   scrollbar-color: var(--line-strong) transparent;
