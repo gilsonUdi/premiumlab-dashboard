@@ -112,7 +112,7 @@ export default function PowerBiCatalogPage({ slug }) {
 
   if (!state || !session || !company) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-white" style={{ background: '#0f0d0b' }}>
+      <main className="portal-page flex min-h-screen items-center justify-center">
         <div
           className="rounded-2xl px-6 py-4 text-sm"
           style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#6b6358' }}
@@ -125,12 +125,12 @@ export default function PowerBiCatalogPage({ slug }) {
 
   if (!canAccessPortalPage(company, session.permissions, PORTAL_PAGE_KEYS.POWER_BI)) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6 text-white" style={{ background: '#0f0d0b' }}>
+      <main className="portal-page flex min-h-screen items-center justify-center px-6">
         <div
           className="max-w-[600px] rounded-2xl p-8"
-          style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}
+          style={{ background: 'var(--portal-surface)', border: '1px solid var(--portal-border)' }}
         >
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: '#c9924a' }}>Acesso restrito</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: 'var(--accent-bright)' }}>Acesso restrito</p>
           <h1 className="mt-3 text-3xl font-bold text-white">{company.name}</h1>
           <p className="mt-3 text-sm leading-7" style={{ color: '#5c554e' }}>
             Este usuário não possui permissão para acessar os modelos de Power BI desta empresa.
@@ -141,10 +141,7 @@ export default function PowerBiCatalogPage({ slug }) {
   }
 
   return (
-    <main
-      className="min-h-screen text-white"
-      style={{ background: 'radial-gradient(ellipse 120% 35% at 50% 0%, rgba(227,173,90,0.04) 0%, transparent 60%), #0f0d0b' }}
-    >
+    <main className="portal-page">
       <div className="mx-auto max-w-[1380px] px-5 py-5">
 
         {/* Top bar */}
@@ -158,7 +155,7 @@ export default function PowerBiCatalogPage({ slug }) {
               <ArrowLeft size={16} />
             </Link>
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: '#c9924a' }}>Power BI</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: 'var(--accent-bright)' }}>Power BI</p>
               <h1 className="text-xl font-bold text-white">{company.name}</h1>
             </div>
           </div>
@@ -167,7 +164,7 @@ export default function PowerBiCatalogPage({ slug }) {
         {loading ? (
           <div
             className="rounded-2xl px-6 py-10 text-sm"
-            style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)', color: '#5c554e' }}
+            style={{ background: 'var(--portal-surface)', border: '1px solid var(--portal-border)', color: 'var(--text-muted)' }}
           >
             Carregando modelos do Power BI...
           </div>
@@ -181,7 +178,7 @@ export default function PowerBiCatalogPage({ slug }) {
         ) : !hasReports ? (
           <div
             className="rounded-2xl px-6 py-10 text-sm"
-            style={{ background: '#181410', border: '1px dashed rgba(255,255,255,0.07)', color: '#5c554e' }}
+            style={{ background: 'var(--portal-surface)', border: '1px dashed var(--portal-border)', color: 'var(--text-muted)' }}
           >
             Nenhum modelo de Power BI foi configurado para esta empresa ainda.
           </div>
@@ -190,11 +187,9 @@ export default function PowerBiCatalogPage({ slug }) {
             {reports.map(report => (
               <div
                 key={report.id}
-                className="relative overflow-hidden rounded-2xl p-6"
+                className="portal-card relative overflow-hidden rounded-lg p-6"
                 style={{
-                  background: '#181410',
-                  border: '1px solid rgba(255,255,255,0.055)',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                  background: 'var(--portal-surface)',
                 }}
               >
                 <div
@@ -204,13 +199,13 @@ export default function PowerBiCatalogPage({ slug }) {
 
                 <div
                   className="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-xl"
-                  style={{ background: 'rgba(227,173,90,0.09)', color: '#d4984d' }}
+                  style={{ background: 'var(--portal-gold-soft)', color: 'var(--accent-bright)' }}
                 >
                   <PieChart size={18} />
                 </div>
 
-                <h2 className="text-base font-semibold text-white">{report.label || report.reportName}</h2>
-                <p className="mt-1.5 line-clamp-2 text-sm" style={{ color: '#6b6358' }}>
+                <h2 className="portal-title text-base font-semibold">{report.label || report.reportName}</h2>
+                <p className="portal-copy mt-1.5 line-clamp-2 text-sm">
                   {report.reportName || 'Relatório Power BI incorporado no portal.'}
                 </p>
 

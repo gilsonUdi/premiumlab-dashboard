@@ -1483,7 +1483,7 @@ export default function AdminPage() {
 
   if (!state) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-white" style={{ background: '#0d0b09' }}>
+      <main className="portal-page flex min-h-screen items-center justify-center">
         <div
           className="rounded-2xl px-6 py-4 text-sm"
           style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#8a8278' }}
@@ -1495,13 +1495,13 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen text-white" style={{ background: '#0f0d0b' }}>
+    <main className="portal-page min-h-screen">
       <div className="grid min-h-screen xl:grid-cols-[280px_minmax(0,1fr)]">
 
         {/* Sidebar */}
         <aside
           className="flex flex-col"
-          style={{ background: '#0c0a08', borderRight: '1px solid rgba(255,255,255,0.05)' }}
+          style={{ background: 'var(--portal-sidebar)', borderRight: '1px solid var(--portal-border)' }}
         >
           {/* Brand */}
           <div className="px-6 py-7" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
@@ -1584,7 +1584,7 @@ export default function AdminPage() {
         {/* Main content */}
         <section
           className="px-5 py-6 sm:px-7 lg:px-10"
-          style={{ background: '#110e0c' }}
+          style={{ background: 'var(--portal-bg-soft)' }}
         >
           <div className="mx-auto max-w-[1280px]">
             {activePanel === 'companies' ? (

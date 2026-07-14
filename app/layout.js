@@ -1,4 +1,5 @@
 import './globals.css'
+import ThemeToggle from '@/components/ThemeToggle'
 
 export const metadata = {
   title: 'GS Portal - Multi-tenant',
@@ -12,9 +13,17 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="pt-BR">
-      <body className="antialiased" style={{ background: '#030b1a', minHeight: '100vh' }}>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var theme=localStorage.getItem('gs-portal-theme')||'light';if(theme!=='dark')theme='light';document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme}catch(e){document.documentElement.dataset.theme='light'}})();`,
+          }}
+        />
+      </head>
+      <body className="portal-theme-root antialiased">
         {children}
+        <ThemeToggle />
       </body>
     </html>
   )

@@ -16,8 +16,8 @@ import { getPowerBiConfigFromCompany, hasAnyPowerBiConfig } from '@/lib/power-bi
 function PlaceholderTool({ company }) {
   const usesExternalDashboard = !company.supabaseEnabled && company.externalDashboardUrl
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#141216] px-6 text-white">
-      <div className="max-w-[720px] rounded-[30px] border border-white/8 bg-[#1c191d] p-8">
+    <main className="portal-page flex min-h-screen items-center justify-center px-6">
+      <div className="portal-panel max-w-[720px] rounded-lg p-8">
         <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">
           {usesExternalDashboard ? 'Dashboard externo configurado' : 'Ferramenta em configuração'}
         </p>
@@ -118,8 +118,8 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
 
   if (!state || !session || !company) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#171416] text-white">
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] px-6 py-5 text-sm text-[#d8d2c8]">
+      <main className="portal-page flex min-h-screen items-center justify-center">
+        <div className="portal-panel portal-copy rounded-lg px-6 py-5 text-sm">
           Carregando dashboard...
         </div>
       </main>
@@ -128,8 +128,8 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
 
   if (!canAccessPortalPage(company, session?.permissions, pageKey)) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#141216] px-6 text-white">
-        <div className="max-w-[720px] rounded-[30px] border border-white/8 bg-[#1c191d] p-8">
+      <main className="portal-page flex min-h-screen items-center justify-center px-6">
+        <div className="portal-panel max-w-[720px] rounded-lg p-8">
           <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Acesso restrito</p>
           <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
           <p className="mt-4 text-base leading-8 text-[#c6c0b7]">
@@ -158,8 +158,8 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
 
   if (mode === 'power-bi' && hasAnyPowerBiConfig(company)) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#141216] px-6 text-white">
-        <div className="max-w-[720px] rounded-[30px] border border-white/8 bg-[#1c191d] p-8">
+      <main className="portal-page flex min-h-screen items-center justify-center px-6">
+        <div className="portal-panel max-w-[720px] rounded-lg p-8">
           <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Modelo não encontrado</p>
           <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
           <p className="mt-4 text-base leading-8 text-[#c6c0b7]">

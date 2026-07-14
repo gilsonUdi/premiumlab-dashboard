@@ -315,7 +315,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const sidebarPages = config?.pages || []
 
   return (
-    <main className="relative h-[100dvh] overflow-hidden text-white" style={{ background: '#0c0a08' }}>
+    <main className="portal-page relative h-[100dvh] overflow-hidden">
       <Link
         href={`/empresa/${company.slug}/power-bi`}
         aria-label="Voltar ao portal"
@@ -332,7 +332,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       <section className={`grid h-[100dvh] grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[64px_minmax(0,1fr)]' : 'lg:grid-cols-[272px_minmax(0,1fr)]'}`}>
         <aside
           className="hidden pt-20 lg:flex lg:min-h-0 lg:flex-col"
-          style={{ background: '#0f0d0b', borderRight: '1px solid rgba(255,255,255,0.05)' }}
+          style={{ background: 'var(--portal-sidebar)', borderRight: '1px solid var(--portal-border)' }}
         >
           <div className={`${sidebarCollapsed ? 'px-2 pb-4' : 'px-5 pb-5'}`}>
             <div className={`flex items-start ${sidebarCollapsed ? 'justify-center' : 'justify-between gap-3'}`}>
@@ -424,7 +424,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         </aside>
 
         <div className="min-w-0">
-          <div className="h-full w-full" style={{ background: '#0c0a08' }}>
+          <div className="h-full w-full" style={{ background: 'var(--portal-bg)' }}>
             {loading ? (
               <div className="flex h-full items-center justify-center px-6 text-sm" style={{ color: '#5c554e' }}>
                 Preparando Power BI...

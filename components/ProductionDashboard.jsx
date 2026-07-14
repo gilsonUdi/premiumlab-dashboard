@@ -401,35 +401,37 @@ export default function ProductionDashboard({
   }, [companyName, data, isPpsMode])
 
   return (
-    <div className={`bg-[#030b1a] ${isPpsMode ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
-      <header style={{ background: '#050f1e', borderBottom: '1px solid #1a3355' }}>
+    <div className={`${isPpsMode ? 'h-screen overflow-hidden' : 'min-h-screen'}`} style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+      <header style={{ background: 'var(--bg-header)', borderBottom: '1px solid var(--border)' }}>
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-3">
             {backHref ? (
               <Link
                 href={backHref}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#1a3355] bg-[#0d1f38] text-[#7ba3cc] transition hover:border-[#2a4f7a] hover:text-white"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border transition"
+                style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)' }}
               >
                 <ArrowLeft size={16} />
               </Link>
             ) : null}
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[linear-gradient(135deg,#1d6fa4,#0891b2)]">
-              <Building2 size={18} color="#fff" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg" style={{ background: 'var(--accent)' }}>
+              <Building2 size={18} color="#101a2f" />
             </div>
             <div>
-              <h1 className="text-sm font-bold tracking-wide text-[#e2e8f0]">{companyName}</h1>
-              <p className="text-xs text-[#4a6b8a]">{companySubtitle}</p>
+              <h1 className="text-sm font-bold tracking-wide" style={{ color: 'var(--text-primary)' }}>{companyName}</h1>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{companySubtitle}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             {lastUpdated ? (
-              <span className="hidden text-xs text-[#4a6b8a] md:block">Atualizado as {format(lastUpdated, 'HH:mm:ss')}</span>
+              <span className="hidden text-xs md:block" style={{ color: 'var(--text-muted)' }}>Atualizado as {format(lastUpdated, 'HH:mm:ss')}</span>
             ) : null}
             <button
               onClick={handleExport}
               disabled={loading || exporting}
-              className="flex items-center gap-1.5 rounded-lg border border-[#1a3355] bg-[#0d1f38] px-3 py-1.5 text-xs font-medium text-[#7ba3cc] transition-all disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all disabled:opacity-60"
+              style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)' }}
               title="Exportar tabelas"
             >
               <Download size={13} />
@@ -438,7 +440,8 @@ export default function ProductionDashboard({
             <button
               onClick={fetchData}
               disabled={loading}
-              className="flex items-center gap-1.5 rounded-lg border border-[#1a3355] bg-[#0d1f38] px-3 py-1.5 text-xs font-medium text-[#7ba3cc] transition-all"
+              className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all"
+              style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)' }}
               title="Atualizar dados"
             >
               <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />

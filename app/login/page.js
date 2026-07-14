@@ -54,7 +54,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative flex min-h-screen overflow-hidden text-white" style={{ background: '#0d0b09' }}>
+    <main className="portal-page relative flex min-h-screen overflow-hidden">
 
       {/* Ambient bottom glow */}
       <div
@@ -62,7 +62,7 @@ export default function LoginPage() {
         style={{
           width: '900px',
           height: '400px',
-          background: 'radial-gradient(ellipse, rgba(227,173,90,0.09) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse, var(--portal-gold-soft) 0%, transparent 70%)',
           filter: 'blur(40px)',
         }}
       />
@@ -72,7 +72,7 @@ export default function LoginPage() {
         className="pointer-events-none absolute inset-0"
         style={{
           backgroundImage:
-            'linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)',
+            'linear-gradient(var(--portal-grid) 1px, transparent 1px), linear-gradient(90deg, var(--portal-grid) 1px, transparent 1px)',
           backgroundSize: '56px 56px',
         }}
       />
@@ -88,33 +88,31 @@ export default function LoginPage() {
             width={160}
             height={90}
             className="h-10 w-auto"
-            style={{ opacity: 0.85 }}
+            style={{ opacity: 'var(--portal-logo-opacity)' }}
           />
         </div>
 
         {/* Login card */}
         <div
-          className="w-full max-w-[400px] rounded-2xl p-7"
+          className="portal-panel w-full max-w-[400px] rounded-lg p-7"
           style={{
-            background: 'linear-gradient(150deg, #1b1814 0%, #131109 100%)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 40px 100px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.04)',
+            background: 'var(--portal-surface)',
           }}
         >
           {/* Card header */}
-          <div className="mb-6 pb-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <div className="mb-6 border-b pb-5 portal-divider">
             <span
               className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest"
               style={{
-                background: 'rgba(227,173,90,0.1)',
-                color: '#c9924a',
-                border: '1px solid rgba(227,173,90,0.18)',
+                background: 'var(--portal-gold-soft)',
+                color: 'var(--accent-bright)',
+                border: '1px solid var(--portal-gold-border)',
               }}
             >
               GS Gestão
             </span>
-            <h1 className="mt-3 text-xl font-bold tracking-tight text-white">Entrar no portal</h1>
-            <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
+            <h1 className="portal-title mt-3 text-xl font-bold tracking-tight">Entrar no portal</h1>
+            <p className="portal-muted mt-1 text-sm">
               Use as credenciais fornecidas para o seu acesso.
             </p>
           </div>
@@ -161,7 +159,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="mt-6 text-xs" style={{ color: '#302b25' }}>
+        <p className="portal-muted mt-6 text-xs">
           Acesso restrito — use as credenciais fornecidas pela GS Gestão.
         </p>
       </div>

@@ -279,8 +279,8 @@ export default function CompanyHomePage({ slug }) {
 
   if (!state || !session || !company) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#171416] text-white">
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] px-6 py-5 text-sm text-[#d8d2c8]">
+      <main className="portal-page flex min-h-screen items-center justify-center">
+        <div className="portal-panel portal-copy rounded-lg px-6 py-5 text-sm">
           Carregando portal da empresa...
         </div>
       </main>
@@ -312,15 +312,12 @@ export default function CompanyHomePage({ slug }) {
     canAccessPortalPage(company, userPermissions, PORTAL_PAGE_KEYS.EXTERNAL_DASHBOARD)
 
   return (
-    <main
-      className="min-h-screen text-white"
-      style={{ background: 'radial-gradient(ellipse 120% 35% at 50% 0%, rgba(227,173,90,0.04) 0%, transparent 60%), #0f0d0b' }}
-    >
+    <main className="portal-page">
       <div className="mx-auto max-w-[1380px] px-5 py-5">
 
         {/* Top bar — minimal */}
         <header className="mb-12 flex items-center justify-between gap-4">
-          <Image src="/gs-logo.png" alt="GS Consultoria & Gestao" width={180} height={100} className="h-8 w-auto" style={{ opacity: 0.7 }} />
+          <Image src="/gs-logo.png" alt="GS Consultoria & Gestao" width={180} height={100} className="h-8 w-auto" style={{ opacity: 'var(--portal-logo-opacity)' }} />
           <div className="flex items-center gap-2">
             <Link href="/" className="portal-ghost-button">
               <ArrowLeft size={14} />
@@ -343,14 +340,14 @@ export default function CompanyHomePage({ slug }) {
         <section className="mb-10">
           <p
             className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.22em]"
-            style={{ color: '#c9924a' }}
+            style={{ color: 'var(--accent-bright)' }}
           >
             Portal da empresa
           </p>
-          <h1 className="text-4xl font-bold tracking-tight text-white lg:text-5xl">{company.name}</h1>
+          <h1 className="portal-title text-4xl font-bold tracking-tight lg:text-5xl">{company.name}</h1>
           <div
             className="mt-4 h-px w-12"
-            style={{ background: 'linear-gradient(90deg, rgba(227,173,90,0.6), transparent)' }}
+            style={{ background: 'linear-gradient(90deg, var(--accent), transparent)' }}
           />
         </section>
 
@@ -361,30 +358,28 @@ export default function CompanyHomePage({ slug }) {
               {canUseExternalDashboard ? (
                 <Link
                   href={`/empresa/${company.slug}/externo`}
-                  className="group relative overflow-hidden rounded-2xl p-6 transition-all duration-200 hover:scale-[1.01]"
+                  className="portal-card group relative overflow-hidden rounded-lg p-6 transition-all duration-200 hover:scale-[1.01]"
                   style={{
-                    background: '#181410',
-                    border: '1px solid rgba(255,255,255,0.055)',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                    background: 'var(--portal-surface)',
                   }}
                 >
                   <div
                     className="absolute inset-x-0 top-0 h-px"
-                    style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(227,173,90,0.45) 50%, transparent 100%)' }}
+                    style={{ background: 'linear-gradient(90deg, transparent 0%, var(--portal-gold-border) 50%, transparent 100%)' }}
                   />
                   <div
                     className="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-xl"
-                    style={{ background: 'rgba(227,173,90,0.09)', color: '#d4984d' }}
+                    style={{ background: 'var(--portal-gold-soft)', color: 'var(--accent-bright)' }}
                   >
                     <SquareArrowOutUpRight size={18} />
                   </div>
-                  <h3 className="text-base font-semibold text-white">Dashboard externo</h3>
-                  <p className="mt-2 text-sm leading-6" style={{ color: '#6b6358' }}>
+                  <h3 className="portal-title text-base font-semibold">Dashboard externo</h3>
+                  <p className="portal-copy mt-2 text-sm leading-6">
                     Acesso ao dashboard externo encapsulado dentro do portal desta empresa.
                   </p>
                   <div
                     className="mt-5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                    style={{ color: '#c9924a' }}
+                    style={{ color: 'var(--accent-bright)' }}
                   >
                     Abrir ferramenta
                     <ArrowLeft size={10} className="rotate-180" />
@@ -398,28 +393,26 @@ export default function CompanyHomePage({ slug }) {
                   <Link
                     key={tool.key}
                     href={tool.href(company.slug)}
-                    className="group relative overflow-hidden rounded-2xl p-6 transition-all duration-200 hover:scale-[1.01]"
+                    className="portal-card group relative overflow-hidden rounded-lg p-6 transition-all duration-200 hover:scale-[1.01]"
                     style={{
-                      background: '#181410',
-                      border: '1px solid rgba(255,255,255,0.055)',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                      background: 'var(--portal-surface)',
                     }}
                   >
                     <div
                       className="absolute inset-x-0 top-0 h-px"
-                      style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(227,173,90,0.45) 50%, transparent 100%)' }}
+                      style={{ background: 'linear-gradient(90deg, transparent 0%, var(--portal-gold-border) 50%, transparent 100%)' }}
                     />
                     <div
                       className="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-xl"
-                      style={{ background: 'rgba(227,173,90,0.09)', color: '#d4984d' }}
+                      style={{ background: 'var(--portal-gold-soft)', color: 'var(--accent-bright)' }}
                     >
                       <Icon size={18} />
                     </div>
-                    <h3 className="text-base font-semibold text-white">{tool.title}</h3>
-                    <p className="mt-2 text-sm leading-6" style={{ color: '#6b6358' }}>{tool.description}</p>
+                    <h3 className="portal-title text-base font-semibold">{tool.title}</h3>
+                    <p className="portal-copy mt-2 text-sm leading-6">{tool.description}</p>
                     <div
                       className="mt-5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                      style={{ color: '#c9924a' }}
+                      style={{ color: 'var(--accent-bright)' }}
                     >
                       Abrir ferramenta
                       <ArrowLeft size={10} className="rotate-180" />
@@ -430,11 +423,10 @@ export default function CompanyHomePage({ slug }) {
             </>
           ) : (
             <div
-              className="rounded-2xl p-6"
-              style={{ background: '#181410', border: '1px dashed rgba(255,255,255,0.08)' }}
+              className="portal-card rounded-lg border-dashed p-6"
             >
               <h3 className="text-base font-semibold">Sem ferramentas liberadas</h3>
-              <p className="mt-2 text-sm leading-6" style={{ color: '#6b6358' }}>
+              <p className="portal-copy mt-2 text-sm leading-6">
                 A administração da GS ainda não liberou módulos para este tenant.
               </p>
             </div>
@@ -450,35 +442,33 @@ export default function CompanyHomePage({ slug }) {
         onClick={() => setIsFeedbackPopupOpen(true)}
         className="fixed bottom-6 right-6 z-30 inline-flex h-11 w-11 items-center justify-center rounded-full transition-all duration-200"
         style={{
-          background: '#1a1612',
-          border: '1px solid rgba(227,173,90,0.25)',
-          color: '#c9924a',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+          background: 'var(--portal-surface)',
+          border: '1px solid var(--portal-gold-border)',
+          color: 'var(--accent-bright)',
+          boxShadow: 'var(--portal-shadow)',
         }}
       >
         <MessageSquareText size={17} />
       </button>
 
       {isFeedbackPopupOpen ? (
-        <div className="fixed inset-0 z-40 flex items-end justify-end bg-black/60 p-4 sm:items-center sm:justify-center">
+        <div className="portal-modal-backdrop fixed inset-0 z-40 flex items-end justify-end p-4 sm:items-center sm:justify-center">
           <div
-            className="flex max-h-[calc(100vh-2rem)] w-full max-w-[860px] flex-col overflow-hidden rounded-2xl p-5"
+            className="portal-panel flex max-h-[calc(100vh-2rem)] w-full max-w-[860px] flex-col overflow-hidden rounded-lg p-5"
             style={{
-              background: 'linear-gradient(150deg, #1a1714 0%, #121009 100%)',
-              border: '1px solid rgba(255,255,255,0.06)',
-              boxShadow: '0 40px 100px rgba(0,0,0,0.6)',
+              background: 'var(--portal-surface)',
             }}
           >
             <div className="mb-4 flex items-start justify-between gap-4 shrink-0">
               <div className="flex items-center gap-3">
                 <div
                   className="flex h-9 w-9 items-center justify-center rounded-xl"
-                  style={{ background: 'rgba(227,173,90,0.09)', color: '#d4984d' }}
+                  style={{ background: 'var(--portal-gold-soft)', color: 'var(--accent-bright)' }}
                 >
                   <MessageSquareText size={16} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-white">Solicitar melhoria</h2>
+                  <h2 className="portal-title text-sm font-semibold">Solicitar melhoria</h2>
                   <p className="text-xs" style={{ color: '#5c554e' }}>Envie sugestões ou necessidades para a equipe da GS.</p>
                 </div>
               </div>
@@ -517,7 +507,7 @@ export default function CompanyHomePage({ slug }) {
                   {isPastingFromClipboard ? 'Colando...' : 'Colar da área de transferência'}
                 </button>
                 {feedbackFiles.length > 0 ? (
-                  <div className="flex flex-wrap gap-2 text-xs text-[#b8b0a6]">
+                  <div className="portal-copy flex flex-wrap gap-2 text-xs">
                     {feedbackFiles.map(file => (
                       <span key={`${file.name}-${file.size}`} className="portal-pill">
                         {file.name}
@@ -527,7 +517,7 @@ export default function CompanyHomePage({ slug }) {
                 ) : null}
               </div>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-[#9f968a]">{feedbackMessage.length}/3000</p>
+                <p className="portal-muted text-xs">{feedbackMessage.length}/3000</p>
                 <button type="submit" className="portal-primary-button" disabled={isSendingFeedback}>
                   {isSendingFeedback ? 'Enviando...' : 'Enviar sugestão'}
                 </button>
@@ -537,7 +527,7 @@ export default function CompanyHomePage({ slug }) {
               ) : null}
             </form>
 
-            <div className="mt-5 rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.025)' }}>
+            <div className="mt-5 rounded-lg p-4" style={{ background: 'var(--portal-subtle)' }}>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: '#6b6358' }}>Histórico de sugestões</h3>
                 <button type="button" className="portal-ghost-button h-8 px-3 text-xs" onClick={loadFeedbackHistory} disabled={feedbackHistoryLoading}>
@@ -553,11 +543,11 @@ export default function CompanyHomePage({ slug }) {
                 <div className="max-h-[260px] space-y-2 overflow-y-auto pr-1">
                   {feedbackHistory.map(item => (
                     <article key={item.id} className={`rounded-xl p-3 ${getFeedbackCardClassName(item.status)}`}>
-                      <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-[#b8b0a6]">
+                      <div className="portal-copy mb-1 flex flex-wrap items-center gap-2 text-xs">
                         <span className="portal-pill">{getFeedbackStatusLabel(item.status)}</span>
                         <span>{formatDateTime(item.createdAt)}</span>
                       </div>
-                      <p className="whitespace-pre-wrap text-sm leading-6 text-[#e8e1d8]">{item.message}</p>
+                      <p className="portal-title whitespace-pre-wrap text-sm leading-6">{item.message}</p>
                       {Array.isArray(item.attachments) && item.attachments.length > 0 ? (
                         <div className="mt-3 flex flex-wrap gap-2">
                           {item.attachments.map((attachment, index) => {
