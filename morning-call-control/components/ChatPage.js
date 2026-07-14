@@ -501,7 +501,12 @@ export default function ChatPage({
           />
         </div>
 
-        <div className="chatConversationList">
+        <div
+          className="chatConversationList"
+          role="region"
+          aria-label="Lista de conversas"
+          tabIndex={0}
+        >
           {filtered.length ? (
             filtered.map(conversation => {
               const meta = getStatusMeta(conversation.lastExecution?.status);
@@ -590,7 +595,13 @@ export default function ChatPage({
             </header>
 
             <div className="chatTimelineWrap">
-              <div className="chatTimeline" ref={timelineRef}>
+              <div
+                className="chatTimeline"
+                ref={timelineRef}
+                role="log"
+                aria-label={`Mensagens de ${activeConversation.displayName}`}
+                tabIndex={0}
+              >
               {messages.length ? (
                 messages.map(message => (
                   <article

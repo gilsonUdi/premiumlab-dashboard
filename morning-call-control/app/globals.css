@@ -1492,7 +1492,10 @@ code {
 .chatListPanel {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
   border-right: 1px solid var(--line);
   background: rgba(16, 16, 22, 0.82);
 }
@@ -1577,8 +1580,11 @@ code {
   flex-direction: column;
   gap: 6px;
   min-height: 0;
-  overflow-y: auto;
+  overflow-x: hidden;
+  overflow-y: scroll;
   padding: 0 10px 12px;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
 }
 
 .chatConversation {
@@ -1887,8 +1893,10 @@ code {
 }
 
 .chatTimelineWrap {
+  display: flex;
   position: relative;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
   overflow: hidden;
 }
@@ -1898,12 +1906,45 @@ code {
   flex: 1;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
   height: 100%;
   min-height: 0;
-  overflow-y: auto;
+  overflow-x: hidden;
+  overflow-y: scroll;
   padding: 20px 20px 76px;
   scroll-behavior: smooth;
-  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+}
+
+.chatConversationList,
+.chatTimeline {
+  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.chatConversationList::-webkit-scrollbar,
+.chatTimeline::-webkit-scrollbar {
+  width: 9px;
+}
+
+.chatConversationList::-webkit-scrollbar-track,
+.chatTimeline::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chatConversationList::-webkit-scrollbar-thumb,
+.chatTimeline::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--line-strong);
+  background-clip: padding-box;
+}
+
+.chatConversationList::-webkit-scrollbar-thumb:hover,
+.chatTimeline::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-line);
+  background-clip: padding-box;
 }
 
 .chatLatestButton {
