@@ -42,8 +42,8 @@ export default function RastreabilidadePedido({ data, selectedOrder, onColumnCli
 
   return (
     <div className="card">
-      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #1a3355' }}>
-        <h2 className="text-sm font-semibold" style={{ color: '#e2e8f0' }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #1E3A66' }}>
+        <h2 className="text-sm font-semibold" style={{ color: '#EAF1FA' }}>
           Rastreabilidade do Pedido
         </h2>
         {selectedOrder ? <span className="filter-chip">Pedido #{selectedOrder}</span> : null}
@@ -52,12 +52,12 @@ export default function RastreabilidadePedido({ data, selectedOrder, onColumnCli
       <div className="overflow-auto" style={{ maxHeight: 420 }}>
         <table className="w-full text-xs">
           <thead className="sticky top-0 z-10">
-            <tr style={{ background: '#0d1f38' }}>
+            <tr style={{ background: '#0D1D38' }}>
               {cols.map(col => (
                 <th
                   key={col.key}
                   className="col-sortable px-4 py-3 text-left font-medium"
-                  style={{ color: sort.col === col.key ? '#3b9fd4' : '#7ba3cc', whiteSpace: 'nowrap' }}
+                  style={{ color: sort.col === col.key ? '#DAB975' : '#AEC3DF', whiteSpace: 'nowrap' }}
                   onClick={() => setSort(previous => ({ col: col.key, dir: previous.col === col.key && previous.dir === 'asc' ? 'desc' : 'asc' }))}
                 >
                   <span className="flex items-center gap-1">
@@ -71,7 +71,7 @@ export default function RastreabilidadePedido({ data, selectedOrder, onColumnCli
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, index) => (
-                <tr key={index} style={{ borderTop: '1px solid #0d1f38' }}>
+                <tr key={index} style={{ borderTop: '1px solid #0D1D38' }}>
                   {cols.map(col => (
                     <td key={col.key} className="px-4 py-3">
                       <div className="skeleton h-4 w-full" />
@@ -81,7 +81,7 @@ export default function RastreabilidadePedido({ data, selectedOrder, onColumnCli
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={cols.length} className="px-4 py-10 text-center" style={{ color: '#4a6b8a' }}>
+                <td colSpan={cols.length} className="px-4 py-10 text-center" style={{ color: '#7E97BC' }}>
                   {selectedOrder ? `Sem rastreamento para pedido #${selectedOrder}` : 'Clique em um pedido para ver a rastreabilidade'}
                 </td>
               </tr>
@@ -90,7 +90,7 @@ export default function RastreabilidadePedido({ data, selectedOrder, onColumnCli
                 <tr
                   key={`${row.pedcodigo || 'trace'}-${index}`}
                   className="table-row-hover"
-                  style={{ borderTop: '1px solid #0d1f38' }}
+                  style={{ borderTop: '1px solid #0D1D38' }}
                   onClick={() => row.pedcodigo && onColumnClick('pedcodigo', row.pedcodigo)}
                 >
                   <td className="px-4 py-2.5">
@@ -100,16 +100,16 @@ export default function RastreabilidadePedido({ data, selectedOrder, onColumnCli
                     <span
                       className="badge"
                       style={{
-                        background: row.celula === 'Saida' ? 'rgba(34,197,94,0.1)' : 'rgba(59,130,246,0.1)',
-                        color: row.celula === 'Saida' ? '#22c55e' : '#60a5fa',
-                        border: `1px solid ${row.celula === 'Saida' ? '#22c55e40' : '#60a5fa40'}`,
+                        background: row.celula === 'Saida' ? 'rgba(63, 207, 142,0.1)' : 'rgba(111, 175, 240,0.1)',
+                        color: row.celula === 'Saida' ? '#3FCF8E' : '#6FAFF0',
+                        border: `1px solid ${row.celula === 'Saida' ? '#3FCF8E40' : '#6FAFF040'}`,
                       }}
                     >
                       {row.celula}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 font-mono" style={{ color: '#7ba3cc' }}>{fmtDt(row.dataHora)}</td>
-                  <td className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>{row.usuario || '-'}</td>
+                  <td className="px-4 py-2.5 font-mono" style={{ color: '#AEC3DF' }}>{fmtDt(row.dataHora)}</td>
+                  <td className="px-4 py-2.5" style={{ color: '#EAF1FA' }}>{row.usuario || '-'}</td>
                 </tr>
               ))
             )}

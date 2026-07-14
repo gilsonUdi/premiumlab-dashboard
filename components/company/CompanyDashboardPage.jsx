@@ -18,11 +18,11 @@ function PlaceholderTool({ company }) {
   return (
     <main className="portal-page flex min-h-screen items-center justify-center px-6">
       <div className="portal-panel max-w-[720px] rounded-lg p-8">
-        <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">
+        <p className="text-sm uppercase tracking-[0.22em] text-[#C9A45C]">
           {usesExternalDashboard ? 'Dashboard externo configurado' : 'Ferramenta em configuração'}
         </p>
         <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
-        <p className="mt-4 text-base leading-8 text-[#c6c0b7]">
+        <p className="mt-4 text-base leading-8 text-[#AEC3DF]">
           {usesExternalDashboard
             ? 'Esta empresa usa um dashboard externo. Volte para o portal da empresa e abra o botao de Dashboard para seguir pelo link configurado.'
             : 'O tenant já está pronto, mas ainda falta cadastrar a service role do Supabase para este banco. Depois disso, o dashboard passa a operar normalmente para a empresa.'}
@@ -34,16 +34,16 @@ function PlaceholderTool({ company }) {
 
 function EmbeddedToolFrame({ company, src, backHref }) {
   return (
-    <main className="relative min-h-screen bg-[#141216] text-white">
+    <main className="relative min-h-screen bg-[#0D1D38] text-white">
       <Link
         href={backHref}
         aria-label="Voltar ao portal"
-        className="absolute left-4 top-4 z-20 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#1f1b20]/88 text-2xl text-white shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-[#2a242b] sm:left-6 sm:top-6"
+        className="absolute left-4 top-4 z-20 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#112345]/88 text-2xl text-white shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-[#16294F] sm:left-6 sm:top-6"
       >
         <span aria-hidden="true">{'\u2190'}</span>
       </Link>
 
-      <section className="h-screen w-full overflow-hidden bg-[#0f0d11]">
+      <section className="h-screen w-full overflow-hidden bg-[#0A162B]">
         <iframe
           title={`Painel incorporado de ${company.name}`}
           src={src}
@@ -130,9 +130,9 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
     return (
       <main className="portal-page flex min-h-screen items-center justify-center px-6">
         <div className="portal-panel max-w-[720px] rounded-lg p-8">
-          <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Acesso restrito</p>
+          <p className="text-sm uppercase tracking-[0.22em] text-[#C9A45C]">Acesso restrito</p>
           <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
-          <p className="mt-4 text-base leading-8 text-[#c6c0b7]">
+          <p className="mt-4 text-base leading-8 text-[#AEC3DF]">
             Este usuário não possui permissão para acessar {isExternalDashboard ? 'o dashboard externo' : isEmbeddedPowerBi || isLegacyPowerBi ? 'o Power BI' : mode === 'pps' ? 'o PPS' : 'a Análise de Dados'} desta empresa.
           </p>
         </div>
@@ -160,9 +160,9 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
     return (
       <main className="portal-page flex min-h-screen items-center justify-center px-6">
         <div className="portal-panel max-w-[720px] rounded-lg p-8">
-          <p className="text-sm uppercase tracking-[0.22em] text-[#bca27a]">Modelo não encontrado</p>
+          <p className="text-sm uppercase tracking-[0.22em] text-[#C9A45C]">Modelo não encontrado</p>
           <h1 className="mt-4 text-4xl font-semibold">{company.name}</h1>
-          <p className="mt-4 text-base leading-8 text-[#c6c0b7]">
+          <p className="mt-4 text-base leading-8 text-[#AEC3DF]">
             O modelo de Power BI solicitado não está disponível para esta empresa. Volte para a lista de modelos e escolha um relatório válido.
           </p>
           <Link href={`/empresa/${company.slug}/power-bi`} className="portal-ghost-button mt-6 inline-flex">

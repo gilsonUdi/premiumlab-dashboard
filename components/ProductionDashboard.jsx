@@ -415,7 +415,7 @@ export default function ProductionDashboard({
               </Link>
             ) : null}
             <div className="flex h-10 w-10 items-center justify-center rounded-lg" style={{ background: 'var(--accent)' }}>
-              <Building2 size={18} color="#101a2f" />
+              <Building2 size={18} color="#0A162B" />
             </div>
             <div>
               <h1 className="text-sm font-bold tracking-wide" style={{ color: 'var(--text-primary)' }}>{companyName}</h1>
@@ -464,7 +464,7 @@ export default function ProductionDashboard({
 
         {activeChips.length > 0 ? (
           <div className="mb-4 flex flex-wrap items-center gap-2">
-            <span className="text-xs text-[#4a6b8a]">Filtros ativos:</span>
+            <span className="text-xs text-[#7E97BC]">Filtros ativos:</span>
             {activeChips.map(chip => (
               <button key={chip.key} className="filter-chip" onClick={chip.onRemove}>
                 {chip.label}
@@ -556,7 +556,7 @@ export default function ProductionDashboard({
         )}
 
         {!isPpsMode ? (
-          <div className="py-4 text-center text-[11px] text-[#1a3355]">
+          <div className="py-4 text-center text-[11px] text-[#1E3A66]">
             {companyName} © {new Date().getFullYear()} - {companySubtitle}
           </div>
         ) : null}

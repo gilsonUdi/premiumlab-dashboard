@@ -4,36 +4,41 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #101a2f;
-  --bg-card: #16233d;
-  --bg-card-hover: #1a2947;
-  --bg-header: #121f37;
-  --border: #2a3a58;
-  --border-hover: #465977;
-  --text-primary: #f6f7fa;
-  --text-secondary: #b7c1d1;
-  --text-muted: #8290a6;
-  --accent: #c49a65;
-  --accent-bright: #dfb77e;
-  --success: #059669;
-  --warning: #d97706;
-  --danger: #dc2626;
-  --purple: #7c3aed;
-  --portal-bg: #101a2f;
-  --portal-bg-soft: #121f37;
-  --portal-sidebar: #0d172a;
-  --portal-surface: #16233d;
-  --portal-surface-raised: #1a2947;
-  --portal-subtle: rgba(255, 255, 255, 0.045);
-  --portal-subtle-hover: rgba(255, 255, 255, 0.075);
-  --portal-border: rgba(255, 255, 255, 0.1);
-  --portal-border-strong: rgba(255, 255, 255, 0.17);
-  --portal-gold-soft: rgba(196, 154, 101, 0.12);
-  --portal-gold-border: rgba(196, 154, 101, 0.38);
-  --portal-overlay: rgba(3, 9, 20, 0.74);
-  --portal-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
-  --portal-shadow-strong: 0 35px 100px rgba(0, 0, 0, 0.5);
-  --portal-grid: rgba(255, 255, 255, 0.03);
+  /* Navy Institucional + Ouro Sóbrio — escala única, hue 215-222° */
+  --bg-primary: #0A162B;
+  --bg-card: #112345;
+  --bg-card-hover: #1B3260;
+  --bg-header: #0D1D38;
+  --border: #28497E;
+  --border-hover: #3D5E93;
+  --border-focus: #5B8DD9;
+  --divider: #1E3A66;
+  --text-primary: #EAF1FA;
+  --text-secondary: #AEC3DF;
+  --text-muted: #7E97BC;
+  --text-disabled: #54688C;
+  --accent: #C9A45C;
+  --accent-bright: #DAB975;
+  --success: #3FCF8E;
+  --warning: #F2C14E;
+  --danger: #F47C74;
+  --info: #6FAFF0;
+  --purple: #A78BFA;
+  --portal-bg: #0A162B;
+  --portal-bg-soft: #0D1D38;
+  --portal-sidebar: #0D1D38;
+  --portal-surface: #112345;
+  --portal-surface-raised: #16294F;
+  --portal-subtle: rgba(174, 195, 223, 0.06);
+  --portal-subtle-hover: rgba(174, 195, 223, 0.10);
+  --portal-border: #24416F;
+  --portal-border-strong: #3D5E93;
+  --portal-gold-soft: rgba(201, 164, 92, 0.12);
+  --portal-gold-border: rgba(201, 164, 92, 0.45);
+  --portal-overlay: rgba(4, 11, 24, 0.65);
+  --portal-shadow: 0 8px 24px rgba(3, 8, 20, 0.40);
+  --portal-shadow-strong: 0 16px 48px rgba(3, 8, 20, 0.55);
+  --portal-grid: rgba(174, 195, 223, 0.035);
   --portal-logo-opacity: 0.82;
   color-scheme: dark;
 }
@@ -94,8 +99,8 @@ body {
   align-items: center;
   gap: 5px;
   padding: 3px 11px;
-  background: rgba(29, 111, 164, 0.1);
-  border: 1px solid rgba(59, 159, 212, 0.3);
+  background: var(--portal-gold-soft);
+  border: 1px solid rgba(201, 164, 92, 0.35);
   border-radius: 99px;
   font-size: 11.5px;
   font-weight: 500;
@@ -105,9 +110,9 @@ body {
   letter-spacing: 0.01em;
 }
 .filter-chip:hover {
-  background: rgba(29, 111, 164, 0.18);
-  border-color: rgba(59, 159, 212, 0.5);
-  box-shadow: 0 0 0 3px rgba(59, 159, 212, 0.08);
+  background: rgba(201, 164, 92, 0.18);
+  border-color: var(--portal-gold-border);
+  box-shadow: 0 0 0 3px rgba(201, 164, 92, 0.08);
 }
 
 /* ── Status badges ───────────────────────────────────────── */
@@ -123,37 +128,37 @@ body {
   letter-spacing: 0.02em;
 }
 .badge-success {
-  background: rgba(5, 150, 105, 0.12);
-  color: #34d399;
-  border: 1px solid rgba(52, 211, 153, 0.25);
-  box-shadow: inset 0 1px 0 rgba(52, 211, 153, 0.07);
+  background: rgba(63, 207, 142, 0.12);
+  color: var(--success);
+  border: 1px solid rgba(63, 207, 142, 0.25);
+  box-shadow: inset 0 1px 0 rgba(63, 207, 142, 0.07);
 }
 .badge-warning {
-  background: rgba(217, 119, 6, 0.12);
-  color: #fbbf24;
-  border: 1px solid rgba(251, 191, 36, 0.25);
-  box-shadow: inset 0 1px 0 rgba(251, 191, 36, 0.07);
+  background: rgba(242, 193, 78, 0.12);
+  color: var(--warning);
+  border: 1px solid rgba(242, 193, 78, 0.25);
+  box-shadow: inset 0 1px 0 rgba(242, 193, 78, 0.07);
 }
 .badge-danger {
-  background: rgba(220, 38, 38, 0.12);
-  color: #f87171;
-  border: 1px solid rgba(248, 113, 113, 0.25);
-  box-shadow: inset 0 1px 0 rgba(248, 113, 113, 0.07);
+  background: rgba(244, 124, 116, 0.12);
+  color: var(--danger);
+  border: 1px solid rgba(244, 124, 116, 0.25);
+  box-shadow: inset 0 1px 0 rgba(244, 124, 116, 0.07);
 }
 .badge-blue {
-  background: rgba(29, 111, 164, 0.12);
-  color: #60a5fa;
-  border: 1px solid rgba(96, 165, 250, 0.25);
-  box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.07);
+  background: rgba(111, 175, 240, 0.12);
+  color: var(--info);
+  border: 1px solid rgba(111, 175, 240, 0.28);
+  box-shadow: inset 0 1px 0 rgba(111, 175, 240, 0.07);
 }
 .badge-gray {
-  background: rgba(74, 107, 138, 0.12);
-  color: #94a3b8;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(126, 151, 188, 0.12);
+  color: var(--text-secondary);
+  border: 1px solid rgba(126, 151, 188, 0.25);
 }
 .badge-purple {
-  background: rgba(124, 58, 237, 0.12);
-  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.12);
+  color: var(--purple);
   border: 1px solid rgba(167, 139, 250, 0.25);
   box-shadow: inset 0 1px 0 rgba(167, 139, 250, 0.07);
 }
@@ -213,8 +218,8 @@ body {
   width: 100%;
 }
 .dashboard-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(29, 111, 164, 0.15);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(91, 141, 217, 0.20);
 }
 .dashboard-input option {
   background: var(--bg-card);
@@ -292,26 +297,26 @@ select.portal-input:disabled {
   height: 50px;
   border-radius: 999px;
   border: none;
-  background: #bd9563;
-  color: #101a2f;
+  background: var(--accent);
+  color: #0A162B;
   padding: 0 26px;
   font-size: 14.5px;
   font-weight: 700;
   cursor: pointer;
   letter-spacing: 0.01em;
-  box-shadow: 0 4px 18px rgba(180, 138, 85, 0.24);
+  box-shadow: 0 4px 18px rgba(201, 164, 92, 0.24);
   transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 
 .portal-primary-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 7px 24px rgba(180, 138, 85, 0.34);
+  box-shadow: 0 7px 24px rgba(201, 164, 92, 0.34);
   filter: brightness(1.06);
 }
 
 .portal-primary-button:active {
   transform: translateY(0);
-  box-shadow: 0 2px 10px rgba(180, 138, 85, 0.2);
+  box-shadow: 0 2px 10px rgba(201, 164, 92, 0.2);
 }
 
 .portal-primary-button:disabled {

@@ -145,7 +145,7 @@ export default function LoginPage() {
             {error ? (
               <div
                 className="rounded-xl px-4 py-3 text-sm text-red-300"
-                style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.18)' }}
+                style={{ background: 'rgba(244, 124, 116,0.08)', border: '1px solid rgba(244, 124, 116,0.18)' }}
               >
                 {error}
               </div>

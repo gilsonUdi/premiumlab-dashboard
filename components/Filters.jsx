@@ -35,23 +35,23 @@ function MultiSelectField({ label, value = [], options = [], onChange, placehold
 
   return (
     <div className="flex flex-col gap-1" ref={containerRef}>
-      <label className="text-xs font-medium" style={{ color: '#7ba3cc' }}>{label}</label>
+      <label className="text-xs font-medium" style={{ color: '#AEC3DF' }}>{label}</label>
       <div className="relative">
         <button
           type="button"
           className="dashboard-input flex w-full items-center justify-between gap-2 text-left"
           onClick={() => setOpen(previous => !previous)}
         >
-          <span className="truncate" style={{ color: selectedLabels.length > 0 ? '#e2e8f0' : '#7ba3cc' }}>
+          <span className="truncate" style={{ color: selectedLabels.length > 0 ? '#EAF1FA' : '#AEC3DF' }}>
             {selectedLabels.length > 0 ? selectedLabels.join(', ') : placeholder}
           </span>
-          <ChevronDown size={14} style={{ color: '#4a6b8a' }} />
+          <ChevronDown size={14} style={{ color: '#7E97BC' }} />
         </button>
 
         {open ? (
           <div
-            className="absolute left-0 top-[calc(100%+6px)] z-30 w-full rounded-lg border bg-[#081423] p-2 shadow-2xl"
-            style={{ borderColor: '#1a3355' }}
+            className="absolute left-0 top-[calc(100%+6px)] z-30 w-full rounded-lg border bg-[#16294F] p-2 shadow-2xl"
+            style={{ borderColor: '#1E3A66' }}
           >
             <div className="max-h-56 overflow-auto">
               {options.map(option => {
@@ -62,18 +62,18 @@ function MultiSelectField({ label, value = [], options = [], onChange, placehold
                   <button
                     key={optionValue}
                     type="button"
-                    className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs transition hover:bg-[#0d1f38]"
+                    className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs transition hover:bg-[#0D1D38]"
                     onClick={() => toggleValue(optionValue)}
                   >
-                    <span className="pr-3" style={{ color: '#e2e8f0' }}>{option.label}</span>
+                    <span className="pr-3" style={{ color: '#EAF1FA' }}>{option.label}</span>
                     <span
                       className="flex h-4 w-4 items-center justify-center rounded border"
                       style={{
-                        borderColor: checked ? '#3b9fd4' : '#2a4f7a',
-                        background: checked ? '#1d6fa4' : 'transparent',
+                        borderColor: checked ? '#DAB975' : '#28497E',
+                        background: checked ? '#C9A45C' : 'transparent',
                       }}
                     >
-                      {checked ? <Check size={11} color="#fff" /> : null}
+                      {checked ? <Check size={11} color="#0A162B" /> : null}
                     </span>
                   </button>
                 )
@@ -81,9 +81,9 @@ function MultiSelectField({ label, value = [], options = [], onChange, placehold
             </div>
 
             {selectedLabels.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-1 border-t border-[#1a3355] pt-2">
+              <div className="mt-2 flex flex-wrap gap-1 border-t border-[#1E3A66] pt-2">
                 {selectedLabels.map(labelText => (
-                  <span key={labelText} className="rounded-full border border-[#2a4f7a] bg-[#0d1f38] px-2 py-0.5 text-[11px] text-[#7dd3fc]">
+                  <span key={labelText} className="rounded-full border border-[#28497E] bg-[#0D1D38] px-2 py-0.5 text-[11px] text-[#6FAFF0]">
                     {labelText}
                   </span>
                 ))}
@@ -135,19 +135,19 @@ export default function Filters({
     <div className="card card-filters relative z-20 mb-4">
       <button
         className="flex w-full items-center justify-between px-4 py-3 text-left"
-        style={{ borderBottom: open ? '1px solid #1a3355' : 'none' }}
+        style={{ borderBottom: open ? '1px solid #1E3A66' : 'none' }}
         onClick={() => setOpen(previous => !previous)}
       >
-        <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#e2e8f0' }}>
-          <Search size={15} style={{ color: '#3b9fd4' }} />
+        <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAF1FA' }}>
+          <Search size={15} style={{ color: '#DAB975' }} />
           Filtros
           {activeCount > 0 ? (
-            <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: '#1d6fa4', color: '#e2e8f0' }}>
+            <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: '#C9A45C', color: '#0A162B' }}>
               {activeCount}
             </span>
           ) : null}
         </span>
-        <span style={{ color: '#4a6b8a' }}>
+        <span style={{ color: '#7E97BC' }}>
           {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </span>
       </button>
@@ -158,7 +158,7 @@ export default function Filters({
             {showDateFilters ? (
               <>
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium" style={{ color: '#7ba3cc' }}>Data Inicio</label>
+                  <label className="text-xs font-medium" style={{ color: '#AEC3DF' }}>Data Inicio</label>
                   <input
                     type="date"
                     className="dashboard-input"
@@ -168,7 +168,7 @@ export default function Filters({
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium" style={{ color: '#7ba3cc' }}>Data Fim</label>
+                  <label className="text-xs font-medium" style={{ color: '#AEC3DF' }}>Data Fim</label>
                   <input
                     type="date"
                     className="dashboard-input"
@@ -188,7 +188,7 @@ export default function Filters({
             />
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium" style={{ color: '#7ba3cc' }}>Cod. Cliente</label>
+              <label className="text-xs font-medium" style={{ color: '#AEC3DF' }}>Cod. Cliente</label>
               <input
                 type="text"
                 placeholder="Codigos separados por virgula"
@@ -207,7 +207,7 @@ export default function Filters({
             />
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium" style={{ color: '#7ba3cc' }}>ID Pedido</label>
+              <label className="text-xs font-medium" style={{ color: '#AEC3DF' }}>ID Pedido</label>
               <input
                 type="text"
                 placeholder="IDs separados por virgula"
@@ -245,10 +245,10 @@ export default function Filters({
           </div>
 
           {activeCount > 0 ? (
-            <div className="mt-3 flex items-center gap-2 pt-3" style={{ borderTop: '1px solid #1a3355' }}>
+            <div className="mt-3 flex items-center gap-2 pt-3" style={{ borderTop: '1px solid #1E3A66' }}>
               <button
                 className="flex items-center gap-1 rounded px-3 py-1.5 text-xs"
-                style={{ background: '#1a3355', color: '#7ba3cc', border: '1px solid #2a4f7a' }}
+                style={{ background: '#1E3A66', color: '#AEC3DF', border: '1px solid #28497E' }}
                 onClick={onReset}
               >
                 <RotateCcw size={12} />

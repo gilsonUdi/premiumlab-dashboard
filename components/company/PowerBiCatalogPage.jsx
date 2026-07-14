@@ -115,7 +115,7 @@ export default function PowerBiCatalogPage({ slug }) {
       <main className="portal-page flex min-h-screen items-center justify-center">
         <div
           className="rounded-2xl px-6 py-4 text-sm"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#6b6358' }}
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#7E97BC' }}
         >
           Carregando modelos do Power BI...
         </div>
@@ -132,7 +132,7 @@ export default function PowerBiCatalogPage({ slug }) {
         >
           <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: 'var(--accent-bright)' }}>Acesso restrito</p>
           <h1 className="mt-3 text-3xl font-bold text-white">{company.name}</h1>
-          <p className="mt-3 text-sm leading-7" style={{ color: '#5c554e' }}>
+          <p className="mt-3 text-sm leading-7" style={{ color: '#AEC3DF' }}>
             Este usuário não possui permissão para acessar os modelos de Power BI desta empresa.
           </p>
         </div>
@@ -150,7 +150,7 @@ export default function PowerBiCatalogPage({ slug }) {
             <Link
               href={`/empresa/${company.slug}`}
               className="inline-flex h-9 w-9 items-center justify-center rounded-xl transition"
-              style={{ background: 'rgba(255,255,255,0.05)', color: '#6b6358' }}
+              style={{ background: 'rgba(255,255,255,0.05)', color: '#7E97BC' }}
             >
               <ArrowLeft size={16} />
             </Link>
@@ -171,7 +171,7 @@ export default function PowerBiCatalogPage({ slug }) {
         ) : error ? (
           <div
             className="rounded-2xl px-6 py-10 text-sm"
-            style={{ background: 'rgba(220,38,38,0.07)', border: '1px solid rgba(220,38,38,0.15)', color: '#f0c3c3' }}
+            style={{ background: 'rgba(244, 124, 116,0.07)', border: '1px solid rgba(244, 124, 116,0.15)', color: '#F8B4AE' }}
           >
             {error}
           </div>
@@ -194,7 +194,7 @@ export default function PowerBiCatalogPage({ slug }) {
               >
                 <div
                   className="absolute inset-x-0 top-0 h-px"
-                  style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(227,173,90,0.45) 50%, transparent 100%)' }}
+                  style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(201, 164, 92,0.45) 50%, transparent 100%)' }}
                 />
 
                 <div
@@ -213,15 +213,15 @@ export default function PowerBiCatalogPage({ slug }) {
                   className="mt-4 rounded-xl p-3 text-sm"
                   style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}
                 >
-                  <div className="flex items-center gap-2" style={{ color: '#8a8278' }}>
-                    <Clock3 size={13} style={{ color: '#c9924a' }} />
+                  <div className="flex items-center gap-2" style={{ color: '#7E97BC' }}>
+                    <Clock3 size={13} style={{ color: '#C9A45C' }} />
                     <span className="text-xs">Última atualização</span>
                   </div>
-                  <p className="mt-1.5 text-xs" style={{ color: '#6b6358' }}>{formatRefreshDate(report.lastRefreshAt)}</p>
+                  <p className="mt-1.5 text-xs" style={{ color: '#7E97BC' }}>{formatRefreshDate(report.lastRefreshAt)}</p>
                   {report.lastRefreshStatus ? (
                     <div
                       className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em]"
-                      style={{ background: 'rgba(227,173,90,0.08)', color: '#c9924a' }}
+                      style={{ background: 'rgba(201, 164, 92,0.08)', color: '#C9A45C' }}
                     >
                       <RefreshCw size={10} />
                       {report.lastRefreshStatus}

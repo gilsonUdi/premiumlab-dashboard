@@ -30,33 +30,33 @@ function getOperationalPriority(row) {
 const ROW_STYLES = {
   danger: {
     background: 'rgba(127, 29, 29, 0.34)',
-    boxShadow: 'inset 4px 0 0 #ef4444',
+    boxShadow: 'inset 4px 0 0 #F47C74',
   },
   warning: {
     background: 'rgba(120, 53, 15, 0.28)',
-    boxShadow: 'inset 4px 0 0 #f59e0b',
+    boxShadow: 'inset 4px 0 0 #F2C14E',
   },
   success: {
     background: 'rgba(20, 83, 45, 0.22)',
-    boxShadow: 'inset 4px 0 0 #22c55e',
+    boxShadow: 'inset 4px 0 0 #3FCF8E',
   },
 }
 
 const ROUTE_STEP_STYLES = {
   completed: {
-    background: 'rgba(34, 197, 94, 0.22)',
-    border: '1px solid rgba(34, 197, 94, 0.65)',
-    color: '#dcfce7',
+    background: 'rgba(63, 207, 142, 0.22)',
+    border: '1px solid rgba(63, 207, 142, 0.65)',
+    color: '#7FE0B4',
   },
   delayed: {
-    background: 'rgba(239, 68, 68, 0.22)',
-    border: '1px solid rgba(239, 68, 68, 0.65)',
-    color: '#fee2e2',
+    background: 'rgba(244, 124, 116, 0.22)',
+    border: '1px solid rgba(244, 124, 116, 0.65)',
+    color: '#F8B4AE',
   },
   pending: {
     background: 'rgba(248, 250, 252, 0.08)',
     border: '1px solid rgba(226, 232, 240, 0.18)',
-    color: '#e2e8f0',
+    color: '#EAF1FA',
   },
 }
 
@@ -81,7 +81,7 @@ function fmtDelayDays(delayRank) {
 }
 
 function RouteSteps({ steps }) {
-  if (!Array.isArray(steps) || steps.length === 0) return <span style={{ color: '#4a6b8a' }}>-</span>
+  if (!Array.isArray(steps) || steps.length === 0) return <span style={{ color: '#7E97BC' }}>-</span>
 
   return (
     <div
@@ -194,11 +194,11 @@ export default function HistoricoPedidos({
 
   return (
     <div className={`card ${compact ? 'mb-0 h-full' : 'mb-4'}`}>
-      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #1a3355' }}>
-        <h2 className="text-sm font-semibold" style={{ color: '#e2e8f0' }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #1E3A66' }}>
+        <h2 className="text-sm font-semibold" style={{ color: '#EAF1FA' }}>
           Historico de Pedidos
           {data?.length != null ? (
-            <span className="ml-2 text-xs font-normal" style={{ color: '#4a6b8a' }}>({data.length} registros)</span>
+            <span className="ml-2 text-xs font-normal" style={{ color: '#7E97BC' }}>({data.length} registros)</span>
           ) : null}
         </h2>
         {selectedOrder ? (
@@ -211,13 +211,13 @@ export default function HistoricoPedidos({
       <div className="overflow-auto" style={{ maxHeight: tableHeight }}>
         <table className={`w-full ${largerText ? 'text-sm' : 'text-xs'}`}>
           <thead className="sticky top-0 z-10">
-            <tr style={{ background: '#0d1f38' }}>
+            <tr style={{ background: '#0D1D38' }}>
               {cols.map(col => (
                 <th
                   key={col.key}
                   className="col-sortable px-4 py-3 text-left font-medium"
                   style={{
-                    color: sort.col === col.key ? '#3b9fd4' : '#7ba3cc',
+                    color: sort.col === col.key ? '#DAB975' : '#AEC3DF',
                     whiteSpace: 'nowrap',
                     width:
                       col.key === 'emissao'
@@ -253,7 +253,7 @@ export default function HistoricoPedidos({
           <tbody>
             {loading ? (
               Array.from({ length: compact ? 10 : 6 }).map((_, index) => (
-                <tr key={index} style={{ borderTop: '1px solid #0d1f38' }}>
+                <tr key={index} style={{ borderTop: '1px solid #0D1D38' }}>
                   {cols.map(col => (
                     <td key={col.key} className="px-4 py-3">
                       <div className="skeleton h-4 w-full" style={{ maxWidth: 90 }} />
@@ -263,7 +263,7 @@ export default function HistoricoPedidos({
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={cols.length} className="px-4 py-10 text-center" style={{ color: '#4a6b8a' }}>
+                <td colSpan={cols.length} className="px-4 py-10 text-center" style={{ color: '#7E97BC' }}>
                   Nenhum pedido encontrado
                 </td>
               </tr>
@@ -273,24 +273,24 @@ export default function HistoricoPedidos({
                   key={`${row.pedidoId}-${index}`}
                   className={selectedOrder && String(row.pedidoId) === String(selectedOrder) ? 'table-row-active' : 'table-row-hover'}
                   style={{
-                    borderTop: '1px solid #0d1f38',
+                    borderTop: '1px solid #0D1D38',
                     ...(ROW_STYLES[row.rowTone] || {}),
                   }}
                 >
                   <td
                     onClick={event => filterBy(event, 'orders.emissao', row.emissao)}
                     className="px-4 py-2.5 font-mono"
-                    style={{ color: '#d7e9ff', fontSize: largerText ? '13px' : undefined }}
+                    style={{ color: '#EAF1FA', fontSize: largerText ? '13px' : undefined }}
                   >
                     {fmtDt(row.emissao)}
                   </td>
-                  <td className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>
+                  <td className="px-4 py-2.5" style={{ color: '#EAF1FA' }}>
                     {row.caixa || '-'}
                   </td>
                   <td
                     onClick={event => filterBy(event, 'pedcodigo', row.pedidoId)}
                     className="px-4 py-2.5 font-mono font-medium"
-                    style={{ color: '#7dd3fc' }}
+                    style={{ color: '#6FAFF0' }}
                     title={`ID_PEDIDO: ${row.pedidoId} | PEDCODIGO: ${row.pedcodigo}`}
                   >
                     {row.pedidoId}
@@ -298,23 +298,23 @@ export default function HistoricoPedidos({
                   <td
                     onClick={event => filterBy(event, 'clicodigo', row.clicodigo)}
                     className="px-4 py-2.5"
-                    style={{ color: '#e2e8f0', maxWidth: 196, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    style={{ color: '#EAF1FA', maxWidth: 196, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                     title={row.clicodigo != null || row.clinome ? `${row.clicodigo ?? '-'} - ${row.clinome || '-'}` : '-'}
                   >
                     {row.clicodigo != null || row.clinome ? `${row.clicodigo ?? '-'} - ${row.clinome || '-'}` : '-'}
                   </td>
-                  <td onClick={event => filterBy(event, 'orders.currentCell', row.currentCell)} className="px-4 py-2.5" style={{ color: '#e2e8f0' }}>
+                  <td onClick={event => filterBy(event, 'orders.currentCell', row.currentCell)} className="px-4 py-2.5" style={{ color: '#EAF1FA' }}>
                     {row.currentCell || '-'}
                   </td>
                   <td
                     onClick={event => filterBy(event, 'orders.previsto', row.previsto)}
                     className="px-4 py-2.5 font-mono"
-                    style={{ color: '#d7e9ff', fontSize: largerText ? '13px' : undefined }}
+                    style={{ color: '#EAF1FA', fontSize: largerText ? '13px' : undefined }}
                   >
                     {fmtDt(row.previsto)}
                   </td>
                   {showDelayDays ? (
-                    <td className="px-4 py-2.5 font-mono" style={{ color: '#e2e8f0', whiteSpace: 'nowrap' }}>
+                    <td className="px-4 py-2.5 font-mono" style={{ color: '#EAF1FA', whiteSpace: 'nowrap' }}>
                       {fmtDelayDays(row.delayRank)}
                     </td>
                   ) : null}
@@ -322,7 +322,7 @@ export default function HistoricoPedidos({
                     <td
                       onClick={event => filterBy(event, 'orders.saida', row.saida)}
                       className="px-4 py-2.5 font-mono"
-                      style={{ color: '#d7e9ff', fontSize: largerText ? '13px' : undefined }}
+                      style={{ color: '#EAF1FA', fontSize: largerText ? '13px' : undefined }}
                     >
                       {fmtDt(row.saida)}
                     </td>

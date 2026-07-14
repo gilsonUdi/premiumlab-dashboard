@@ -63,7 +63,7 @@ export default function ExternalDashboardCatalogPage({ slug }) {
   if (!state || !session || !company) {
     return (
       <main className="portal-page flex min-h-screen items-center justify-center">
-        <div className="rounded-2xl px-6 py-4 text-sm" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#6b6358' }}>
+        <div className="rounded-2xl px-6 py-4 text-sm" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#7E97BC' }}>
           Carregando dashboards externos...
         </div>
       </main>
@@ -76,7 +76,7 @@ export default function ExternalDashboardCatalogPage({ slug }) {
         <div className="portal-panel max-w-[600px] rounded-lg p-8">
           <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: 'var(--accent-bright)' }}>Acesso restrito</p>
           <h1 className="mt-3 text-3xl font-bold text-white">{company.name}</h1>
-          <p className="mt-3 text-sm leading-7" style={{ color: '#5c554e' }}>
+          <p className="mt-3 text-sm leading-7" style={{ color: '#AEC3DF' }}>
             Este usuario nao possui permissao para acessar os dashboards externos desta empresa.
           </p>
         </div>
@@ -89,7 +89,7 @@ export default function ExternalDashboardCatalogPage({ slug }) {
       <div className="mx-auto max-w-[1380px] px-5 py-5">
         <header className="mb-10 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Link href={`/empresa/${company.slug}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl transition" style={{ background: 'rgba(255,255,255,0.05)', color: '#6b6358' }}>
+            <Link href={`/empresa/${company.slug}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl transition" style={{ background: 'rgba(255,255,255,0.05)', color: '#7E97BC' }}>
               <ArrowLeft size={16} />
             </Link>
             <div>
@@ -113,7 +113,7 @@ export default function ExternalDashboardCatalogPage({ slug }) {
                   background: 'var(--portal-surface)',
                 }}
               >
-                <div className="absolute inset-x-0 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(227,173,90,0.45) 50%, transparent 100%)' }} />
+                <div className="absolute inset-x-0 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(201, 164, 92,0.45) 50%, transparent 100%)' }} />
 
                 <div className="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'var(--portal-gold-soft)', color: 'var(--accent-bright)' }}>
                   <SquareArrowOutUpRight size={18} />

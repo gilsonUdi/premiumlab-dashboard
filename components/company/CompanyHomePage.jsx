@@ -469,7 +469,7 @@ export default function CompanyHomePage({ slug }) {
                 </div>
                 <div>
                   <h2 className="portal-title text-sm font-semibold">Solicitar melhoria</h2>
-                  <p className="text-xs" style={{ color: '#5c554e' }}>Envie sugestões ou necessidades para a equipe da GS.</p>
+                  <p className="text-xs" style={{ color: '#AEC3DF' }}>Envie sugestões ou necessidades para a equipe da GS.</p>
                 </div>
               </div>
               <button type="button" className="portal-ghost-button h-9 px-3 text-xs" onClick={() => setIsFeedbackPopupOpen(false)}>
@@ -487,7 +487,7 @@ export default function CompanyHomePage({ slug }) {
                 maxLength={3000}
               />
               <div className="space-y-2">
-                <label className="text-xs text-[#bdb7ae]">Anexar fotos/vídeos (máximo 4 arquivos, 30MB cada)</label>
+                <label className="text-xs text-[#AEC3DF]">Anexar fotos/vídeos (máximo 4 arquivos, 30MB cada)</label>
                 <input
                   type="file"
                   accept="image/*,video/*"
@@ -496,7 +496,7 @@ export default function CompanyHomePage({ slug }) {
                     const selected = Array.from(event.target.files || [])
                     appendFeedbackFiles(selected)
                   }}
-                  className="block w-full text-sm text-[#d6cfc3] file:mr-3 file:rounded-xl file:border file:border-white/15 file:bg-white/[0.05] file:px-3 file:py-2 file:text-xs file:text-[#e6dfd5] hover:file:bg-white/[0.08]"
+                  className="block w-full text-sm text-[#C9D6EA] file:mr-3 file:rounded-xl file:border file:border-white/15 file:bg-white/[0.05] file:px-3 file:py-2 file:text-xs file:text-[#EAF1FA] hover:file:bg-white/[0.08]"
                 />
                 <button
                   type="button"
@@ -523,22 +523,22 @@ export default function CompanyHomePage({ slug }) {
                 </button>
               </div>
               {feedbackStatus ? (
-                <div className="rounded-xl px-4 py-3 text-sm text-[#d6cfc3]" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>{feedbackStatus}</div>
+                <div className="rounded-xl px-4 py-3 text-sm text-[#C9D6EA]" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>{feedbackStatus}</div>
               ) : null}
             </form>
 
             <div className="mt-5 rounded-lg p-4" style={{ background: 'var(--portal-subtle)' }}>
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: '#6b6358' }}>Histórico de sugestões</h3>
+                <h3 className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: '#7E97BC' }}>Histórico de sugestões</h3>
                 <button type="button" className="portal-ghost-button h-8 px-3 text-xs" onClick={loadFeedbackHistory} disabled={feedbackHistoryLoading}>
                   Atualizar
                 </button>
               </div>
 
               {feedbackHistoryLoading ? (
-                <p className="text-sm text-[#bdb7ae]">Carregando...</p>
+                <p className="text-sm text-[#AEC3DF]">Carregando...</p>
               ) : feedbackHistory.length === 0 ? (
-                <p className="text-sm text-[#bdb7ae]">Você ainda não enviou sugestões.</p>
+                <p className="text-sm text-[#AEC3DF]">Você ainda não enviou sugestões.</p>
               ) : (
                 <div className="max-h-[260px] space-y-2 overflow-y-auto pr-1">
                   {feedbackHistory.map(item => (

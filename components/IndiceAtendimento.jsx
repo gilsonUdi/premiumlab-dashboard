@@ -8,10 +8,10 @@ function SortIcon({ col, sort }) {
 }
 
 function IndiceBar({ value }) {
-  const color = value >= 80 ? '#22c55e' : value >= 60 ? '#f59e0b' : '#ef4444'
+  const color = value >= 80 ? '#3FCF8E' : value >= 60 ? '#F2C14E' : '#F47C74'
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 rounded-full" style={{ background: '#1a3355', maxWidth: 80 }}>
+      <div className="flex-1 h-1.5 rounded-full" style={{ background: '#1E3A66', maxWidth: 80 }}>
         <div className="h-1.5 rounded-full transition-all" style={{ width: `${value}%`, background: color }} />
       </div>
       <span className="font-medium text-xs" style={{ color, minWidth: 36, textAlign: 'right' }}>{value}%</span>
@@ -48,8 +48,8 @@ export default function IndiceAtendimento({ data, selectedClient, onColumnClick,
 
   return (
     <div className="card">
-      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #1a3355' }}>
-        <h2 className="text-sm font-semibold" style={{ color: '#e2e8f0' }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #1E3A66' }}>
+        <h2 className="text-sm font-semibold" style={{ color: '#EAF1FA' }}>
           Índice de Atendimento por Cliente
         </h2>
         {selectedClient && (
@@ -65,12 +65,12 @@ export default function IndiceAtendimento({ data, selectedClient, onColumnClick,
       <div className="overflow-auto" style={{ maxHeight: 420 }}>
         <table className="w-full text-xs">
           <thead className="sticky top-0 z-10">
-            <tr style={{ background: '#0d1f38' }}>
+            <tr style={{ background: '#0D1D38' }}>
               {cols.map(c => (
                 <th
                   key={c.key}
                   className="col-sortable px-4 py-3 text-left font-medium"
-                  style={{ color: sort.col === c.key ? '#3b9fd4' : '#7ba3cc', whiteSpace: 'nowrap' }}
+                  style={{ color: sort.col === c.key ? '#DAB975' : '#AEC3DF', whiteSpace: 'nowrap' }}
                   onClick={() => toggleSort(c.key)}
                 >
                   <span className="flex items-center gap-1">
@@ -84,7 +84,7 @@ export default function IndiceAtendimento({ data, selectedClient, onColumnClick,
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} style={{ borderTop: '1px solid #0d1f38' }}>
+                <tr key={i} style={{ borderTop: '1px solid #0D1D38' }}>
                   {cols.map(c => (
                     <td key={c.key} className="px-4 py-3">
                       <div className="skeleton h-4 w-full" />
@@ -94,7 +94,7 @@ export default function IndiceAtendimento({ data, selectedClient, onColumnClick,
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={cols.length} className="px-4 py-10 text-center" style={{ color: '#4a6b8a' }}>
+                <td colSpan={cols.length} className="px-4 py-10 text-center" style={{ color: '#7E97BC' }}>
                   Nenhum cliente encontrado
                 </td>
               </tr>
@@ -103,15 +103,15 @@ export default function IndiceAtendimento({ data, selectedClient, onColumnClick,
                 <tr
                   key={row.clicodigo + i}
                   className={`table-row-hover ${selectedClient === String(row.clicodigo) ? 'table-row-active' : ''}`}
-                  style={{ borderTop: '1px solid #0d1f38' }}
+                  style={{ borderTop: '1px solid #0D1D38' }}
                 >
-                  <td onClick={(event) => filterBy(event, 'clicodigo', String(row.clicodigo))} className="px-4 py-2.5" style={{ color: '#e2e8f0', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <td onClick={(event) => filterBy(event, 'clicodigo', String(row.clicodigo))} className="px-4 py-2.5" style={{ color: '#EAF1FA', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {row.clinome}
                   </td>
                   <td onClick={(event) => filterBy(event, 'customers.indice', row.indice)} className="px-4 py-2.5" style={{ minWidth: 140 }}>
                     <IndiceBar value={row.indice} />
                   </td>
-                  <td onClick={(event) => filterBy(event, 'customers.mediaDias', row.mediaDias)} className="px-4 py-2.5 text-right font-mono" style={{ color: '#7ba3cc' }}>
+                  <td onClick={(event) => filterBy(event, 'customers.mediaDias', row.mediaDias)} className="px-4 py-2.5 text-right font-mono" style={{ color: '#AEC3DF' }}>
                     {row.mediaDias} dias
                   </td>
                 </tr>

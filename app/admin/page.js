@@ -519,7 +519,7 @@ export default function AdminPage() {
       return 'portal-ghost-button h-9 px-3 py-1 text-xs font-semibold text-sky-200'
     }
 
-    return 'portal-ghost-button h-9 px-3 py-1 text-xs font-semibold text-[#f3cb89]'
+    return 'portal-ghost-button h-9 px-3 py-1 text-xs font-semibold text-[#DAB975]'
   }
 
   const getFeedbackStatusButtonStyle = (currentStatus, targetStatus) => {
@@ -542,9 +542,9 @@ export default function AdminPage() {
     }
 
     return {
-      borderColor: 'rgba(227, 173, 90, 0.55)',
-      backgroundColor: 'rgba(227, 173, 90, 0.16)',
-      boxShadow: '0 0 0 1px rgba(227, 173, 90, 0.2) inset',
+      borderColor: 'rgba(201, 164, 92, 0.55)',
+      backgroundColor: 'rgba(201, 164, 92, 0.16)',
+      boxShadow: '0 0 0 1px rgba(201, 164, 92, 0.2) inset',
     }
   }
 
@@ -1486,7 +1486,7 @@ export default function AdminPage() {
       <main className="portal-page flex min-h-screen items-center justify-center">
         <div
           className="rounded-2xl px-6 py-4 text-sm"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#8a8278' }}
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#7E97BC' }}
         >
           Carregando administração...
         </div>
@@ -1508,21 +1508,21 @@ export default function AdminPage() {
             <div className="flex items-center gap-2.5">
               <div
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-black"
-                style={{ background: 'rgba(227,173,90,0.12)', color: '#c9924a', border: '1px solid rgba(227,173,90,0.18)' }}
+                style={{ background: 'rgba(201, 164, 92,0.12)', color: '#C9A45C', border: '1px solid rgba(201, 164, 92,0.18)' }}
               >
                 GS
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#4a4238' }}>Portal</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#28497E' }}>Portal</p>
                 <p className="text-sm font-semibold text-white">Administração</p>
               </div>
             </div>
-            <p className="mt-3 text-xs" style={{ color: '#3d3630' }}>{ADMIN_CREDENTIALS.email}</p>
+            <p className="mt-3 text-xs" style={{ color: '#1E3A66' }}>{ADMIN_CREDENTIALS.email}</p>
           </div>
 
           {/* Nav */}
           <nav className="flex-1 px-4 py-5">
-            <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#3a332c' }}>Menu</p>
+            <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#1E3A66' }}>Menu</p>
             <div className="space-y-1">
               <button
                 type="button"
@@ -1530,8 +1530,8 @@ export default function AdminPage() {
                 className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all"
                 style={
                   activePanel === 'companies'
-                    ? { background: 'rgba(227,173,90,0.08)', color: '#e3ad5a', border: '1px solid rgba(227,173,90,0.15)' }
-                    : { color: '#6b6358', border: '1px solid transparent' }
+                    ? { background: 'rgba(201, 164, 92,0.08)', color: '#DAB975', border: '1px solid rgba(201, 164, 92,0.15)' }
+                    : { color: '#7E97BC', border: '1px solid transparent' }
                 }
               >
                 <Building2 size={15} />
@@ -1547,8 +1547,8 @@ export default function AdminPage() {
                 className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all"
                 style={
                   activePanel === 'feedback'
-                    ? { background: 'rgba(227,173,90,0.08)', color: '#e3ad5a', border: '1px solid rgba(227,173,90,0.15)' }
-                    : { color: '#6b6358', border: '1px solid transparent' }
+                    ? { background: 'rgba(201, 164, 92,0.08)', color: '#DAB975', border: '1px solid rgba(201, 164, 92,0.15)' }
+                    : { color: '#7E97BC', border: '1px solid transparent' }
                 }
               >
                 <MessageSquareText size={15} />
@@ -1557,7 +1557,7 @@ export default function AdminPage() {
                   {feedbackNewCount > 0 ? (
                     <span
                       className="inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold"
-                      style={{ background: 'rgba(227,173,90,0.18)', color: '#e3ad5a' }}
+                      style={{ background: 'rgba(201, 164, 92,0.18)', color: '#DAB975' }}
                     >
                       {feedbackNewCount}
                     </span>
@@ -1573,7 +1573,7 @@ export default function AdminPage() {
               type="button"
               onClick={handleLogout}
               className="flex h-10 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium transition-all"
-              style={{ background: 'rgba(255,255,255,0.04)', color: '#5c554e', border: '1px solid rgba(255,255,255,0.05)' }}
+              style={{ background: 'rgba(255,255,255,0.04)', color: '#AEC3DF', border: '1px solid rgba(255,255,255,0.05)' }}
             >
               <LogOut size={14} />
               Sair
@@ -1591,9 +1591,9 @@ export default function AdminPage() {
               <>
                 <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#4a4238' }}>Gestão</p>
+                    <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#28497E' }}>Gestão</p>
                     <h2 className="text-2xl font-bold tracking-tight text-white">Empresas</h2>
-                    <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>{state.companies.length} empresas cadastradas no portal.</p>
+                    <p className="mt-1 text-sm" style={{ color: '#AEC3DF' }}>{state.companies.length} empresas cadastradas no portal.</p>
                   </div>
                   <button type="button" className="portal-primary-button" onClick={openCreateCompanyModal}>
                     <Plus size={15} />
@@ -1604,7 +1604,7 @@ export default function AdminPage() {
                 {message ? (
                   <div
                     className="mb-4 rounded-xl px-4 py-3 text-sm"
-                    style={{ background: 'rgba(158,211,169,0.08)', color: '#a8e6b4', border: '1px solid rgba(158,211,169,0.15)' }}
+                    style={{ background: 'rgba(158,211,169,0.08)', color: '#7FE0B4', border: '1px solid rgba(158,211,169,0.15)' }}
                   >
                     {message}
                   </div>
@@ -1612,15 +1612,15 @@ export default function AdminPage() {
 
                 <section
                   className="rounded-2xl overflow-hidden"
-                  style={{ background: '#0c0a08', border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
+                  style={{ background: '#0A162B', border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 20px 60px rgba(3, 8, 20, 0.3)' }}
                 >
                   {/* Search bar */}
                   <div className="px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <div className="relative w-full max-w-sm">
-                      <Search size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: '#4a4238' }} />
+                      <Search size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: '#28497E' }} />
                       <input
                         className="h-10 w-full rounded-xl pl-9 pr-4 text-sm text-white outline-none transition"
-                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', '::placeholder': { color: '#4a4238' } }}
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', '::placeholder': { color: '#28497E' } }}
                         value={searchTerm}
                         onChange={event => setSearchTerm(event.target.value)}
                         placeholder="Buscar empresa..."
@@ -1631,7 +1631,7 @@ export default function AdminPage() {
                   {/* Table header */}
                   <div
                     className="hidden px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] lg:grid lg:grid-cols-[2fr_1.2fr_1fr_1fr_240px]"
-                    style={{ color: '#3a332c', borderBottom: '1px solid rgba(255,255,255,0.03)' }}
+                    style={{ color: '#1E3A66', borderBottom: '1px solid rgba(255,255,255,0.03)' }}
                   >
                     <span>Empresa</span>
                     <span>Slug</span>
@@ -1643,7 +1643,7 @@ export default function AdminPage() {
                   {/* Company rows */}
                   <div>
                     {filteredCompanies.length === 0 ? (
-                      <div className="px-5 py-16 text-center text-sm" style={{ color: '#4a4238' }}>
+                      <div className="px-5 py-16 text-center text-sm" style={{ color: '#28497E' }}>
                         Nenhuma empresa encontrada para esse termo.
                       </div>
                     ) : null}
@@ -1662,11 +1662,11 @@ export default function AdminPage() {
                               <p className="truncate text-sm font-semibold text-white">{company.name}</p>
                               {company.isPremiumLab ? <span className="portal-pill">Premium Lab</span> : null}
                             </div>
-                            <p className="mt-0.5 truncate text-xs" style={{ color: '#4a4238' }}>{company.email}</p>
+                            <p className="mt-0.5 truncate text-xs" style={{ color: '#28497E' }}>{company.email}</p>
                           </div>
 
                           <div className="min-w-0">
-                            <p className="truncate text-sm" style={{ color: '#6b6358' }}>/{company.slug}</p>
+                            <p className="truncate text-sm" style={{ color: '#7E97BC' }}>/{company.slug}</p>
                           </div>
 
                           <div>
@@ -1674,7 +1674,7 @@ export default function AdminPage() {
                           </div>
 
                           <div>
-                            <p className="text-sm" style={{ color: '#5c554e' }}>{formatCompanyDate(company.createdAt)}</p>
+                            <p className="text-sm" style={{ color: '#AEC3DF' }}>{formatCompanyDate(company.createdAt)}</p>
                           </div>
 
                           <div className="flex justify-start gap-2 lg:justify-end">
@@ -1692,7 +1692,7 @@ export default function AdminPage() {
                                 onClick={() => handleDeleteCompany(company)}
                                 disabled={deletingCompanyId === company.id}
                                 className="inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60"
-                                style={{ background: 'rgba(220,38,38,0.08)', color: '#f87171', border: '1px solid rgba(220,38,38,0.15)' }}
+                                style={{ background: 'rgba(244, 124, 116,0.08)', color: '#F47C74', border: '1px solid rgba(244, 124, 116,0.15)' }}
                               >
                                 <Trash2 size={13} />
                               </button>
@@ -1708,9 +1708,9 @@ export default function AdminPage() {
               <>
                 <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#4a4238' }}>Feedback</p>
+                    <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#28497E' }}>Feedback</p>
                     <h2 className="text-2xl font-bold tracking-tight text-white">Sugestões</h2>
-                    <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>Solicitações enviadas pelos usuários das empresas.</p>
+                    <p className="mt-1 text-sm" style={{ color: '#AEC3DF' }}>Solicitações enviadas pelos usuários das empresas.</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {['all', 'lido', 'em_progresso', 'concluido'].map(status => (
@@ -1719,7 +1719,7 @@ export default function AdminPage() {
                         type="button"
                         onClick={() => setFeedbackFilterStatus(status)}
                         className="portal-ghost-button h-9 px-4 text-xs"
-                        style={feedbackFilterStatus === status ? { borderColor: 'rgba(227,173,90,0.35)', color: '#e3ad5a' } : {}}
+                        style={feedbackFilterStatus === status ? { borderColor: 'rgba(201, 164, 92,0.35)', color: '#DAB975' } : {}}
                       >
                         {status === 'all' ? 'Todas' : status === 'lido' ? 'Lido' : status === 'em_progresso' ? 'Em progresso' : 'Concluído'}
                       </button>
@@ -1731,16 +1731,16 @@ export default function AdminPage() {
                 </header>
 
                 {feedbackError ? (
-                  <div className="mb-4 rounded-xl px-4 py-3 text-sm text-red-300" style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.15)' }}>{feedbackError}</div>
+                  <div className="mb-4 rounded-xl px-4 py-3 text-sm text-red-300" style={{ background: 'rgba(244, 124, 116,0.08)', border: '1px solid rgba(244, 124, 116,0.15)' }}>{feedbackError}</div>
                 ) : null}
 
-                <section className="rounded-2xl p-4" style={{ background: '#0c0a08', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <section className="rounded-2xl p-4" style={{ background: '#0A162B', border: '1px solid rgba(255,255,255,0.05)' }}>
                   {feedbackLoading ? (
-                    <div className="rounded-xl px-5 py-10 text-center text-sm" style={{ background: 'rgba(255,255,255,0.03)', color: '#5c554e' }}>
+                    <div className="rounded-xl px-5 py-10 text-center text-sm" style={{ background: 'rgba(255,255,255,0.03)', color: '#AEC3DF' }}>
                       Carregando sugestões...
                     </div>
                   ) : feedbackItems.filter(item => feedbackFilterStatus === 'all' || item.status === feedbackFilterStatus).length === 0 ? (
-                    <div className="rounded-xl px-5 py-10 text-center text-sm" style={{ background: 'rgba(255,255,255,0.03)', color: '#5c554e' }}>
+                    <div className="rounded-xl px-5 py-10 text-center text-sm" style={{ background: 'rgba(255,255,255,0.03)', color: '#AEC3DF' }}>
                       Nenhuma sugestão nesse grupo.
                     </div>
                   ) : (
@@ -1756,13 +1756,13 @@ export default function AdminPage() {
                         })
                         .map(item => (
                         <article key={item.id} className={`rounded-2xl p-4 ${getFeedbackCardClassName(item.status)}`}>
-                          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[#b8b0a6]">
+                          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[#AEC3DF]">
                             <span className="portal-pill">{item.companyName || item.tenantSlug}</span>
                             <span>{item.userName || item.userEmail}</span>
                             <span>•</span>
                             <span>{formatDateTime(item.createdAt)}</span>
                           </div>
-                          <p className="whitespace-pre-wrap text-sm leading-6 text-[#e8e1d8]">{item.message}</p>
+                          <p className="whitespace-pre-wrap text-sm leading-6 text-[#EAF1FA]">{item.message}</p>
                           {Array.isArray(item.attachments) && item.attachments.length > 0 ? (
                             <div className="mt-3 flex flex-wrap gap-2">
                               {item.attachments.map((attachment, index) => {
@@ -1787,7 +1787,7 @@ export default function AdminPage() {
                             </div>
                           ) : null}
                           <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <span className="text-xs text-[#b8b0a6]">Status:</span>
+                            <span className="text-xs text-[#AEC3DF]">Status:</span>
                             <button
                               type="button"
                               onClick={() => updateFeedbackStatus(item.id, 'lido')}
@@ -1828,13 +1828,13 @@ export default function AdminPage() {
         <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto px-4 py-4 sm:items-center sm:py-8" style={{ background: 'rgba(0,0,0,0.75)' }}>
           <div
             className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-[1100px] flex-col overflow-hidden rounded-2xl sm:max-h-[92vh]"
-            style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(0,0,0,0.6)' }}
+            style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(0,0,0,0.6)' }}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div>
                 <h3 className="text-xl font-bold text-white">{form.id ? (form.name || 'Editar empresa') : 'Nova empresa'}</h3>
-                <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
+                <p className="mt-1 text-sm" style={{ color: '#AEC3DF' }}>
                   Ajuste os dados principais da empresa e o comportamento do portal a partir daqui.
                 </p>
               </div>
@@ -1848,8 +1848,8 @@ export default function AdminPage() {
               {/* Body: sidebar + content */}
               <div className="flex min-h-0 flex-1 overflow-hidden">
                 {/* Left sidebar */}
-                <div className="flex w-[240px] shrink-0 flex-col gap-1 p-4" style={{ background: '#0c0a08', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
-                  <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#4a433c' }}>Seções</p>
+                <div className="flex w-[240px] shrink-0 flex-col gap-1 p-4" style={{ background: '#0A162B', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                  <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#28497E' }}>Seções</p>
                   {[
                     { key: 'basic', label: 'Dados básicos' },
                     { key: 'connection', label: 'Conexão' },
@@ -1863,8 +1863,8 @@ export default function AdminPage() {
                       className="rounded-xl px-4 py-2.5 text-sm font-medium w-full text-left transition"
                       style={
                         activeCompanyTab === tab.key
-                          ? { background: 'rgba(227,173,90,0.1)', border: '1px solid rgba(227,173,90,0.2)', color: '#e3ad5a' }
-                          : { color: '#6b6358', border: '1px solid transparent' }
+                          ? { background: 'rgba(201, 164, 92,0.1)', border: '1px solid rgba(201, 164, 92,0.2)', color: '#DAB975' }
+                          : { color: '#7E97BC', border: '1px solid transparent' }
                       }
                       onClick={() => setActiveCompanyTab(tab.key)}
                     >
@@ -1874,13 +1874,13 @@ export default function AdminPage() {
                 </div>
 
                 {/* Right content */}
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-5" style={{ background: '#0f0d0b' }}>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-5" style={{ background: '#0A162B' }}>
 
                   {/* TAB: basic */}
                   {activeCompanyTab === 'basic' && (
                     <div className="space-y-5">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Dados básicos</p>
-                      <div className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#C9A45C' }}>Dados básicos</p>
+                      <div className="rounded-2xl p-5 space-y-4" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="space-y-2 md:col-span-2">
                             <label className="portal-label">Nome da empresa</label>
@@ -1933,7 +1933,7 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="rounded-2xl p-5" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                         {!hasPremiumLab || form.isPremiumLab ? (
                           <label className="portal-checkbox">
                             <input
@@ -1944,7 +1944,7 @@ export default function AdminPage() {
                             <span>Marcar como Premium Lab</span>
                           </label>
                         ) : (
-                          <div className="rounded-2xl bg-[#e3ad5a]/10 px-4 py-3 text-sm text-[#e6d5b7]">
+                          <div className="rounded-2xl bg-[#DAB975]/10 px-4 py-3 text-sm text-[#E7D4AC]">
                             Premium Lab ja esta definida como tenant principal.
                           </div>
                         )}
@@ -1955,13 +1955,13 @@ export default function AdminPage() {
                   {/* TAB: connection */}
                   {activeCompanyTab === 'connection' && (
                     <div className="space-y-5">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Conexão</p>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#C9A45C' }}>Conexão</p>
 
-                      <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="rounded-2xl p-5" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <h4 className="text-sm font-semibold text-white">Portal interno (Supabase)</h4>
-                            <p className="mt-1 text-sm text-[#b7b0a6]">
+                            <p className="mt-1 text-sm text-[#AEC3DF]">
                               Defina se a empresa usa o portal interno. O dashboard externo pode ser configurado separadamente.
                             </p>
                           </div>
@@ -2026,10 +2026,10 @@ export default function AdminPage() {
                             </div>
 
                             <div className="space-y-3">
-                              <label className="flex items-center gap-2 text-sm font-medium text-[#efe9df]">
+                              <label className="flex items-center gap-2 text-sm font-medium text-[#EAF1FA]">
                                 <input
                                   type="checkbox"
-                                  className="h-4 w-4 accent-[#5aa7ff]"
+                                  className="h-4 w-4 accent-[#6FAFF0]"
                                   checked={form.limitByCompanyCodeEnabled}
                                   onChange={event => setForm(previous => ({ ...previous, limitByCompanyCodeEnabled: event.target.checked }))}
                                 />
@@ -2046,7 +2046,7 @@ export default function AdminPage() {
                                   />
                                 </div>
                               ) : null}
-                              <p className="text-xs text-[#8d867c]">
+                              <p className="text-xs text-[#7E97BC]">
                                 Quando ligado, o portal filtra PPS e Análise de Dados por PEDID.EMPCODIGO.
                               </p>
                             </div>
@@ -2054,11 +2054,11 @@ export default function AdminPage() {
                           </div>
                         ) : null}
 
-                        <div className="mt-5 space-y-4 rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div className="mt-5 space-y-4 rounded-2xl p-5" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <h4 className="text-sm font-semibold text-white">Dashboards externos</h4>
-                              <p className="mt-1 text-sm text-[#b7b0a6]">
+                              <p className="mt-1 text-sm text-[#AEC3DF]">
                                 Cadastre um ou mais links externos para aparecerem em uma tela de escolha no portal da empresa.
                               </p>
                             </div>
@@ -2069,17 +2069,17 @@ export default function AdminPage() {
                           </div>
 
                           {form.externalDashboards.length === 0 ? (
-                            <div className="rounded-xl px-4 py-4 text-sm" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.07)', color: '#5c554e' }}>
+                            <div className="rounded-xl px-4 py-4 text-sm" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.07)', color: '#AEC3DF' }}>
                               Nenhum dashboard externo cadastrado. Adicione um link para liberar o card no portal.
                             </div>
                           ) : null}
 
                           {form.externalDashboards.map((dashboard, index) => (
-                            <div key={dashboard.id} className="rounded-xl p-4" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.06)' }}>
+                            <div key={dashboard.id} className="rounded-xl p-4" style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.06)' }}>
                               <div className="mb-4 flex items-center justify-between gap-3">
                                 <div>
                                   <p className="text-sm font-semibold text-white">Dashboard externo {index + 1}</p>
-                                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#8d867c]">Link incorporado</p>
+                                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#7E97BC]">Link incorporado</p>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <label className="portal-checkbox">
@@ -2130,25 +2130,25 @@ export default function AdminPage() {
                   {/* TAB: filters */}
                   {activeCompanyTab === 'filters' && (
                     <div className="space-y-5">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Filtros</p>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#C9A45C' }}>Filtros</p>
 
                       {!form.supabaseEnabled ? (
-                        <div className="rounded-2xl px-5 py-4 text-sm text-[#b7b0a6]" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div className="rounded-2xl px-5 py-4 text-sm text-[#AEC3DF]" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                           Esta seção está disponível apenas quando o portal interno (Supabase) está habilitado. Ative na aba Conexão.
                         </div>
                       ) : (
                         <>
                           {/* General filters */}
-                          <div className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div className="rounded-2xl p-5 space-y-4" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                             <div>
                               <h4 className="text-sm font-semibold text-white">Filtros gerais dos dashboards</h4>
-                              <p className="mt-1 text-sm text-[#b7b0a6]">
+                              <p className="mt-1 text-sm text-[#AEC3DF]">
                                 Aplique filtros fixos para toda a empresa no PPS e na Análise de Dados.
                               </p>
                             </div>
 
                             {dashboardFilterOptionsLoading ? (
-                              <p className="text-sm text-[#b7b0a6]">Carregando filtros disponíveis...</p>
+                              <p className="text-sm text-[#AEC3DF]">Carregando filtros disponíveis...</p>
                             ) : null}
                             {dashboardFilterOptionsError ? (
                               <p className="text-sm text-amber-200">{dashboardFilterOptionsError}</p>
@@ -2164,7 +2164,7 @@ export default function AdminPage() {
                                       <h5 className="text-sm font-semibold text-white">
                                         {mode === 'pps' ? 'PPS' : 'Análise de Dados'}
                                       </h5>
-                                      <p className="mt-1 text-xs text-[#8d867c]">
+                                      <p className="mt-1 text-xs text-[#7E97BC]">
                                         {filters.length === 0 ? 'Sem filtro geral neste módulo.' : `${filters.length} filtro(s) aplicado(s).`}
                                       </p>
                                     </div>
@@ -2176,14 +2176,14 @@ export default function AdminPage() {
 
                                   <div className="mt-4 space-y-3">
                                     {filters.length === 0 ? (
-                                      <p className="text-sm text-[#b7b0a6]">Nenhum filtro configurado para este modulo.</p>
+                                      <p className="text-sm text-[#AEC3DF]">Nenhum filtro configurado para este modulo.</p>
                                     ) : (
                                       filters.map(filter => {
                                         const filterDefinition = getDashboardFilterDefinition(filter.field)
                                         const fieldOptions = getDashboardFieldOptions(filter.field)
 
                                         return (
-                                          <div key={filter.id} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                          <div key={filter.id} className="rounded-xl p-3" style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.05)' }}>
                                             <div className="mb-3 flex justify-end">
                                               <button
                                                 type="button"
@@ -2249,7 +2249,7 @@ export default function AdminPage() {
                                                 ))}
                                               </select>
 
-                                              <div className="portal-input flex items-center border-dashed text-sm text-[#b7b0a6]">
+                                              <div className="portal-input flex items-center border-dashed text-sm text-[#AEC3DF]">
                                                 {getDashboardFilterDefinition(filter.field)?.inputType === 'select'
                                                   ? 'Valor definido por seleção'
                                                   : 'Valor digitado livremente'}
@@ -2268,16 +2268,16 @@ export default function AdminPage() {
                           <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }} />
 
                           {/* Visual filters */}
-                          <div className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div className="rounded-2xl p-5 space-y-4" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                             <div>
                               <h4 className="text-sm font-semibold text-white">Filtros por visual</h4>
-                              <p className="mt-1 text-sm text-[#b7b0a6]">
+                              <p className="mt-1 text-sm text-[#AEC3DF]">
                                 Aplique filtros fixos em gráficos ou tabelas específicas do PPS e da Análise de Dados.
                               </p>
                             </div>
 
                             {dashboardFilterOptionsLoading ? (
-                              <p className="text-sm text-[#b7b0a6]">Carregando valores dos filtros padrão...</p>
+                              <p className="text-sm text-[#AEC3DF]">Carregando valores dos filtros padrão...</p>
                             ) : null}
                             {dashboardFilterOptionsError ? (
                               <p className="text-sm text-amber-200">{dashboardFilterOptionsError}</p>
@@ -2294,11 +2294,11 @@ export default function AdminPage() {
                                     const filters = form.dashboardVisualFilters?.[mode]?.[section.key] || []
 
                                     return (
-                                      <div key={section.key} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                      <div key={section.key} className="rounded-xl p-3" style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.05)' }}>
                                         <div className="flex items-center justify-between gap-3">
                                           <div>
                                             <p className="text-sm font-semibold text-white">{section.label}</p>
-                                            <p className="mt-1 text-xs text-[#8d867c]">
+                                            <p className="mt-1 text-xs text-[#7E97BC]">
                                               {filters.length === 0 ? 'Sem filtro exclusivo para este visual.' : `${filters.length} filtro(s) aplicado(s).`}
                                             </p>
                                           </div>
@@ -2448,13 +2448,13 @@ export default function AdminPage() {
                   {/* TAB: powerbi */}
                   {activeCompanyTab === 'powerbi' && (
                     <div className="space-y-5">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Power BI</p>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#C9A45C' }}>Power BI</p>
 
-                      <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="rounded-2xl p-5" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <h4 className="text-sm font-semibold text-white">Power BI hospedado no portal</h4>
-                            <p className="mt-1 text-sm text-[#b7b0a6]">
+                            <p className="mt-1 text-sm text-[#AEC3DF]">
                               Cadastre um ou mais modelos de Power BI para esta empresa e controle os acessos por usuário.
                             </p>
                           </div>
@@ -2481,17 +2481,17 @@ export default function AdminPage() {
                         {form.powerBiEnabled ? (
                           <div className="mt-4 space-y-4">
                             {form.powerBiReports.length === 0 ? (
-                              <div className="rounded-xl px-4 py-4 text-sm" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.07)', color: '#5c554e' }}>
+                              <div className="rounded-xl px-4 py-4 text-sm" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.07)', color: '#AEC3DF' }}>
                                 Nenhum modelo cadastrado ainda. Adicione o primeiro para liberar o catálogo de Power BI.
                               </div>
                             ) : null}
 
                             {form.powerBiReports.map((report, index) => (
-                              <div key={report.id} className="rounded-xl p-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                              <div key={report.id} className="rounded-xl p-4" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                                 <div className="mb-4 flex items-center justify-between gap-3">
                                   <div>
                                     <p className="text-sm font-semibold text-white">Modelo {index + 1}</p>
-                                    <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#8d867c]">Power BI Embedded</p>
+                                    <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#7E97BC]">Power BI Embedded</p>
                                   </div>
 
                                   <div className="flex items-center gap-2">
@@ -2576,7 +2576,7 @@ export default function AdminPage() {
                                       onChange={event => updatePowerBiReportField(report.id, 'effectiveIdentityRolesText', event.target.value)}
                                       placeholder="Opcional: Geral, VndAdilson"
                                     />
-                                    <p className="text-xs text-[#8d867c]">Separe varios papeis por virgula.</p>
+                                    <p className="text-xs text-[#7E97BC]">Separe varios papeis por virgula.</p>
                                   </div>
                                 </div>
                               </div>
@@ -2595,12 +2595,12 @@ export default function AdminPage() {
                   {/* TAB: rules */}
                   {activeCompanyTab === 'rules' && (
                     <div className="space-y-5">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Regras</p>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#C9A45C' }}>Regras</p>
 
-                      <div className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="rounded-2xl p-5 space-y-4" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                         <div>
                           <h4 className="text-sm font-semibold text-white">Regras de perda e cancelamento</h4>
-                          <p className="mt-1 text-xs text-[#8d867c]">
+                          <p className="mt-1 text-xs text-[#7E97BC]">
                             Configure codigos por empresa para manter as regras dos dashboards alinhadas ao modelo de alimentacao usado pelo tenant.
                           </p>
                         </div>
@@ -2613,7 +2613,7 @@ export default function AdminPage() {
                             onChange={event => setForm(previous => ({ ...previous, lossFinalityCodesText: event.target.value }))}
                             placeholder="Ex.: 2, 4, 30"
                           />
-                          <p className="text-xs text-[#8d867c]">
+                          <p className="text-xs text-[#7E97BC]">
                             Informe os codigos da PEDFINALIDADE que representam perda nesta empresa, separados por virgula.
                           </p>
                         </div>
@@ -2626,17 +2626,17 @@ export default function AdminPage() {
                             onChange={event => setForm(previous => ({ ...previous, apiCancellationCodesText: event.target.value }))}
                             placeholder="Ex.: 43, 4"
                           />
-                          <p className="text-xs text-[#8d867c]">
+                          <p className="text-xs text-[#7E97BC]">
                             Na alimentacao por API, pedidos que passarem por estes codigos de celula/local serao desconsiderados dos dashboards.
                           </p>
                         </div>
                       </div>
 
-                      <div className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="rounded-2xl p-5 space-y-4" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <label className="portal-label">Pedido concluído quando</label>
-                            <p className="mt-1 text-xs text-[#8d867c]">
+                            <p className="mt-1 text-xs text-[#7E97BC]">
                               O pedido também será tratado como concluído quando bater qualquer condição abaixo.
                             </p>
                           </div>
@@ -2708,7 +2708,7 @@ export default function AdminPage() {
                             })}
                           </div>
                         ) : (
-                          <div className="rounded-xl px-4 py-3 text-sm" style={{ border: '1px dashed rgba(255,255,255,0.07)', color: '#5c554e' }}>
+                          <div className="rounded-xl px-4 py-3 text-sm" style={{ border: '1px dashed rgba(255,255,255,0.07)', color: '#AEC3DF' }}>
                             Sem condição adicional. A data de saída continua concluindo o pedido normalmente.
                           </div>
                         )}
@@ -2751,16 +2751,16 @@ export default function AdminPage() {
       ) : null}
 
       {portalPreviewCompany ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" style={{ background: 'rgba(0,0,0,0.8)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" style={{ background: 'rgba(4, 11, 24, 0.8)' }}>
           <div
             className="flex max-h-[78vh] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl"
-            style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(0,0,0,0.7)' }}
+            style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(4, 11, 24, 0.7)' }}
           >
             <div className="flex shrink-0 items-start justify-between gap-4 px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#4a4238' }}>Entrar no portal</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#28497E' }}>Entrar no portal</p>
                 <h3 className="mt-2 truncate text-lg font-bold text-white">{portalPreviewCompany.name}</h3>
-                <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
+                <p className="mt-1 text-sm" style={{ color: '#AEC3DF' }}>
                   Escolha como deseja visualizar esta empresa.
                 </p>
               </div>
@@ -2770,22 +2770,22 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-4" style={{ background: '#110f0d' }}>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-4" style={{ background: '#0D1D38' }}>
               <button
                 type="button"
                 className="flex w-full items-center justify-between gap-4 rounded-xl px-4 py-3 text-left transition"
-                style={{ background: 'rgba(227,173,90,0.07)', border: '1px solid rgba(227,173,90,0.2)', color: '#e3ad5a' }}
+                style={{ background: 'rgba(201, 164, 92,0.07)', border: '1px solid rgba(201, 164, 92,0.2)', color: '#DAB975' }}
                 onClick={() => enterCompanyPortal(null)}
               >
                 <div>
                   <p className="text-sm font-semibold text-white">Entrar como admin</p>
-                  <p className="mt-0.5 text-xs" style={{ color: '#5c554e' }}>Visualiza a empresa sem restrições de usuário.</p>
+                  <p className="mt-0.5 text-xs" style={{ color: '#AEC3DF' }}>Visualiza a empresa sem restrições de usuário.</p>
                 </div>
                 <Eye size={16} />
               </button>
 
               {getCompanyUserList(companyUsers, portalPreviewCompany).length === 0 ? (
-                <div className="rounded-xl px-4 py-3 text-sm" style={{ border: '1px dashed rgba(255,255,255,0.07)', color: '#4a4238' }}>
+                <div className="rounded-xl px-4 py-3 text-sm" style={{ border: '1px dashed rgba(255,255,255,0.07)', color: '#28497E' }}>
                   Nenhum usuário cadastrado para esta empresa.
                 </div>
               ) : (
@@ -2802,9 +2802,9 @@ export default function AdminPage() {
                         <p className="truncate text-sm font-semibold text-white">{user.name || user.email}</p>
                         {user.uid === portalPreviewCompany.authUid ? <span className="portal-pill">Principal</span> : null}
                       </div>
-                      <p className="mt-0.5 truncate text-xs" style={{ color: '#4a4238' }}>{user.email}</p>
+                      <p className="mt-0.5 truncate text-xs" style={{ color: '#28497E' }}>{user.email}</p>
                     </div>
-                    <SquareArrowOutUpRight size={14} style={{ color: '#4a4238' }} />
+                    <SquareArrowOutUpRight size={14} style={{ color: '#28497E' }} />
                   </button>
                 ))
               )}
@@ -2814,16 +2814,16 @@ export default function AdminPage() {
       ) : null}
 
       {isUserModalOpen && managingCompany ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" style={{ background: 'rgba(0,0,0,0.8)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" style={{ background: 'rgba(4, 11, 24, 0.8)' }}>
           <div
             className="flex max-h-[92vh] w-full max-w-[1360px] flex-col overflow-hidden rounded-2xl"
-            style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(0,0,0,0.7)' }}
+            style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(4, 11, 24, 0.7)' }}
           >
             <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#4a4238' }}>Usuários da empresa</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#28497E' }}>Usuários da empresa</p>
                 <h2 className="mt-2 text-xl font-bold text-white">{managingCompany.name}</h2>
-                <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
+                <p className="mt-1 text-sm" style={{ color: '#AEC3DF' }}>
                   Edite páginas liberadas, esconda visuais específicos e mantenha o acesso principal da empresa sob controle.
                 </p>
               </div>
@@ -2834,7 +2834,7 @@ export default function AdminPage() {
             </div>
 
             <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="overflow-y-auto p-6" style={{ background: '#0f0d0b' }}>
+              <div className="overflow-y-auto p-6" style={{ background: '#0A162B' }}>
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <h3 className="text-lg font-semibold">Lista de usuários</h3>
                   <div className="flex flex-wrap items-center justify-end gap-2">
@@ -2851,14 +2851,14 @@ export default function AdminPage() {
 
                 <div className="space-y-3">
                   {getCompanyUserList(companyUsers, managingCompany).map(user => (
-                    <div key={user.uid} className="rounded-xl p-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div key={user.uid} className="rounded-xl p-4" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-semibold text-white">{user.name || user.email}</p>
                             {user.uid === managingCompany.authUid ? <span className="portal-pill">Principal</span> : null}
                           </div>
-                          <p className="mt-1 text-sm text-[#b7b0a6]">{user.email}</p>
+                          <p className="mt-1 text-sm text-[#AEC3DF]">{user.email}</p>
                         </div>
                         <div className="flex flex-wrap justify-end gap-2">
                           <button type="button" className="portal-ghost-button" onClick={() => copyUserConfiguration(user)}>
@@ -2886,18 +2886,18 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="flex min-h-0 flex-col" style={{ background: '#110f0d', borderLeft: '1px solid rgba(255,255,255,0.04)' }}>
+              <div className="flex min-h-0 flex-col" style={{ background: '#0D1D38', borderLeft: '1px solid rgba(255,255,255,0.04)' }}>
                 {!editingUserId ? (
                   <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
                     <div
                       className="flex h-14 w-14 items-center justify-center rounded-2xl"
-                      style={{ background: 'rgba(227,173,90,0.07)', border: '1px solid rgba(227,173,90,0.12)' }}
+                      style={{ background: 'rgba(201, 164, 92,0.07)', border: '1px solid rgba(201, 164, 92,0.12)' }}
                     >
-                      <Pencil size={22} style={{ color: '#c9924a' }} />
+                      <Pencil size={22} style={{ color: '#C9A45C' }} />
                     </div>
                     <div>
                       <h3 className="text-base font-semibold text-white">Selecione um usuário</h3>
-                      <p className="mt-1.5 text-sm" style={{ color: '#5c554e' }}>
+                      <p className="mt-1.5 text-sm" style={{ color: '#AEC3DF' }}>
                         Clique em <strong className="text-white">Editar</strong> em qualquer usuário da lista para configurar acessos, filtros e permissões.
                       </p>
                     </div>
@@ -2908,9 +2908,9 @@ export default function AdminPage() {
                 <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSaveUser}>
                   {/* User header */}
                   <div className="shrink-0 px-6 pt-5 pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#4a4238' }}>Editando usuário</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#28497E' }}>Editando usuário</p>
                     <h3 className="mt-1 text-base font-semibold text-white truncate">{userForm.name || userForm.email || '—'}</h3>
-                    <p className="mt-0.5 text-xs truncate" style={{ color: '#4a4238' }}>{userForm.email}</p>
+                    <p className="mt-0.5 text-xs truncate" style={{ color: '#28497E' }}>{userForm.email}</p>
                   </div>
 
                   {/* Tab nav */}
@@ -2928,8 +2928,8 @@ export default function AdminPage() {
                         className="px-4 py-2 text-sm font-medium transition"
                         style={
                           activeUserTab === tab.key
-                            ? { color: '#e3ad5a', borderBottom: '2px solid #e3ad5a', marginBottom: '-1px' }
-                            : { color: '#6b6358', borderBottom: '2px solid transparent', marginBottom: '-1px' }
+                            ? { color: '#DAB975', borderBottom: '2px solid #DAB975', marginBottom: '-1px' }
+                            : { color: '#7E97BC', borderBottom: '2px solid transparent', marginBottom: '-1px' }
                         }
                       >
                         {tab.label}
@@ -2943,8 +2943,8 @@ export default function AdminPage() {
                     {/* TAB: data */}
                     {activeUserTab === 'data' && (
                       <div className="space-y-4">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Dados do usuário</p>
-                        <div className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#C9A45C' }}>Dados do usuário</p>
+                        <div className="rounded-2xl p-5 space-y-4" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                           <div className="space-y-2">
                             <label className="portal-label">Nome</label>
                             <input className="portal-input" value={userForm.name} onChange={event => updateUserFormField('name', event.target.value)} required />
@@ -2971,8 +2971,8 @@ export default function AdminPage() {
                     {/* TAB: access */}
                     {activeUserTab === 'access' && (
                       <div className="space-y-4">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Acessos e visibilidade</p>
-                        <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#C9A45C' }}>Acessos e visibilidade</p>
+                        <div className="rounded-2xl p-5" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                           <h4 className="text-sm font-semibold text-white">Páginas liberadas</h4>
                           <div className="mt-3 grid gap-3 md:grid-cols-2">
                             <label className="portal-checkbox">
@@ -2995,7 +2995,7 @@ export default function AdminPage() {
                         </div>
 
                         {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode, sections]) => (
-                          <div key={mode} className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div key={mode} className="rounded-2xl p-5" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                             <h4 className="text-sm font-semibold text-white">
                               {mode === 'pps' ? 'Visuais do PPS' : 'Visuais da Análise de Dados'}
                             </h4>
@@ -3020,12 +3020,12 @@ export default function AdminPage() {
                     {/* TAB: filters */}
                     {activeUserTab === 'filters' && (
                       <div className="space-y-4">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Filtros do usuário</p>
-                        {dashboardFilterOptionsLoading ? <p className="text-sm" style={{ color: '#5c554e' }}>Carregando filtros disponíveis...</p> : null}
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#C9A45C' }}>Filtros do usuário</p>
+                        {dashboardFilterOptionsLoading ? <p className="text-sm" style={{ color: '#AEC3DF' }}>Carregando filtros disponíveis...</p> : null}
                         {dashboardFilterOptionsError ? <p className="text-sm text-amber-200">{dashboardFilterOptionsError}</p> : null}
 
                         {Object.entries(DASHBOARD_SECTION_GROUPS).map(([mode]) => (
-                          <div key={mode} className="rounded-2xl p-5 space-y-3" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div key={mode} className="rounded-2xl p-5 space-y-3" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                             <div className="flex items-center justify-between gap-3">
                               <h4 className="text-sm font-semibold text-white">{mode === 'pps' ? 'PPS' : 'Análise de Dados'}</h4>
                               <button type="button" className="portal-ghost-button" onClick={() => addUserDashboardFilter(mode)}>
@@ -3034,10 +3034,10 @@ export default function AdminPage() {
                               </button>
                             </div>
                             {(userForm.permissions.dashboardFilters?.[mode] || []).length === 0 ? (
-                              <p className="text-sm" style={{ color: '#5c554e' }}>Nenhum filtro configurado para este módulo.</p>
+                              <p className="text-sm" style={{ color: '#AEC3DF' }}>Nenhum filtro configurado para este módulo.</p>
                             ) : (
                               (userForm.permissions.dashboardFilters?.[mode] || []).map(filter => (
-                                <div key={filter.id} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div key={filter.id} className="rounded-xl p-3" style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.05)' }}>
                                   <div className="mb-3 flex justify-end">
                                     <button type="button" className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15" onClick={() => removeUserDashboardFilter(mode, filter.id)}>
                                       Remover
@@ -3068,7 +3068,7 @@ export default function AdminPage() {
                                     <select className="portal-input" value={filter.operator} onChange={event => updateUserDashboardFilter(mode, filter.id, 'operator', event.target.value)}>
                                       {POWER_BI_FILTER_OPERATORS.map(option => (<option key={option.value} value={option.value}>{option.label}</option>))}
                                     </select>
-                                    <div className="portal-input flex items-center border-dashed text-sm" style={{ color: '#6b6358' }}>
+                                    <div className="portal-input flex items-center border-dashed text-sm" style={{ color: '#7E97BC' }}>
                                       {getDashboardFilterDefinition(filter.field)?.inputType === 'select' ? 'Valor definido por seleção' : 'Valor digitado livremente'}
                                     </div>
                                   </div>
@@ -3083,11 +3083,11 @@ export default function AdminPage() {
                     {/* TAB: powerbi */}
                     {activeUserTab === 'powerbi' && hasConfiguredPowerBi(managingCompany) && (
                       <div className="space-y-4">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#c9924a' }}>Power BI</p>
-                        {powerBiCatalogLoading ? <p className="text-sm" style={{ color: '#5c554e' }}>Carregando modelos do relatório...</p> : null}
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#C9A45C' }}>Power BI</p>
+                        {powerBiCatalogLoading ? <p className="text-sm" style={{ color: '#AEC3DF' }}>Carregando modelos do relatório...</p> : null}
                         {powerBiCatalogError ? <p className="text-sm text-red-300">{powerBiCatalogError}</p> : null}
                         {!powerBiCatalogLoading && !powerBiCatalogError && powerBiCatalog.length === 0 ? (
-                          <p className="text-sm" style={{ color: '#5c554e' }}>Nenhum modelo encontrado para esta empresa.</p>
+                          <p className="text-sm" style={{ color: '#AEC3DF' }}>Nenhum modelo encontrado para esta empresa.</p>
                         ) : null}
                         {powerBiCatalog.map(report => {
                           const reportPermission = userForm.permissions.powerBiReports?.[report.id] || { enabled: true, pages: [], filters: [] }
@@ -3095,11 +3095,11 @@ export default function AdminPage() {
                           const schemaTables = getReportSchemaTables(report)
                           const hasSchemaTables = schemaTables.length > 0
                           return (
-                            <div key={report.id} className="rounded-2xl p-5 space-y-4" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                            <div key={report.id} className="rounded-2xl p-5 space-y-4" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                               <div className="flex items-center justify-between gap-3">
                                 <div>
                                   <p className="text-sm font-semibold text-white">{report.label || report.reportName}</p>
-                                  <p className="mt-0.5 text-xs uppercase tracking-[0.16em]" style={{ color: '#6b6358' }}>{report.reportName || 'Relatório Power BI'}</p>
+                                  <p className="mt-0.5 text-xs uppercase tracking-[0.16em]" style={{ color: '#7E97BC' }}>{report.reportName || 'Relatório Power BI'}</p>
                                 </div>
                                 <label className="portal-checkbox">
                                   <input type="checkbox" checked={reportPermission.enabled !== false} onChange={() => toggleUserPowerBiReport(report.id)} />
@@ -3114,7 +3114,7 @@ export default function AdminPage() {
                                     Todas
                                   </button>
                                 </div>
-                                <p className="mt-2 text-xs uppercase tracking-[0.18em]" style={{ color: '#6b6358' }}>
+                                <p className="mt-2 text-xs uppercase tracking-[0.18em]" style={{ color: '#7E97BC' }}>
                                   {allowAllPages ? 'Todas as páginas estão liberadas.' : 'Páginas escolhidas manualmente.'}
                                 </p>
                                 <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -3141,17 +3141,17 @@ export default function AdminPage() {
                                 </div>
                                 <div className="mt-4 space-y-3">
                                   {(reportPermission.filters || []).length === 0 ? (
-                                    <p className="text-sm" style={{ color: '#5c554e' }}>Nenhum filtro configurado para este modelo.</p>
+                                    <p className="text-sm" style={{ color: '#AEC3DF' }}>Nenhum filtro configurado para este modelo.</p>
                                   ) : (
                                     (reportPermission.filters || []).map(filter => (
-                                      <div key={filter.id} className="rounded-xl p-3" style={{ background: '#110f0d', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                      <div key={filter.id} className="rounded-xl p-3" style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.05)' }}>
                                         <div className="mb-3 flex justify-end">
                                           <button type="button" className="inline-flex h-9 items-center rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-200 transition hover:bg-red-500/15" onClick={() => removeUserPowerBiFilter(report.id, filter.id)}>
                                             Remover
                                           </button>
                                         </div>
                                         {!hasSchemaTables ? (
-                                          <p className="mb-3 text-xs" style={{ color: '#6b6358' }}>
+                                          <p className="mb-3 text-xs" style={{ color: '#7E97BC' }}>
                                             Este modelo ainda não expôs a estrutura de tabelas e colunas. Você pode preencher manualmente por enquanto.
                                           </p>
                                         ) : null}
@@ -3206,15 +3206,15 @@ export default function AdminPage() {
             </div>
           </div>
           {isCreateUserModalOpen ? (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-8" style={{ background: 'rgba(0,0,0,0.82)' }}>
+            <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-8" style={{ background: 'rgba(4, 11, 24, 0.82)' }}>
               <div
                 className="flex max-h-[90vh] w-full max-w-[760px] flex-col overflow-hidden rounded-2xl"
-                style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(0,0,0,0.7)' }}
+                style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(4, 11, 24, 0.7)' }}
               >
                 <div className="flex items-start justify-between gap-4 px-6 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                   <div>
                     <h3 className="text-lg font-bold text-white">Novo usuário</h3>
-                    <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
+                    <p className="mt-1 text-sm" style={{ color: '#AEC3DF' }}>
                       Crie o usuário e defina os acessos principais.
                     </p>
                   </div>
@@ -3224,7 +3224,7 @@ export default function AdminPage() {
                   </button>
                 </div>
 
-                <form className="min-h-0 flex-1 overflow-y-auto px-6 py-5 space-y-5" onSubmit={handleSaveUser} style={{ background: '#110f0d' }}>
+                <form className="min-h-0 flex-1 overflow-y-auto px-6 py-5 space-y-5" onSubmit={handleSaveUser} style={{ background: '#0D1D38' }}>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <label className="portal-label">Nome</label>
@@ -3240,7 +3240,7 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl p-5" style={{ background: '#181410', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div className="rounded-2xl p-5" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
                     <h4 className="text-sm font-semibold text-white">Páginas liberadas</h4>
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                       <label className="portal-checkbox">
@@ -3274,15 +3274,15 @@ export default function AdminPage() {
             </div>
           ) : null}
           {isPasswordListModalOpen ? (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-8" style={{ background: 'rgba(0,0,0,0.82)' }}>
+            <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-8" style={{ background: 'rgba(4, 11, 24, 0.82)' }}>
               <div
                 className="flex max-h-[88vh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl"
-                style={{ background: '#141210', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(0,0,0,0.7)' }}
+                style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(4, 11, 24, 0.7)' }}
               >
                 <div className="flex items-start justify-between gap-4 px-6 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                   <div>
                     <h3 className="text-lg font-bold text-white">Gerar lista de usuários</h3>
-                    <p className="mt-1 text-sm" style={{ color: '#5c554e' }}>
+                    <p className="mt-1 text-sm" style={{ color: '#AEC3DF' }}>
                       Informe a nova senha de cada usuário. Ao concluir, o portal atualiza as senhas e baixa um TXT com nome, email e senha.
                     </p>
                   </div>
@@ -3292,12 +3292,12 @@ export default function AdminPage() {
                   </button>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5" style={{ background: '#110f0d' }}>
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5" style={{ background: '#0D1D38' }}>
                   <div className="space-y-3">
                     {getCompanyUserList(companyUsers, managingCompany).map(user => (
                       <div key={user.uid} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)' }}>
                         <p className="text-sm font-semibold text-white">{user.name || 'Sem nome'}</p>
-                        <p className="mt-0.5 text-xs" style={{ color: '#4a4238' }}>{user.email}</p>
+                        <p className="mt-0.5 text-xs" style={{ color: '#28497E' }}>{user.email}</p>
                         <div className="mt-3 space-y-1.5">
                           <label className="portal-label">Nova senha</label>
                           <input
