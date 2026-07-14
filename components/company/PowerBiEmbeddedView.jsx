@@ -449,7 +449,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                   className="absolute inset-x-0 top-0 z-20 backdrop-blur"
                   style={{
                     paddingTop: 'env(safe-area-inset-top, 0px)',
-                    background: 'rgba(12,10,8,0.9)',
+                    background: 'rgba(13,29,56,0.9)',
                     borderBottom: '1px solid rgba(255,255,255,0.05)',
                     boxShadow: '0 4px 20px rgba(3, 8, 20, 0.3)',
                   }}
@@ -529,7 +529,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     className="absolute inset-x-0 bottom-0 z-20 px-3 py-2 backdrop-blur"
                     style={{
                       paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
-                      background: 'rgba(12,10,8,0.92)',
+                      background: 'rgba(13,29,56,0.92)',
                       borderTop: '1px solid rgba(255,255,255,0.05)',
                       boxShadow: '0 -4px 20px rgba(3, 8, 20, 0.3)',
                     }}

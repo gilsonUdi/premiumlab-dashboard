@@ -1825,10 +1825,10 @@ export default function AdminPage() {
       </div>
 
       {isCompanyModalOpen ? (
-        <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto px-4 py-4 sm:items-center sm:py-8" style={{ background: 'rgba(0,0,0,0.75)' }}>
+        <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto px-4 py-4 sm:items-center sm:py-8" style={{ background: 'rgba(4,11,24,0.75)' }}>
           <div
             className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-[1100px] flex-col overflow-hidden rounded-2xl sm:max-h-[92vh]"
-            style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(0,0,0,0.6)' }}
+            style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 40px 120px rgba(4,11,24,0.6)' }}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>

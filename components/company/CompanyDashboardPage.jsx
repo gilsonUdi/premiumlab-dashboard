@@ -38,7 +38,7 @@ function EmbeddedToolFrame({ company, src, backHref }) {
       <Link
         href={backHref}
         aria-label="Voltar ao portal"
-        className="absolute left-4 top-4 z-20 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#112345]/88 text-2xl text-white shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur transition hover:bg-[#16294F] sm:left-6 sm:top-6"
+        className="absolute left-4 top-4 z-20 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#112345]/88 text-2xl text-white shadow-[0_16px_40px_rgba(4,11,24,0.28)] backdrop-blur transition hover:bg-[#16294F] sm:left-6 sm:top-6"
       >
         <span aria-hidden="true">{'\u2190'}</span>
       </Link>
