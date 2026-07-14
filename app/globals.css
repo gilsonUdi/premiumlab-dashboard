@@ -4,41 +4,6 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #f4f6f9;
-  --bg-card: #ffffff;
-  --bg-card-hover: #f8f9fb;
-  --bg-header: #edf1f6;
-  --border: #d9dfe8;
-  --border-hover: #b9c3d1;
-  --text-primary: #14213a;
-  --text-secondary: #526079;
-  --text-muted: #7b8798;
-  --accent: #b48a55;
-  --accent-bright: #946a35;
-  --success: #059669;
-  --warning: #d97706;
-  --danger: #dc2626;
-  --purple: #7c3aed;
-  --portal-bg: #f4f6f9;
-  --portal-bg-soft: #eef2f6;
-  --portal-sidebar: #e8edf3;
-  --portal-surface: #ffffff;
-  --portal-surface-raised: #fbfcfd;
-  --portal-subtle: rgba(20, 33, 58, 0.045);
-  --portal-subtle-hover: rgba(20, 33, 58, 0.075);
-  --portal-border: rgba(20, 33, 58, 0.13);
-  --portal-border-strong: rgba(20, 33, 58, 0.22);
-  --portal-gold-soft: rgba(180, 138, 85, 0.12);
-  --portal-gold-border: rgba(180, 138, 85, 0.35);
-  --portal-overlay: rgba(13, 24, 43, 0.42);
-  --portal-shadow: 0 18px 50px rgba(29, 42, 63, 0.12);
-  --portal-shadow-strong: 0 30px 90px rgba(29, 42, 63, 0.2);
-  --portal-grid: rgba(20, 33, 58, 0.045);
-  --portal-logo-opacity: 0.9;
-  color-scheme: light;
-}
-
-:root[data-theme='dark'] {
   --bg-primary: #101a2f;
   --bg-card: #16233d;
   --bg-card-hover: #1a2947;
@@ -50,6 +15,10 @@
   --text-muted: #8290a6;
   --accent: #c49a65;
   --accent-bright: #dfb77e;
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --purple: #7c3aed;
   --portal-bg: #101a2f;
   --portal-bg-soft: #121f37;
   --portal-sidebar: #0d172a;
@@ -87,36 +56,6 @@ body {
 body {
   min-height: 100vh;
   transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.theme-toggle {
-  position: fixed;
-  bottom: 18px;
-  left: 18px;
-  z-index: 100;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border: 1px solid var(--portal-border-strong);
-  border-radius: 8px;
-  background: var(--portal-surface);
-  color: var(--text-primary);
-  box-shadow: var(--portal-shadow);
-  cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-}
-
-.theme-toggle:hover {
-  transform: translateY(-1px);
-  border-color: var(--portal-gold-border);
-  background: var(--portal-surface-raised);
-}
-
-.theme-toggle:focus-visible {
-  outline: 3px solid var(--portal-gold-soft);
-  outline-offset: 2px;
 }
 
 /* ── Scrollbar ───────────────────────────────────────────── */
@@ -282,26 +221,17 @@ body {
 }
 
 .dashboard-input[type="date"] {
-  color-scheme: light;
-}
-
-:root[data-theme='dark'] .dashboard-input[type="date"] {
   color-scheme: dark;
 }
 
 input.dashboard-input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
-  filter: none;
+  filter: brightness(0) invert(1) !important;
   opacity: 0.75;
 }
 
 input.dashboard-input[type="date"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
-  filter: none;
-}
-
-:root[data-theme='dark'] input.dashboard-input[type="date"]::-webkit-calendar-picker-indicator,
-:root[data-theme='dark'] input.dashboard-input[type="date"]::-webkit-calendar-picker-indicator:hover {
   filter: brightness(0) invert(1) !important;
 }
 
@@ -535,24 +465,6 @@ select.portal-input:disabled {
 
 .portal-modal-backdrop {
   background: var(--portal-overlay);
-}
-
-/* Mantem as utilidades antigas legiveis no tema claro enquanto as telas
-   administrativas migram gradualmente para os tokens da identidade. */
-:root[data-theme='light'] .portal-theme-root .text-white {
-  color: var(--text-primary) !important;
-}
-
-:root[data-theme='light'] .portal-theme-root .border-white\/10,
-:root[data-theme='light'] .portal-theme-root .border-white\/8,
-:root[data-theme='light'] .portal-theme-root .border-white\/15 {
-  border-color: var(--portal-border) !important;
-}
-
-:root[data-theme='light'] .portal-theme-root .bg-white\/\[0\.03\],
-:root[data-theme='light'] .portal-theme-root .bg-white\/\[0\.04\],
-:root[data-theme='light'] .portal-theme-root .bg-white\/\[0\.05\] {
-  background-color: var(--portal-subtle) !important;
 }
 
 /* Compatibilidade com os componentes analiticos que ainda usam utilitarios
