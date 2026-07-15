@@ -158,7 +158,7 @@ export default function CompanyChromeColorPicker({ value, onChange }) {
           <div className="space-y-5 rounded-xl border border-white/10 bg-white/[0.03] p-4">
             <RangeControl label="Saturação" value={appearance.saturation} minimum={0} maximum={200} suffix="%" onChange={saturation => emit({ saturation })} />
             <RangeControl label="Matiz" value={appearance.hue} minimum={-180} maximum={180} suffix="°" onChange={hue => emit({ hue })} />
-            <RangeControl label="Contraste" value={appearance.contrast} minimum={50} maximum={150} suffix="%" onChange={contrast => emit({ contrast })} />
+            <RangeControl label="Brilho" value={appearance.brightness} minimum={50} maximum={150} suffix="%" onChange={brightness => emit({ brightness })} />
           </div>
         ) : null}
 
