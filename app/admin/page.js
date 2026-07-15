@@ -47,6 +47,8 @@ import {
   POWER_BI_FILTER_OPERATORS,
 } from '@/lib/portal-config'
 import { getPowerBiReportCatalog } from '@/lib/power-bi'
+import CompanyChromeColorPicker from '@/components/admin/CompanyChromeColorPicker'
+import { DEFAULT_COMPANY_APPEARANCE, normalizeCompanyAppearance } from '@/lib/company-appearance'
 
 function createEmptyPowerBiReport() {
   return {
@@ -114,6 +116,7 @@ const emptyForm = {
   companyCodeFilter: '',
   lossFinalityCodesText: '',
   apiCancellationCodesText: '43',
+  portalAppearance: { ...DEFAULT_COMPANY_APPEARANCE },
   tools: ['dashboard'],
   isPremiumLab: false,
 }
@@ -671,6 +674,7 @@ export default function AdminPage() {
       powerBiReportId: company.powerBiReportId || '',
       powerBiDatasetId: company.powerBiDatasetId || '',
       powerBiReports: getPowerBiReportCatalog(company),
+      portalAppearance: normalizeCompanyAppearance(company),
       dashboardFilters: company.dashboardFilters || buildDefaultDashboardFilters(),
       dashboardVisualFilters: company.dashboardVisualFilters || buildDefaultDashboardVisualFilters(),
       orderCompletionRules: Array.isArray(company.orderCompletionRules) ? company.orderCompletionRules : [],
@@ -1846,12 +1850,13 @@ export default function AdminPage() {
 
             <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSaveCompany}>
               {/* Body: sidebar + content */}
-              <div className="flex min-h-0 flex-1 overflow-hidden">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden sm:flex-row">
                 {/* Left sidebar */}
-                <div className="flex w-[240px] shrink-0 flex-col gap-1 p-4" style={{ background: '#0A162B', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
-                  <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#28497E' }}>Seções</p>
+                <div className="flex w-full shrink-0 gap-1 overflow-x-auto p-3 sm:w-[240px] sm:flex-col sm:overflow-visible sm:p-4" style={{ background: '#0A162B', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                  <p className="mb-2 hidden px-2 text-[10px] font-bold uppercase tracking-[0.18em] sm:block" style={{ color: '#28497E' }}>Seções</p>
                   {[
                     { key: 'basic', label: 'Dados básicos' },
+                    { key: 'appearance', label: 'Aparência' },
                     { key: 'connection', label: 'Conexão' },
                     { key: 'filters', label: 'Filtros' },
                     { key: 'powerbi', label: 'Power BI' },
@@ -1860,7 +1865,7 @@ export default function AdminPage() {
                     <button
                       key={tab.key}
                       type="button"
-                      className="rounded-xl px-4 py-2.5 text-sm font-medium w-full text-left transition"
+                      className="w-auto shrink-0 whitespace-nowrap rounded-xl px-4 py-2.5 text-left text-sm font-medium transition sm:w-full"
                       style={
                         activeCompanyTab === tab.key
                           ? { background: 'rgba(201, 164, 92,0.1)', border: '1px solid rgba(201, 164, 92,0.2)', color: '#DAB975' }
@@ -1874,7 +1879,7 @@ export default function AdminPage() {
                 </div>
 
                 {/* Right content */}
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-5" style={{ background: '#0A162B' }}>
+                <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4 sm:p-6" style={{ background: '#0A162B' }}>
 
                   {/* TAB: basic */}
                   {activeCompanyTab === 'basic' && (
@@ -1948,6 +1953,19 @@ export default function AdminPage() {
                             Premium Lab ja esta definida como tenant principal.
                           </div>
                         )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB: appearance */}
+                  {activeCompanyTab === 'appearance' && (
+                    <div className="space-y-5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#C9A45C' }}>Aparência</p>
+                      <div className="rounded-2xl p-5" style={{ background: '#112345', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <CompanyChromeColorPicker
+                          value={form.portalAppearance}
+                          onChange={portalAppearance => setForm(previous => ({ ...previous, portalAppearance }))}
+                        />
                       </div>
                     </div>
                   )}

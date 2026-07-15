@@ -63,6 +63,33 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+.company-color-range {
+  height: 4px;
+  cursor: pointer;
+  appearance: none;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #28497E, #C9A45C);
+}
+
+.company-color-range::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  appearance: none;
+  border: 2px solid #EAF1FA;
+  border-radius: 50%;
+  background: #0D1D38;
+  box-shadow: 0 2px 8px rgba(3, 8, 20, 0.5);
+}
+
+.company-color-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #EAF1FA;
+  border-radius: 50%;
+  background: #0D1D38;
+  box-shadow: 0 2px 8px rgba(3, 8, 20, 0.5);
+}
+
 /* ── Scrollbar ───────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 5px;

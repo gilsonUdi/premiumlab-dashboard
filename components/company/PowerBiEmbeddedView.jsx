@@ -6,11 +6,13 @@ import { PowerBIEmbed } from 'powerbi-client-react'
 import { models } from 'powerbi-client'
 import { ArrowLeft, ChevronRight, Maximize2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { getPortalAuthHeaders } from '@/lib/portal-store'
+import { resolveCompanyChrome } from '@/lib/company-appearance'
 
 const TOKEN_REFRESH_INTERVAL_MS = 30 * 1000
 const TOKEN_REFRESH_MARGIN_MS = 10 * 60 * 1000
 
 export default function PowerBiEmbeddedView({ company, reportKey }) {
+  const companyChrome = useMemo(() => resolveCompanyChrome(company), [company])
   const [config, setConfig] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -332,21 +334,21 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       <section className={`grid h-[100dvh] grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[64px_minmax(0,1fr)]' : 'lg:grid-cols-[272px_minmax(0,1fr)]'}`}>
         <aside
           className="hidden pt-20 lg:flex lg:min-h-0 lg:flex-col"
-          style={{ background: 'var(--portal-sidebar)', borderRight: '1px solid var(--portal-border)' }}
+          style={{ background: companyChrome.background, borderRight: `1px solid ${companyChrome.border}`, color: companyChrome.foreground }}
         >
           <div className={`${sidebarCollapsed ? 'px-2 pb-4' : 'px-5 pb-5'}`}>
             <div className={`flex items-start ${sidebarCollapsed ? 'justify-center' : 'justify-between gap-3'}`}>
               {sidebarCollapsed ? null : (
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#C9A45C' }}>Power BI</p>
-                  <h1 className="mt-1 text-lg font-semibold text-white leading-tight">{config?.reportName || company.powerBiLabel || company.name}</h1>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: companyChrome.muted }}>Power BI</p>
+                  <h1 className="mt-1 text-lg font-semibold leading-tight" style={{ color: companyChrome.foreground }}>{config?.reportName || company.powerBiLabel || company.name}</h1>
                 </div>
               )}
               <button
                 type="button"
                 aria-label={sidebarCollapsed ? 'Expandir páginas' : 'Recolher páginas'}
                 className={`${sidebarCollapsed ? 'h-9 w-9' : 'h-9 w-9'} inline-flex shrink-0 items-center justify-center rounded-xl transition`}
-                style={{ background: 'rgba(255,255,255,0.05)', color: '#7E97BC' }}
+                style={{ background: companyChrome.subtle, color: companyChrome.muted }}
                 onClick={() => setSidebarCollapsed(previous => !previous)}
               >
                 {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
@@ -358,7 +360,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
             {loading ? (
               <div
                 className="rounded-xl px-4 py-3 text-sm"
-                style={{ background: 'rgba(255,255,255,0.03)', color: '#AEC3DF' }}
+                style={{ background: companyChrome.subtle, color: companyChrome.muted }}
               >
                 Carregando páginas...
               </div>
@@ -372,7 +374,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
             ) : sidebarPages.length === 0 ? (
               <div
                 className="rounded-xl px-4 py-3 text-sm"
-                style={{ background: 'rgba(255,255,255,0.03)', color: '#AEC3DF' }}
+                style={{ background: companyChrome.subtle, color: companyChrome.muted }}
               >
                 Nenhuma página disponível neste relatório.
               </div>
@@ -390,14 +392,14 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       style={
                         isActive
                           ? {
-                              background: 'rgba(201, 164, 92,0.12)',
-                              border: '1px solid rgba(201, 164, 92,0.22)',
-                              color: '#DAB975',
+                              background: companyChrome.subtle,
+                              border: `1px solid ${companyChrome.border}`,
+                              color: companyChrome.foreground,
                             }
                           : {
-                              background: 'rgba(255,255,255,0.03)',
+                              background: companyChrome.subtle,
                               border: '1px solid transparent',
-                              color: '#7E97BC',
+                              color: companyChrome.muted,
                             }
                       }
                     >
@@ -412,7 +414,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       ) : (
                         <>
                           <span className="pr-3 font-medium">{page.displayName || page.name}</span>
-                          <ChevronRight size={14} style={{ color: isActive ? '#DAB975' : '#28497E', flexShrink: 0 }} />
+                          <ChevronRight size={14} style={{ color: isActive ? companyChrome.foreground : companyChrome.muted, flexShrink: 0 }} />
                         </>
                       )}
                     </button>
@@ -449,8 +451,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                   className="absolute inset-x-0 top-0 z-20 backdrop-blur"
                   style={{
                     paddingTop: 'env(safe-area-inset-top, 0px)',
-                    background: 'rgba(13,29,56,0.9)',
-                    borderBottom: '1px solid rgba(255,255,255,0.05)',
+                    background: companyChrome.background,
+                    borderBottom: `1px solid ${companyChrome.border}`,
                     boxShadow: '0 4px 20px rgba(3, 8, 20, 0.3)',
                   }}
                 >
@@ -459,12 +461,12 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       <Link
                         href={`/empresa/${company.slug}`}
                         aria-label="Voltar ao portal"
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white transition md:hidden"
-                        style={{ background: 'rgba(255,255,255,0.05)', color: '#7E97BC' }}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition md:hidden"
+                        style={{ background: companyChrome.subtle, color: companyChrome.foreground }}
                       >
                         <ArrowLeft size={14} />
                       </Link>
-                      <span className="truncate text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: '#C9A45C' }}>
+                      <span className="truncate text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: companyChrome.foreground }}>
                         Axis
                       </span>
                     </div>
@@ -472,6 +474,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       <button
                         type="button"
                         className="portal-ghost-button h-7 gap-1.5 px-2.5 text-xs"
+                        style={{ background: companyChrome.subtle, borderColor: companyChrome.border, color: companyChrome.foreground }}
                         onClick={toggleFullscreen}
                       >
                         <Maximize2 size={12} />

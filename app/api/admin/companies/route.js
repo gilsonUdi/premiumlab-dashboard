@@ -81,6 +81,7 @@ function normalizeCompanyPayload(payload = {}) {
     companyCodeFilter: portalSettings.companyCodeFilter,
     lossFinalityCodes: [...new Set(lossFinalityCodes)],
     apiCancellationCodes: [...new Set(apiCancellationCodes)],
+    portalAppearance: portalSettings.portalAppearance,
     createdAt: payload.createdAt || new Date().toISOString(),
   }
 }
@@ -179,6 +180,7 @@ export async function POST(request) {
         companyCodeFilter: company.companyCodeFilter,
         lossFinalityCodes: company.lossFinalityCodes,
         apiCancellationCodes: company.apiCancellationCodes,
+        portalAppearance: company.portalAppearance,
         authUid: authUser.uid,
         hasServiceRoleKey: Boolean(supabaseServiceRoleKey),
         createdAt: existingCompany?.createdAt || company.createdAt,
