@@ -1,7 +1,7 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'Axis Portal - Multi-tenant',
+  title: 'Axis Portal - Área do Cliente',
   description: 'Portal multi-tenant para dashboards e ferramentas das empresas atendidas pela Axis Governance',
   icons: {
     icon: '/site-icon.png',
