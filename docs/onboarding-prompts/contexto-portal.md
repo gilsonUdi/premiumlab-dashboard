@@ -377,3 +377,13 @@ Para API ou sync:
    - sem tela cheia no mobile.
 7. Validar sugestoes com anexos e regras Firebase Storage.
 
+## Troca da propria senha pelo usuario - atualizacao de 04/08/2026
+
+- A home da empresa passou a exibir o botao `Alterar senha` na barra superior.
+- O botao abre um popup compacto com um unico campo, `Nova senha`, alem das acoes de confirmar e fechar.
+- A senha deve ter entre 6 e 128 caracteres.
+- Foi criada a rota protegida `PATCH /api/account/password`. Ela identifica o usuario exclusivamente pelo token Firebase da sessao e atualiza somente o UID autenticado; o frontend nao envia nem escolhe UID.
+- Contas marcadas como inativas nao podem usar a operacao.
+- Depois da troca, o popup informa o sucesso sem desconectar o usuario.
+- A barra superior passou a quebrar os botoes em telas menores para acomodar a nova acao sem transbordamento.
+- Build de producao do Next.js 14.2.35 concluido com sucesso em copia temporaria limpa. O aviso preexistente de uso dinamico da rota `/api/admin/feedback` apareceu durante a geracao, mas nao impediu o build.

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BarChart3, LayoutPanelTop, LogOut, MessageSquareText, PieChart, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { ArrowLeft, BarChart3, KeyRound, LayoutPanelTop, LogOut, MessageSquareText, PieChart, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import {
   clearPortalSession,
@@ -53,6 +53,10 @@ export default function CompanyHomePage({ slug }) {
   const [feedbackHistory, setFeedbackHistory] = useState([])
   const [feedbackHistoryLoading, setFeedbackHistoryLoading] = useState(false)
   const [isFeedbackPopupOpen, setIsFeedbackPopupOpen] = useState(false)
+  const [isPasswordPopupOpen, setIsPasswordPopupOpen] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [passwordStatus, setPasswordStatus] = useState('')
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -99,6 +103,47 @@ export default function CompanyHomePage({ slug }) {
   const handleLogout = async () => {
     await clearPortalSession()
     router.push('/login')
+  }
+
+  const closePasswordPopup = () => {
+    if (isChangingPassword) return
+    setIsPasswordPopupOpen(false)
+    setNewPassword('')
+    setPasswordStatus('')
+  }
+
+  const handleChangePassword = async event => {
+    event.preventDefault()
+    setPasswordStatus('')
+
+    if (newPassword.length < 6) {
+      setPasswordStatus('A nova senha deve ter pelo menos 6 caracteres.')
+      return
+    }
+
+    setIsChangingPassword(true)
+    try {
+      const response = await fetch('/api/account/password', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(await getPortalAuthHeaders()),
+        },
+        body: JSON.stringify({ password: newPassword }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Falha ao alterar a senha.')
+      }
+
+      setNewPassword('')
+      setPasswordStatus('Senha alterada com sucesso.')
+    } catch (error) {
+      console.error(error)
+      setPasswordStatus(error?.message || 'Falha ao alterar a senha.')
+    } finally {
+      setIsChangingPassword(false)
+    }
   }
 
   const handleSendFeedback = async event => {
@@ -316,9 +361,9 @@ export default function CompanyHomePage({ slug }) {
       <div className="mx-auto max-w-[1380px] px-5 py-5">
 
         {/* Top bar — minimal */}
-        <header className="mb-12 flex items-center justify-between gap-4">
+        <header className="mb-12 flex flex-wrap items-center justify-between gap-4">
           <Image src="/axis-logo.png" alt="Axis Governance" width={144} height={48} className="h-12 w-36 object-cover" />
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Link href="/" className="portal-ghost-button">
               <ArrowLeft size={14} />
               Home
@@ -329,6 +374,10 @@ export default function CompanyHomePage({ slug }) {
                 Admin
               </Link>
             ) : null}
+            <button type="button" onClick={() => setIsPasswordPopupOpen(true)} className="portal-ghost-button">
+              <KeyRound size={14} />
+              Alterar senha
+            </button>
             <button onClick={handleLogout} className="portal-ghost-button">
               <LogOut size={14} />
               Sair
@@ -434,6 +483,56 @@ export default function CompanyHomePage({ slug }) {
         </section>
 
       </div>
+
+      {isPasswordPopupOpen ? (
+        <div className="portal-modal-backdrop fixed inset-0 z-40 flex items-center justify-center p-4">
+          <div className="portal-panel w-full max-w-md rounded-lg p-5" style={{ background: 'var(--portal-surface)' }}>
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex h-9 w-9 items-center justify-center rounded-xl"
+                  style={{ background: 'var(--portal-gold-soft)', color: 'var(--accent-bright)' }}
+                >
+                  <KeyRound size={16} />
+                </div>
+                <div>
+                  <h2 className="portal-title text-sm font-semibold">Alterar senha</h2>
+                  <p className="text-xs" style={{ color: '#AEC3DF' }}>Informe a nova senha da sua conta.</p>
+                </div>
+              </div>
+              <button type="button" className="portal-ghost-button h-9 px-3 text-xs" onClick={closePasswordPopup} disabled={isChangingPassword}>
+                Fechar
+              </button>
+            </div>
+
+            <form className="space-y-4" onSubmit={handleChangePassword}>
+              <input
+                className="portal-input w-full"
+                type="password"
+                autoComplete="new-password"
+                placeholder="Nova senha"
+                aria-label="Nova senha"
+                minLength={6}
+                maxLength={128}
+                value={newPassword}
+                onChange={event => setNewPassword(event.target.value)}
+                autoFocus
+                required
+              />
+              {passwordStatus ? (
+                <div className="rounded-xl px-4 py-3 text-sm text-[#C9D6EA]" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  {passwordStatus}
+                </div>
+              ) : null}
+              <div className="flex justify-end">
+                <button type="submit" className="portal-primary-button" disabled={isChangingPassword}>
+                  {isChangingPassword ? 'Alterando...' : 'Alterar senha'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       {/* Floating feedback button */}
       <button
