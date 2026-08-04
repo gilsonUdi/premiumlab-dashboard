@@ -387,3 +387,8 @@ Para API ou sync:
 - Depois da troca, o popup informa o sucesso sem desconectar o usuario.
 - A barra superior passou a quebrar os botoes em telas menores para acomodar a nova acao sem transbordamento.
 - Build de producao do Next.js 14.2.35 concluido com sucesso em copia temporaria limpa. O aviso preexistente de uso dinamico da rota `/api/admin/feedback` apareceu durante a geracao, mas nao impediu o build.
+
+## Dependencia Sharp no deploy - atualizacao de 04/08/2026
+
+- O deploy da Hostinger iniciou o Next.js 14.2.35, mas a otimizacao de imagens falhou em runtime com `sharp is required to be installed in standalone mode`.
+- O pacote `sharp` passou a ser uma dependencia explicita de producao no `package.json`, garantindo sua instalacao e inclusao no ambiente standalone.
