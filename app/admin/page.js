@@ -12,6 +12,7 @@ import {
   MessageSquareText,
   Pencil,
   Plus,
+  QrCode,
   Search,
   SquareArrowOutUpRight,
   Trash2,
@@ -48,6 +49,7 @@ import {
 } from '@/lib/portal-config'
 import { getPowerBiReportCatalog } from '@/lib/power-bi'
 import CompanyChromeColorPicker from '@/components/admin/CompanyChromeColorPicker'
+import QrCodeGenerator from '@/components/admin/QrCodeGenerator'
 import { DEFAULT_COMPANY_APPEARANCE, normalizeCompanyAppearance } from '@/lib/company-appearance'
 
 function createEmptyPowerBiReport() {
@@ -1544,6 +1546,19 @@ export default function AdminPage() {
               </button>
               <button
                 type="button"
+                onClick={() => setActivePanel('qr-code')}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all"
+                style={
+                  activePanel === 'qr-code'
+                    ? { background: 'rgba(201, 164, 92,0.08)', color: '#DAB975', border: '1px solid rgba(201, 164, 92,0.15)' }
+                    : { color: '#7E97BC', border: '1px solid transparent' }
+                }
+              >
+                <QrCode size={15} />
+                <span>Gerador de QR Code</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   setActivePanel('feedback')
                   loadFeedbackItems()
@@ -1708,6 +1723,8 @@ export default function AdminPage() {
                   </div>
                 </section>
               </>
+            ) : activePanel === 'qr-code' ? (
+              <QrCodeGenerator />
             ) : (
               <>
                 <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
