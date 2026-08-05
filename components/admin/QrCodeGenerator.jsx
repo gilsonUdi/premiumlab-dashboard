@@ -4,7 +4,7 @@ import { useState } from 'react'
 import QRCode from 'qrcode'
 import { Contact, Download, Link2, QrCode } from 'lucide-react'
 
-const CONTATO_INICIAL = { nome: '', empresa: '', cargo: '', telefone: '', email: '', site: '', endereco: '' }
+const CONTATO_INICIAL = { nome: '', empresa: '', cargo: '', telefone: '', email: '', site: '', site2: '', endereco: '' }
 
 function validarUrl(valor) {
   try {
@@ -35,6 +35,7 @@ function montarVcard(contato) {
   if (contato.telefone.trim()) linhas.push(`TEL;TYPE=CELL,VOICE:${escaparVcard(contato.telefone)}`)
   if (contato.email.trim()) linhas.push(`EMAIL;TYPE=INTERNET,WORK:${escaparVcard(contato.email)}`)
   if (contato.site.trim()) linhas.push(`URL:${escaparVcard(contato.site)}`)
+  if (contato.site2.trim()) linhas.push(`URL:${escaparVcard(contato.site2)}`)
   if (contato.endereco.trim()) linhas.push(`ADR;TYPE=WORK:;;${escaparVcard(contato.endereco)};;;;`)
   linhas.push('END:VCARD')
   return linhas.join('\r\n')
@@ -86,7 +87,10 @@ export default function QrCodeGenerator() {
         setErro('Informe um e-mail válido.'); setPng(''); setSvg(''); return
       }
       if (contato.site.trim() && !validarUrl(contato.site.trim())) {
-        setErro('Informe o site completo, começando com http:// ou https://.'); setPng(''); setSvg(''); return
+        setErro('Informe o site principal completo, começando com http:// ou https://.'); setPng(''); setSvg(''); return
+      }
+      if (contato.site2.trim() && !validarUrl(contato.site2.trim())) {
+        setErro('Informe o segundo site completo, começando com http:// ou https://.'); setPng(''); setSvg(''); return
       }
       conteudo = montarVcard(contato)
     }
@@ -127,7 +131,8 @@ export default function QrCodeGenerator() {
           <Campo label="Empresa" valor={contato.empresa} aoMudar={valor => atualizarContato('empresa', valor)} placeholder="Axis Governance" />
           <Campo label="Cargo" valor={contato.cargo} aoMudar={valor => atualizarContato('cargo', valor)} placeholder="Diretor" />
           <Campo label="E-mail" valor={contato.email} aoMudar={valor => atualizarContato('email', valor)} placeholder="nome@empresa.com.br" type="email" />
-          <Campo label="Site" valor={contato.site} aoMudar={valor => atualizarContato('site', valor)} placeholder="https://empresa.com.br" type="url" />
+          <Campo label="Site principal" valor={contato.site} aoMudar={valor => atualizarContato('site', valor)} placeholder="https://empresa.com.br" type="url" />
+          <Campo label="Segundo site" valor={contato.site2} aoMudar={valor => atualizarContato('site2', valor)} placeholder="https://outrosite.com.br" type="url" />
           <label className="block sm:col-span-2"><span className="text-sm font-semibold text-white">Endereço</span><textarea value={contato.endereco} onChange={event => atualizarContato('endereco', event.target.value)} rows={3} placeholder="Rua, número, bairro, cidade - UF, CEP" className="mt-2 w-full rounded-xl px-4 py-3 text-sm text-white outline-none" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }} /></label>
         </div>}
 
