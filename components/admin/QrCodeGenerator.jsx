@@ -4,7 +4,7 @@ import { useState } from 'react'
 import QRCode from 'qrcode'
 import { Contact, Download, Link2, QrCode } from 'lucide-react'
 
-const CONTATO_INICIAL = { nome: '', empresa: '', cargo: '', telefone: '', email: '', site: '', site2: '', instagram: '', endereco: '' }
+const CONTATO_INICIAL = { nome: '', empresa: '', cargo: '', telefone: '', email: '', site: '', site2: '', instagram: '', linkedin: '', endereco: '' }
 
 function validarUrl(valor) {
   try {
@@ -34,6 +34,15 @@ function normalizarInstagram(valor) {
   return /^[a-zA-Z0-9._]+$/.test(usuario) ? `https://instagram.com/${usuario}` : ''
 }
 
+function normalizarLinkedin(valor) {
+  const texto = String(valor || '').trim()
+  if (!texto) return ''
+  if (/^https?:\/\//i.test(texto)) return validarUrl(texto) ? texto : ''
+  if (/^(?:www\.)?linkedin\.com\//i.test(texto)) return `https://${texto}`
+  const usuario = texto.replace(/^@/, '').replace(/^in\//i, '').replace(/\/+$/, '')
+  return /^[a-zA-Z0-9._-]+$/.test(usuario) ? `https://www.linkedin.com/in/${usuario}` : ''
+}
+
 function montarVcard(contato) {
   const linhas = [
     'BEGIN:VCARD', 'VERSION:3.0', `N:${nomeEstruturado(contato.nome)}`, `FN:${escaparVcard(contato.nome)}`,
@@ -46,6 +55,8 @@ function montarVcard(contato) {
   if (contato.site2.trim()) linhas.push(`URL:${escaparVcard(contato.site2)}`)
   const instagram = normalizarInstagram(contato.instagram)
   if (instagram) linhas.push(`X-SOCIALPROFILE;TYPE=instagram:${escaparVcard(instagram)}`)
+  const linkedin = normalizarLinkedin(contato.linkedin)
+  if (linkedin) linhas.push(`X-SOCIALPROFILE;TYPE=linkedin:${escaparVcard(linkedin)}`)
   if (contato.endereco.trim()) linhas.push(`ADR;TYPE=WORK:;;${escaparVcard(contato.endereco)};;;;`)
   linhas.push('END:VCARD')
   return linhas.join('\r\n')
@@ -105,6 +116,9 @@ export default function QrCodeGenerator() {
       if (contato.instagram.trim() && !normalizarInstagram(contato.instagram)) {
         setErro('Informe um usuário do Instagram, como @axisgovernance, ou a URL completa do perfil.'); setPng(''); setSvg(''); return
       }
+      if (contato.linkedin.trim() && !normalizarLinkedin(contato.linkedin)) {
+        setErro('Informe o identificador ou a URL completa do perfil no LinkedIn.'); setPng(''); setSvg(''); return
+      }
       conteudo = montarVcard(contato)
     }
 
@@ -147,6 +161,7 @@ export default function QrCodeGenerator() {
           <Campo label="Site principal" valor={contato.site} aoMudar={valor => atualizarContato('site', valor)} placeholder="https://empresa.com.br" type="url" />
           <Campo label="Segundo site" valor={contato.site2} aoMudar={valor => atualizarContato('site2', valor)} placeholder="https://outrosite.com.br" type="url" />
           <Campo label="Instagram" valor={contato.instagram} aoMudar={valor => atualizarContato('instagram', valor)} placeholder="@axisgovernance" />
+          <Campo label="LinkedIn" valor={contato.linkedin} aoMudar={valor => atualizarContato('linkedin', valor)} placeholder="https://linkedin.com/in/usuario" />
           <label className="block sm:col-span-2"><span className="text-sm font-semibold text-white">Endereço</span><textarea value={contato.endereco} onChange={event => atualizarContato('endereco', event.target.value)} rows={3} placeholder="Rua, número, bairro, cidade - UF, CEP" className="mt-2 w-full rounded-xl px-4 py-3 text-sm text-white outline-none" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }} /></label>
         </div>}
 
