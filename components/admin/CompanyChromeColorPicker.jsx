@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { RotateCcw, SlidersHorizontal } from 'lucide-react'
 import {
   DEFAULT_COMPANY_APPEARANCE,
@@ -10,6 +10,8 @@ import {
   resolveCompanyChrome,
   rgbToHsv,
 } from '@/lib/company-appearance'
+
+const HEX_COMPLETO = /^#([\da-f]{3}|[\da-f]{6})$/i
 
 function RangeControl({ label, value, minimum, maximum, suffix, onChange }) {
   return (
@@ -36,8 +38,32 @@ export default function CompanyChromeColorPicker({ value, onChange }) {
   const appearance = normalizeCompanyAppearance(value)
   const hsv = useMemo(() => rgbToHsv(hexToRgb(appearance.chromeColor)), [appearance.chromeColor])
   const resolved = useMemo(() => resolveCompanyChrome(appearance), [appearance])
+  // Enquanto o usuario digita o hex, o texto parcial (`#10`) nao e uma cor
+  // valida. O rascunho segura o que esta na tela para o campo nao voltar
+  // sozinho para a cor padrao a cada tecla; a cor so muda quando o hex fecha.
+  const [rascunhoHex, setRascunhoHex] = useState(null)
+  const hexVisivel = rascunhoHex ?? appearance.chromeColor
+  const hexInvalido = rascunhoHex !== null && !HEX_COMPLETO.test(rascunhoHex)
 
-  const emit = patch => onChange(normalizeCompanyAppearance({ ...appearance, ...patch }))
+  // Qualquer ajuste pela roda, pelo quadrado ou pelos controles avancados
+  // passa a valer no campo, descartando o rascunho antigo.
+  const emit = patch => {
+    setRascunhoHex(null)
+    onChange(normalizeCompanyAppearance({ ...appearance, ...patch }))
+  }
+
+  const digitarHex = event => {
+    const digitado = event.target.value.trim()
+    const comCerquilha = digitado.startsWith('#') ? digitado : `#${digitado}`
+    const rascunho = comCerquilha.slice(0, 7).toUpperCase()
+    setRascunhoHex(rascunho)
+    if (HEX_COMPLETO.test(rascunho)) {
+      onChange(normalizeCompanyAppearance({ ...appearance, chromeColor: rascunho }))
+    }
+  }
+
+  // Sair do campo com hex incompleto ou invalido volta a mostrar a cor atual.
+  const encerrarEdicaoHex = () => setRascunhoHex(null)
 
   const updateHue = event => {
     const bounds = wheelRef.current?.getBoundingClientRect()
@@ -111,16 +137,38 @@ export default function CompanyChromeColorPicker({ value, onChange }) {
       <div className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
           <div className="space-y-2">
-            <label className="portal-label">Cor das barras</label>
-            <div className="flex h-11 items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3">
+            <label className="portal-label" htmlFor="company-chrome-hex">Cor das barras</label>
+            <div
+              className={`flex h-11 items-center gap-3 rounded-xl border bg-white/[0.04] px-3 transition ${hexInvalido ? 'border-[#E4757A]' : 'border-white/10'}`}
+            >
               <span className="h-6 w-6 shrink-0 rounded-md border border-white/20" style={{ background: resolved.background }} />
               <input
-                value={appearance.chromeColor}
-                readOnly
-                className="min-w-0 flex-1 bg-transparent text-sm font-medium uppercase text-white outline-none"
+                id="company-chrome-hex"
+                value={hexVisivel}
+                onChange={digitarHex}
+                onBlur={encerrarEdicaoHex}
+                onKeyDown={event => {
+                  // O seletor vive dentro do formulario da empresa: Enter aqui
+                  // salvaria o cadastro inteiro sem querer.
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    event.currentTarget.blur()
+                  }
+                  if (event.key === 'Escape') encerrarEdicaoHex()
+                }}
+                maxLength={7}
+                spellCheck={false}
+                autoComplete="off"
+                placeholder="#0D1D38"
+                inputMode="text"
+                className="min-w-0 flex-1 bg-transparent text-sm font-medium uppercase text-white outline-none placeholder:text-white/30"
                 aria-label="Cor hexadecimal das barras"
+                aria-invalid={hexInvalido}
               />
             </div>
+            <p className={`text-[11px] ${hexInvalido ? 'text-[#E4757A]' : 'text-[#AEC3DF]'}`}>
+              {hexInvalido ? 'Informe um hex válido, como #0D1D38 ou #0D3.' : 'Digite ou cole o hex; a roda acompanha o valor.'}
+            </p>
           </div>
           <div className="space-y-2">
             <label className="portal-label">Resultado</label>
@@ -165,7 +213,10 @@ export default function CompanyChromeColorPicker({ value, onChange }) {
         <button
           type="button"
           className="inline-flex items-center gap-2 text-xs font-medium text-[#AEC3DF] transition hover:text-white"
-          onClick={() => onChange({ ...DEFAULT_COMPANY_APPEARANCE })}
+          onClick={() => {
+            setRascunhoHex(null)
+            onChange({ ...DEFAULT_COMPANY_APPEARANCE })
+          }}
         >
           <RotateCcw size={13} />
           Restaurar padrão
