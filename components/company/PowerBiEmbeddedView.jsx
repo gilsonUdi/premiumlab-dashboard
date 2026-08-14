@@ -20,6 +20,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobileLayout, setIsMobileLayout] = useState(false)
   const [isMobileDevice, setIsMobileDevice] = useState(false)
+  const [showCompactPages, setShowCompactPages] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const reportRef = useRef(null)
   const embedShellRef = useRef(null)
@@ -74,7 +75,13 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     const mobilePortraitQuery = window.matchMedia('(max-width: 767px) and (orientation: portrait)')
     const syncLayout = () => {
       const isPortrait = window.innerHeight >= window.innerWidth
-      setIsMobileLayout(mobilePortraitQuery.matches || (window.innerWidth <= 767 && isPortrait))
+      const mobileLayout = mobilePortraitQuery.matches || (window.innerWidth <= 767 && isPortrait)
+      setIsMobileLayout(mobileLayout)
+      // A sidebar de páginas do desktop só existe a partir de `lg` (1024px) e a
+      // faixa inferior só vale no retrato do celular. Ao deitar o aparelho a
+      // largura passa de 767px e as páginas ficavam sem nenhum acesso; esta
+      // barra compacta cobre essa faixa.
+      setShowCompactPages(!mobileLayout && window.innerWidth < 1024)
     }
     const syncLayoutAfterViewportSettles = () => {
       syncLayout()
@@ -483,6 +490,41 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     ) : null}
                   </div>
                 </div>
+                <div className="flex h-full w-full">
+                  {showCompactPages && sidebarPages.length > 0 ? (
+                    <nav
+                      aria-label="Páginas do relatório"
+                      className="z-10 flex w-[132px] shrink-0 flex-col gap-1.5 overflow-y-auto px-2 pb-3"
+                      style={{
+                        paddingTop: 'calc(2.5rem + env(safe-area-inset-top, 0px) + 0.5rem)',
+                        paddingLeft: 'calc(0.5rem + env(safe-area-inset-left, 0px))',
+                        background: companyChrome.background,
+                        borderRight: `1px solid ${companyChrome.border}`,
+                      }}
+                    >
+                      {sidebarPages.map(page => {
+                        const isActive = activePageName === page.name
+                        return (
+                          <button
+                            key={page.name}
+                            type="button"
+                            onClick={() => handleSelectPage(page.name)}
+                            title={page.displayName || page.name}
+                            aria-current={isActive ? 'page' : undefined}
+                            className="shrink-0 rounded-lg px-2.5 py-2 text-left text-[11px] font-medium leading-snug transition"
+                            style={
+                              isActive
+                                ? { background: 'rgba(201, 164, 92,0.15)', color: '#DAB975', border: '1px solid rgba(201, 164, 92,0.25)' }
+                                : { background: 'rgba(255,255,255,0.05)', color: '#7E97BC', border: '1px solid transparent' }
+                            }
+                          >
+                            {page.displayName || page.name}
+                          </button>
+                        )
+                      })}
+                    </nav>
+                  ) : null}
+                  <div className="relative min-w-0 flex-1">
                 <PowerBIEmbed
                   key={powerBiLayoutKey}
                   embedConfig={embedConfig}
@@ -559,6 +601,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     </div>
                   </div>
                 ) : null}
+                  </div>
+                </div>
               </div>
             ) : null}
           </div>
