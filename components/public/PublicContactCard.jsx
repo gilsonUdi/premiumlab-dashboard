@@ -59,11 +59,10 @@ export default function PublicContactCard({ contato }) {
           </div>
         </div> : null}
 
-        <a href={`/api/public/contact-cards/${contato.id}/vcard`} className="mb-8 mt-3 flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-[#C29B5B] text-sm font-bold uppercase tracking-wide text-white shadow-lg transition hover:bg-[#B38C4D]">
+        <a href={`/api/public/contact-cards/${contato.id}/vcard.vcf`} className="mb-8 mt-3 flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-[#C29B5B] text-sm font-bold uppercase tracking-wide text-white shadow-lg transition hover:bg-[#B38C4D]">
           <Download size={19} />Salvar contato
         </a>
       </section>
     </article>
   </main>
 }
-

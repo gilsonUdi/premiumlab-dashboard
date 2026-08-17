@@ -21,10 +21,11 @@ export async function GET(_request, { params }) {
   const contato = snapshot.data()
   return new NextResponse(montarVcard(contato), {
     headers: {
+      // O Safari do iPhone usa estes dois cabeçalhos para encaminhar o arquivo
+      // ao visualizador nativo de contatos, em vez de trata-lo como download.
       'Content-Type': 'text/vcard; charset=utf-8',
-      'Content-Disposition': `attachment; filename="${nomeArquivo(contato.nome)}.vcf"`,
+      'Content-Disposition': `inline; filename="${nomeArquivo(contato.nome)}.vcf"`,
       'Cache-Control': 'public, max-age=300',
     },
   })
 }
-
