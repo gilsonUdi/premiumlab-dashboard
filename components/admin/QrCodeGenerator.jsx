@@ -5,6 +5,10 @@ import QRCode from 'qrcode'
 import { Contact, Download, Link2, QrCode } from 'lucide-react'
 
 const CONTATO_INICIAL = { nome: '', empresa: '', cargo: '', telefone: '', email: '', site: '', site2: '', instagram: '', linkedin: '', endereco: '' }
+const QR_MARGIN = 4
+const QR_DARK = '#07152B'
+const QR_LIGHT = '#FFFFFF'
+const LOGO_URL = '/axis-logo.png'
 
 function validarUrl(valor) {
   try {
@@ -72,19 +76,123 @@ function baixar(conteudo, nome) {
   if (conteudo instanceof Blob) URL.revokeObjectURL(link.href)
 }
 
+function lerComoDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const leitor = new FileReader()
+    leitor.onload = () => resolve(leitor.result)
+    leitor.onerror = () => reject(new Error('Falha ao ler a logo.'))
+    leitor.readAsDataURL(blob)
+  })
+}
+
+async function carregarLogoDataUrl() {
+  const resposta = await fetch(LOGO_URL)
+  if (!resposta.ok) throw new Error('Falha ao carregar a logo.')
+  return lerComoDataUrl(await resposta.blob())
+}
+
+function carregarImagem(origem) {
+  return new Promise((resolve, reject) => {
+    const imagem = new Image()
+    imagem.onload = () => resolve(imagem)
+    imagem.onerror = () => reject(new Error('Falha ao preparar a imagem.'))
+    imagem.src = origem
+  })
+}
+
+function retanguloArredondado(ctx, x, y, largura, altura, raio) {
+  const r = Math.min(raio, largura / 2, altura / 2)
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + largura, y, x + largura, y + altura, r)
+  ctx.arcTo(x + largura, y + altura, x, y + altura, r)
+  ctx.arcTo(x, y + altura, x, y, r)
+  ctx.arcTo(x, y, x + largura, y, r)
+  ctx.closePath()
+}
+
+function medidasLogo(lado, modulo) {
+  const larguraExterna = Math.max(11 * modulo, Math.round(lado * 0.24 / modulo) * modulo)
+  const alturaExterna = Math.max(5 * modulo, Math.round(lado * 0.11 / modulo) * modulo)
+  return {
+    x: Math.round((lado - larguraExterna) / (2 * modulo)) * modulo,
+    y: Math.round((lado - alturaExterna) / (2 * modulo)) * modulo,
+    larguraExterna,
+    alturaExterna,
+  }
+}
+
+async function aplicarLogoNoPng(qrDataUrl, logoDataUrl, modulo) {
+  const [qr, logo] = await Promise.all([carregarImagem(qrDataUrl), carregarImagem(logoDataUrl)])
+  const canvas = document.createElement('canvas')
+  canvas.width = qr.naturalWidth
+  canvas.height = qr.naturalHeight
+  const ctx = canvas.getContext('2d')
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(qr, 0, 0)
+
+  const caixa = medidasLogo(canvas.width, modulo)
+  retanguloArredondado(ctx, caixa.x, caixa.y, caixa.larguraExterna, caixa.alturaExterna, modulo * 1.35)
+  ctx.fillStyle = QR_LIGHT
+  ctx.fill()
+
+  const borda = modulo
+  const xInterno = caixa.x + borda
+  const yInterno = caixa.y + borda
+  const larguraInterna = caixa.larguraExterna - borda * 2
+  const alturaInterna = caixa.alturaExterna - borda * 2
+  retanguloArredondado(ctx, xInterno, yInterno, larguraInterna, alturaInterna, modulo * 0.75)
+  ctx.fillStyle = QR_DARK
+  ctx.fill()
+
+  // A arte original e quadrada e possui respiro vertical. O recorte central
+  // preserva a assinatura AXIS Governance dentro do selo horizontal.
+  const recorteY = logo.naturalHeight * 0.28
+  const recorteAltura = logo.naturalHeight * 0.44
+  const respiro = modulo * 0.45
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(
+    logo,
+    0,
+    recorteY,
+    logo.naturalWidth,
+    recorteAltura,
+    xInterno + respiro,
+    yInterno + respiro,
+    larguraInterna - respiro * 2,
+    alturaInterna - respiro * 2,
+  )
+  return canvas.toDataURL('image/png')
+}
+
+function aplicarLogoNoSvg(svg, logoDataUrl, totalModulos) {
+  const modulo = 1
+  const caixa = medidasLogo(totalModulos, modulo)
+  const borda = 1
+  const xInterno = caixa.x + borda
+  const yInterno = caixa.y + borda
+  const larguraInterna = caixa.larguraExterna - borda * 2
+  const alturaInterna = caixa.alturaExterna - borda * 2
+  const selo = `<g aria-label="Logo Axis"><rect x="${caixa.x}" y="${caixa.y}" width="${caixa.larguraExterna}" height="${caixa.alturaExterna}" rx="1.35" fill="${QR_LIGHT}"/><rect x="${xInterno}" y="${yInterno}" width="${larguraInterna}" height="${alturaInterna}" rx="0.75" fill="${QR_DARK}"/><image href="${logoDataUrl}" x="${xInterno + 0.45}" y="${yInterno + 0.45}" width="${larguraInterna - 0.9}" height="${alturaInterna - 0.9}" preserveAspectRatio="xMidYMid slice"/></g>`
+  return svg.replace('</svg>', `${selo}</svg>`)
+}
+
 export default function QrCodeGenerator() {
   const [tipo, setTipo] = useState('contato')
   const [url, setUrl] = useState('')
   const [contato, setContato] = useState(CONTATO_INICIAL)
   const [tamanho, setTamanho] = useState(1024)
+  const [usarLogo, setUsarLogo] = useState(true)
   const [png, setPng] = useState('')
   const [svg, setSvg] = useState('')
   const [resumo, setResumo] = useState('')
+  const [detalhes, setDetalhes] = useState(null)
   const [erro, setErro] = useState('')
   const [gerando, setGerando] = useState(false)
 
   function alterarTipo(proximo) {
-    setTipo(proximo); setPng(''); setSvg(''); setResumo(''); setErro('')
+    setTipo(proximo); setPng(''); setSvg(''); setResumo(''); setDetalhes(null); setErro('')
   }
 
   function atualizarContato(campo, valor) {
@@ -124,11 +232,26 @@ export default function QrCodeGenerator() {
 
     setGerando(true)
     try {
-      const opcoes = { errorCorrectionLevel: tipo === 'contato' ? 'M' : 'H', margin: 3, width: tamanho, color: { dark: '#07152B', light: '#FFFFFF' } }
-      const [imagemPng, imagemSvg] = await Promise.all([
-        QRCode.toDataURL(conteudo, { ...opcoes, type: 'image/png' }), QRCode.toString(conteudo, { ...opcoes, type: 'svg' }),
+      const errorCorrectionLevel = tipo === 'contato' ? 'M' : 'H'
+      const qr = QRCode.create(conteudo, { errorCorrectionLevel })
+      const totalModulos = qr.modules.size + QR_MARGIN * 2
+      // Escala inteira evita antialiasing entre os módulos. Arredondar para cima
+      // garante quadrados maiores e um arquivo final pelo menos do tamanho escolhido.
+      const escala = Math.max(1, Math.ceil(tamanho / totalModulos))
+      const opcoes = { errorCorrectionLevel, margin: QR_MARGIN, scale: escala, color: { dark: QR_DARK, light: QR_LIGHT } }
+      const [pngBase, svgBase, logoDataUrl] = await Promise.all([
+        QRCode.toDataURL(conteudo, { ...opcoes, type: 'image/png' }),
+        QRCode.toString(conteudo, { ...opcoes, type: 'svg' }),
+        usarLogo ? carregarLogoDataUrl() : Promise.resolve(''),
       ])
+      const [imagemPng, imagemSvg] = usarLogo
+        ? await Promise.all([
+            aplicarLogoNoPng(pngBase, logoDataUrl, escala),
+            Promise.resolve(aplicarLogoNoSvg(svgBase, logoDataUrl, totalModulos)),
+          ])
+        : [pngBase, svgBase]
       setPng(imagemPng); setSvg(imagemSvg); setResumo(tipo === 'contato' ? contato.nome.trim() : url.trim()); setErro('')
+      setDetalhes({ modulos: qr.modules.size, moduloPx: escala, ladoPx: totalModulos * escala, minimoMm: Math.ceil(totalModulos * 0.5) })
     } catch {
       setErro('Não foi possível gerar o QR Code. Reduza a quantidade de dados e tente novamente.')
     } finally { setGerando(false) }
@@ -165,15 +288,19 @@ export default function QrCodeGenerator() {
           <label className="block sm:col-span-2"><span className="text-sm font-semibold text-white">Endereço</span><textarea value={contato.endereco} onChange={event => atualizarContato('endereco', event.target.value)} rows={3} placeholder="Rua, número, bairro, cidade - UF, CEP" className="mt-2 w-full rounded-xl px-4 py-3 text-sm text-white outline-none" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }} /></label>
         </div>}
 
-        <label className="mt-5 block text-sm font-semibold text-white" htmlFor="qr-size">Tamanho do PNG</label>
-        <select id="qr-size" value={tamanho} onChange={event => setTamanho(Number(event.target.value))} className="mt-2 h-12 w-full rounded-xl px-4 text-sm text-white outline-none" style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.08)' }}><option value={512}>512 × 512 px</option><option value={1024}>1024 × 1024 px</option><option value={2048}>2048 × 2048 px</option></select>
+        <label className="mt-5 block text-sm font-semibold text-white" htmlFor="qr-size">Tamanho aproximado do PNG</label>
+        <select id="qr-size" value={tamanho} onChange={event => setTamanho(Number(event.target.value))} className="mt-2 h-12 w-full rounded-xl px-4 text-sm text-white outline-none" style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.08)' }}><option value={512}>Aproximadamente 512 px</option><option value={1024}>Aproximadamente 1024 px</option><option value={2048}>Aproximadamente 2048 px</option></select>
+        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl px-4 py-3" style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <input type="checkbox" checked={usarLogo} onChange={event => setUsarLogo(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#C9A45C]" />
+          <span><strong className="block text-sm text-white">Logo Axis no centro</strong><small className="mt-1 block text-xs leading-5" style={{ color: '#7E97BC' }}>Inclui a marca com área de proteção dimensionada para preservar a leitura.</small></span>
+        </label>
         {erro ? <div className="mt-4 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(244,124,116,0.08)', color: '#F7A29D', border: '1px solid rgba(244,124,116,0.15)' }}>{erro}</div> : null}
         <button type="submit" className="portal-primary-button mt-6 w-full justify-center" disabled={gerando}>{gerando ? 'Gerando...' : 'Gerar QR Code'}<QrCode size={16} /></button>
         <p className="mt-4 text-xs leading-5" style={{ color: '#7E97BC' }}>{tipo === 'contato' ? 'Os dados ficam dentro do QR Code. Ao escanear, celulares compatíveis exibem a ficha para criar ou adicionar o contato.' : 'O QR Code abrirá a URL informada.'} Nenhuma informação é armazenada pelo portal.</p>
       </form>
 
       <section className="flex min-h-[420px] flex-col items-center justify-center rounded-2xl p-5 sm:p-6" style={{ background: '#0A162B', border: '1px solid rgba(255,255,255,0.05)' }}>
-        {png ? <><div className="w-full max-w-[300px] overflow-hidden rounded-2xl bg-white p-3"><img src={png} alt="Prévia do QR Code gerado" className="h-auto w-full" /></div><p className="mt-4 max-w-full truncate text-center text-xs" style={{ color: '#7E97BC' }}>{resumo}</p><div className="mt-5 grid w-full grid-cols-2 gap-3"><button type="button" className="portal-ghost-button justify-center" onClick={() => baixar(png, 'qrcode.png')}><Download size={14} />Baixar PNG</button><button type="button" className="portal-ghost-button justify-center" onClick={baixarSvg}><Download size={14} />Baixar SVG</button></div></> : <div className="text-center"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl" style={{ background: 'rgba(255,255,255,0.03)', color: '#28497E', border: '1px dashed rgba(126,151,188,0.2)' }}><QrCode size={34} /></div><p className="mt-4 text-sm font-medium text-white">A prévia aparecerá aqui</p><p className="mt-1 text-xs" style={{ color: '#7E97BC' }}>Preencha os dados e clique em gerar.</p></div>}
+        {png ? <><div className="w-full max-w-[360px] overflow-hidden rounded-2xl bg-white p-4"><img src={png} alt="Prévia do QR Code gerado" className="h-auto w-full" style={{ imageRendering: 'pixelated' }} /></div><p className="mt-4 max-w-full truncate text-center text-xs" style={{ color: '#7E97BC' }}>{resumo}</p>{detalhes ? <div className="mt-3 w-full rounded-xl px-4 py-3 text-center text-xs leading-5" style={{ background: 'rgba(201,164,92,0.07)', color: '#AEC3DF', border: '1px solid rgba(201,164,92,0.15)' }}><strong className="text-white">Módulos nítidos de {detalhes.moduloPx} px</strong><br />Arquivo: {detalhes.ladoPx} × {detalhes.ladoPx} px · Para impressão, use o QR com pelo menos {detalhes.minimoMm} × {detalhes.minimoMm} mm.</div> : null}<div className="mt-5 grid w-full grid-cols-2 gap-3"><button type="button" className="portal-ghost-button justify-center" onClick={() => baixar(png, 'qrcode.png')}><Download size={14} />Baixar PNG</button><button type="button" className="portal-ghost-button justify-center" onClick={baixarSvg}><Download size={14} />Baixar SVG</button></div></> : <div className="text-center"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl" style={{ background: 'rgba(255,255,255,0.03)', color: '#28497E', border: '1px dashed rgba(126,151,188,0.2)' }}><QrCode size={34} /></div><p className="mt-4 text-sm font-medium text-white">A prévia aparecerá aqui</p><p className="mt-1 text-xs" style={{ color: '#7E97BC' }}>Preencha os dados e clique em gerar.</p></div>}
       </section>
     </div>
   </>
