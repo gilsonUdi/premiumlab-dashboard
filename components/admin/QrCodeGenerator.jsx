@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import QRCode from 'qrcode'
-import { Contact, Download, Link2, QrCode } from 'lucide-react'
+import { Check, Contact, Copy, Download, ImagePlus, Link2, QrCode } from 'lucide-react'
+import { getPortalAuthHeaders } from '@/lib/portal-store'
+import { normalizarInstagram, normalizarLinkedin } from '@/lib/vcard'
 
 const CONTATO_INICIAL = { nome: '', empresa: '', cargo: '', telefone: '', email: '', site: '', site2: '', instagram: '', linkedin: '', endereco: '' }
 const QR_MARGIN = 4
@@ -17,53 +19,6 @@ function validarUrl(valor) {
   } catch {
     return false
   }
-}
-
-function escaparVcard(valor) {
-  return String(valor || '').trim().replaceAll('\\', '\\\\').replaceAll(';', '\\;').replaceAll(',', '\\,').replace(/\r?\n/g, '\\n')
-}
-
-function nomeEstruturado(nome) {
-  const partes = String(nome || '').trim().split(/\s+/).filter(Boolean)
-  if (partes.length < 2) return `${escaparVcard(partes[0] || '')};;;;`
-  const sobrenome = partes.pop()
-  return `${escaparVcard(sobrenome)};${escaparVcard(partes.join(' '))};;;`
-}
-
-function normalizarInstagram(valor) {
-  const texto = String(valor || '').trim()
-  if (!texto) return ''
-  if (/^https?:\/\//i.test(texto)) return validarUrl(texto) ? texto : ''
-  const usuario = texto.replace(/^@/, '').replace(/^instagram\.com\//i, '').replace(/\/+$/, '')
-  return /^[a-zA-Z0-9._]+$/.test(usuario) ? `https://instagram.com/${usuario}` : ''
-}
-
-function normalizarLinkedin(valor) {
-  const texto = String(valor || '').trim()
-  if (!texto) return ''
-  if (/^https?:\/\//i.test(texto)) return validarUrl(texto) ? texto : ''
-  if (/^(?:www\.)?linkedin\.com\//i.test(texto)) return `https://${texto}`
-  const usuario = texto.replace(/^@/, '').replace(/^in\//i, '').replace(/\/+$/, '')
-  return /^[a-zA-Z0-9._-]+$/.test(usuario) ? `https://www.linkedin.com/in/${usuario}` : ''
-}
-
-function montarVcard(contato) {
-  const linhas = [
-    'BEGIN:VCARD', 'VERSION:3.0', `N:${nomeEstruturado(contato.nome)}`, `FN:${escaparVcard(contato.nome)}`,
-  ]
-  if (contato.empresa.trim()) linhas.push(`ORG:${escaparVcard(contato.empresa)}`)
-  if (contato.cargo.trim()) linhas.push(`TITLE:${escaparVcard(contato.cargo)}`)
-  if (contato.telefone.trim()) linhas.push(`TEL;TYPE=CELL,VOICE:${escaparVcard(contato.telefone)}`)
-  if (contato.email.trim()) linhas.push(`EMAIL;TYPE=INTERNET,WORK:${escaparVcard(contato.email)}`)
-  if (contato.site.trim()) linhas.push(`URL:${escaparVcard(contato.site)}`)
-  if (contato.site2.trim()) linhas.push(`URL:${escaparVcard(contato.site2)}`)
-  const instagram = normalizarInstagram(contato.instagram)
-  if (instagram) linhas.push(`X-SOCIALPROFILE;TYPE=instagram:${escaparVcard(instagram)}`)
-  const linkedin = normalizarLinkedin(contato.linkedin)
-  if (linkedin) linhas.push(`X-SOCIALPROFILE;TYPE=linkedin:${escaparVcard(linkedin)}`)
-  if (contato.endereco.trim()) linhas.push(`ADR;TYPE=WORK:;;${escaparVcard(contato.endereco)};;;;`)
-  linhas.push('END:VCARD')
-  return linhas.join('\r\n')
 }
 
 function baixar(conteudo, nome) {
@@ -98,6 +53,28 @@ function carregarImagem(origem) {
     imagem.onerror = () => reject(new Error('Falha ao preparar a imagem.'))
     imagem.src = origem
   })
+}
+
+async function otimizarFoto(arquivo) {
+  if (!arquivo?.type?.startsWith('image/')) throw new Error('Selecione uma imagem válida.')
+  if (arquivo.size > 12 * 1024 * 1024) throw new Error('A foto deve ter no máximo 12 MB.')
+  const origem = URL.createObjectURL(arquivo)
+  try {
+    const imagem = await carregarImagem(origem)
+    const ladoOrigem = Math.min(imagem.naturalWidth, imagem.naturalHeight)
+    const sx = (imagem.naturalWidth - ladoOrigem) / 2
+    const sy = (imagem.naturalHeight - ladoOrigem) / 2
+    const canvas = document.createElement('canvas')
+    canvas.width = 720
+    canvas.height = 720
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#FFFFFF'
+    ctx.fillRect(0, 0, 720, 720)
+    ctx.drawImage(imagem, sx, sy, ladoOrigem, ladoOrigem, 0, 0, 720, 720)
+    return canvas.toDataURL('image/jpeg', 0.82)
+  } finally {
+    URL.revokeObjectURL(origem)
+  }
 }
 
 function retanguloArredondado(ctx, x, y, largura, altura, raio) {
@@ -182,6 +159,9 @@ export default function QrCodeGenerator() {
   const [tipo, setTipo] = useState('contato')
   const [url, setUrl] = useState('')
   const [contato, setContato] = useState(CONTATO_INICIAL)
+  const [foto, setFoto] = useState('')
+  const [paginaPublica, setPaginaPublica] = useState('')
+  const [copiado, setCopiado] = useState(false)
   const [tamanho, setTamanho] = useState(1024)
   const [usarLogo, setUsarLogo] = useState(true)
   const [png, setPng] = useState('')
@@ -192,11 +172,23 @@ export default function QrCodeGenerator() {
   const [gerando, setGerando] = useState(false)
 
   function alterarTipo(proximo) {
-    setTipo(proximo); setPng(''); setSvg(''); setResumo(''); setDetalhes(null); setErro('')
+    setTipo(proximo); setPng(''); setSvg(''); setResumo(''); setDetalhes(null); setPaginaPublica(''); setCopiado(false); setErro('')
   }
 
   function atualizarContato(campo, valor) {
     setContato(atual => ({ ...atual, [campo]: valor }))
+  }
+
+  async function selecionarFoto(event) {
+    const arquivo = event.target.files?.[0]
+    if (!arquivo) return
+    try {
+      setFoto(await otimizarFoto(arquivo))
+      setErro('')
+    } catch (error) {
+      setFoto('')
+      setErro(error.message)
+    }
   }
 
   async function gerar(event) {
@@ -227,12 +219,26 @@ export default function QrCodeGenerator() {
       if (contato.linkedin.trim() && !normalizarLinkedin(contato.linkedin)) {
         setErro('Informe o identificador ou a URL completa do perfil no LinkedIn.'); setPng(''); setSvg(''); return
       }
-      conteudo = montarVcard(contato)
+      setGerando(true)
+      try {
+        const headers = await getPortalAuthHeaders()
+        const response = await fetch('/api/admin/contact-cards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({ ...contato, foto }),
+        })
+        const payload = await response.json()
+        if (!response.ok) throw new Error(payload?.error || 'Não foi possível publicar o cartão de contato.')
+        conteudo = `${window.location.origin}/contato/${payload.id}`
+        setPaginaPublica(conteudo)
+      } catch (error) {
+        setErro(error.message); setPng(''); setSvg(''); setGerando(false); return
+      }
     }
 
     setGerando(true)
     try {
-      const errorCorrectionLevel = tipo === 'contato' ? 'M' : 'H'
+      const errorCorrectionLevel = 'H'
       const qr = QRCode.create(conteudo, { errorCorrectionLevel })
       const totalModulos = qr.modules.size + QR_MARGIN * 2
       // Escala inteira evita antialiasing entre os módulos. Arredondar para cima
@@ -250,7 +256,7 @@ export default function QrCodeGenerator() {
             Promise.resolve(aplicarLogoNoSvg(svgBase, logoDataUrl, totalModulos)),
           ])
         : [pngBase, svgBase]
-      setPng(imagemPng); setSvg(imagemSvg); setResumo(tipo === 'contato' ? contato.nome.trim() : url.trim()); setErro('')
+      setPng(imagemPng); setSvg(imagemSvg); setResumo(tipo === 'contato' ? contato.nome.trim() : url.trim()); setErro(''); setCopiado(false)
       setDetalhes({ modulos: qr.modules.size, moduloPx: escala, ladoPx: totalModulos * escala, minimoMm: Math.ceil(totalModulos * 0.5) })
     } catch {
       setErro('Não foi possível gerar o QR Code. Reduza a quantidade de dados e tente novamente.')
@@ -259,11 +265,17 @@ export default function QrCodeGenerator() {
 
   function baixarSvg() { baixar(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), 'qrcode.svg') }
 
+  async function copiarPagina() {
+    await navigator.clipboard.writeText(paginaPublica)
+    setCopiado(true)
+    window.setTimeout(() => setCopiado(false), 2000)
+  }
+
   return <>
     <header className="mb-6">
       <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#28497E' }}>Ferramentas</p>
       <h2 className="text-2xl font-bold tracking-tight text-white">Gerador de QR Code</h2>
-      <p className="mt-1 text-sm" style={{ color: '#AEC3DF' }}>Gere um QR para abrir um contato diretamente no celular ou acessar uma URL.</p>
+      <p className="mt-1 text-sm" style={{ color: '#AEC3DF' }}>Gere um QR para uma página pública de contato ou para acessar uma URL.</p>
     </header>
 
     <div className="mb-5 inline-flex rounded-xl p-1" style={{ background: '#0A162B', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -276,6 +288,14 @@ export default function QrCodeGenerator() {
           <label className="block text-sm font-semibold text-white" htmlFor="qr-url">URL de destino</label>
           <input id="qr-url" type="url" value={url} onChange={event => setUrl(event.target.value)} placeholder="https://exemplo.com.br" className="mt-2 h-12 w-full rounded-xl px-4 text-sm text-white outline-none" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }} />
         </> : <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block sm:col-span-2">
+            <span className="text-sm font-semibold text-white">Foto da pessoa</span>
+            <span className="relative mt-2 flex cursor-pointer items-center gap-4 rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              {foto ? <img src={foto} alt="Prévia da foto" className="h-16 w-16 rounded-full object-cover" /> : <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(201,164,92,0.1)', color: '#DAB975' }}><ImagePlus size={24} /></span>}
+              <span className="min-w-0 flex-1"><strong className="block text-sm text-white">{foto ? 'Trocar foto' : 'Selecionar foto'}</strong><small className="mt-1 block text-xs leading-5" style={{ color: '#7E97BC' }}>JPG, PNG ou WebP. A imagem será recortada e otimizada automaticamente.</small></span>
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={selecionarFoto} className="absolute inset-0 cursor-pointer opacity-0" />
+            </span>
+          </label>
           <Campo label="Nome completo" obrigatorio valor={contato.nome} aoMudar={valor => atualizarContato('nome', valor)} placeholder="Wagner Paiva" />
           <Campo label="Telefone" obrigatorio valor={contato.telefone} aoMudar={valor => atualizarContato('telefone', valor)} placeholder="+55 34 99779-5100" type="tel" />
           <Campo label="Empresa" valor={contato.empresa} aoMudar={valor => atualizarContato('empresa', valor)} placeholder="Axis Governance" />
@@ -296,11 +316,20 @@ export default function QrCodeGenerator() {
         </label>
         {erro ? <div className="mt-4 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(244,124,116,0.08)', color: '#F7A29D', border: '1px solid rgba(244,124,116,0.15)' }}>{erro}</div> : null}
         <button type="submit" className="portal-primary-button mt-6 w-full justify-center" disabled={gerando}>{gerando ? 'Gerando...' : 'Gerar QR Code'}<QrCode size={16} /></button>
-        <p className="mt-4 text-xs leading-5" style={{ color: '#7E97BC' }}>{tipo === 'contato' ? 'Os dados ficam dentro do QR Code. Ao escanear, celulares compatíveis exibem a ficha para criar ou adicionar o contato.' : 'O QR Code abrirá a URL informada.'} Nenhuma informação é armazenada pelo portal.</p>
+        <p className="mt-4 text-xs leading-5" style={{ color: '#7E97BC' }}>{tipo === 'contato' ? 'O cartão será publicado no portal e o QR abrirá essa página. Nela, a pessoa poderá visualizar os dados e salvar o contato no celular.' : 'O QR Code abrirá a URL informada.'}</p>
       </form>
 
       <section className="flex min-h-[420px] flex-col items-center justify-center rounded-2xl p-5 sm:p-6" style={{ background: '#0A162B', border: '1px solid rgba(255,255,255,0.05)' }}>
-        {png ? <><div className="w-full max-w-[360px] overflow-hidden rounded-2xl bg-white p-4"><img src={png} alt="Prévia do QR Code gerado" className="h-auto w-full" style={{ imageRendering: 'pixelated' }} /></div><p className="mt-4 max-w-full truncate text-center text-xs" style={{ color: '#7E97BC' }}>{resumo}</p>{detalhes ? <div className="mt-3 w-full rounded-xl px-4 py-3 text-center text-xs leading-5" style={{ background: 'rgba(201,164,92,0.07)', color: '#AEC3DF', border: '1px solid rgba(201,164,92,0.15)' }}><strong className="text-white">Módulos nítidos de {detalhes.moduloPx} px</strong><br />Arquivo: {detalhes.ladoPx} × {detalhes.ladoPx} px · Para impressão, use o QR com pelo menos {detalhes.minimoMm} × {detalhes.minimoMm} mm.</div> : null}<div className="mt-5 grid w-full grid-cols-2 gap-3"><button type="button" className="portal-ghost-button justify-center" onClick={() => baixar(png, 'qrcode.png')}><Download size={14} />Baixar PNG</button><button type="button" className="portal-ghost-button justify-center" onClick={baixarSvg}><Download size={14} />Baixar SVG</button></div></> : <div className="text-center"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl" style={{ background: 'rgba(255,255,255,0.03)', color: '#28497E', border: '1px dashed rgba(126,151,188,0.2)' }}><QrCode size={34} /></div><p className="mt-4 text-sm font-medium text-white">A prévia aparecerá aqui</p><p className="mt-1 text-xs" style={{ color: '#7E97BC' }}>Preencha os dados e clique em gerar.</p></div>}
+        {png ? <>
+          <div className="w-full max-w-[360px] overflow-hidden rounded-2xl bg-white p-4"><img src={png} alt="Prévia do QR Code gerado" className="h-auto w-full" style={{ imageRendering: 'pixelated' }} /></div>
+          <p className="mt-4 max-w-full truncate text-center text-xs" style={{ color: '#7E97BC' }}>{resumo}</p>
+          {paginaPublica ? <div className="mt-3 flex w-full items-center gap-2 rounded-xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <a href={paginaPublica} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-xs" style={{ color: '#AEC3DF' }}>{paginaPublica}</a>
+            <button type="button" onClick={copiarPagina} className="shrink-0 p-2" style={{ color: copiado ? '#77D5A3' : '#DAB975' }} aria-label="Copiar link">{copiado ? <Check size={15} /> : <Copy size={15} />}</button>
+          </div> : null}
+          {detalhes ? <div className="mt-3 w-full rounded-xl px-4 py-3 text-center text-xs leading-5" style={{ background: 'rgba(201,164,92,0.07)', color: '#AEC3DF', border: '1px solid rgba(201,164,92,0.15)' }}><strong className="text-white">Módulos nítidos de {detalhes.moduloPx} px</strong><br />Arquivo: {detalhes.ladoPx} × {detalhes.ladoPx} px · Para impressão, use o QR com pelo menos {detalhes.minimoMm} × {detalhes.minimoMm} mm.</div> : null}
+          <div className="mt-5 grid w-full grid-cols-2 gap-3"><button type="button" className="portal-ghost-button justify-center" onClick={() => baixar(png, 'qrcode.png')}><Download size={14} />Baixar PNG</button><button type="button" className="portal-ghost-button justify-center" onClick={baixarSvg}><Download size={14} />Baixar SVG</button></div>
+        </> : <div className="text-center"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl" style={{ background: 'rgba(255,255,255,0.03)', color: '#28497E', border: '1px dashed rgba(126,151,188,0.2)' }}><QrCode size={34} /></div><p className="mt-4 text-sm font-medium text-white">A prévia aparecerá aqui</p><p className="mt-1 text-xs" style={{ color: '#7E97BC' }}>Preencha os dados e clique em gerar.</p></div>}
       </section>
     </div>
   </>
