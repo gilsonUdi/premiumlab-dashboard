@@ -18,8 +18,12 @@ gerenciador de capacidade antes da geração do Embed Token.
 
 ## Variáveis
 
-As variáveis estão documentadas em `.env.example`. Os segredos Azure e o segredo
-do cron devem existir somente no backend.
+As variáveis estão documentadas em `.env.example`. Por padrão, o controle Azure
+reutiliza `POWER_BI_TENANT_ID`, `POWER_BI_CLIENT_ID` e
+`POWER_BI_CLIENT_SECRET`, já usados pelo Embedded. `AZURE_TENANT_ID`,
+`AZURE_CLIENT_ID` e `AZURE_CLIENT_SECRET` só precisam ser definidos quando o
+controle da capacidade usar outra aplicação. Os segredos devem existir somente
+no backend.
 
 O service principal deve ter, no escopo da capacidade
 `axispowerbiembedded`, as permissões:
