@@ -392,3 +392,47 @@ Para API ou sync:
 
 - O deploy da Hostinger iniciou o Next.js 14.2.35, mas a otimizacao de imagens falhou em runtime com `sharp is required to be installed in standalone mode`.
 - O pacote `sharp` passou a ser uma dependencia explicita de producao no `package.json`, garantindo sua instalacao e inclusao no ambiente standalone.
+
+## Power BI Embedded A1 sob demanda - atualizacao de 24/08/2026
+
+A Area do Cliente passou a ter uma camada de gerenciamento automatico para a
+capacidade Azure Power BI Embedded A1 compartilhada, sem substituir o fluxo atual
+de geracao do Embed Token.
+
+Arquitetura implementada:
+
+- a rota de embed consulta a capacidade pela Azure Resource Manager API antes de
+  gerar o token;
+- se a A1 estiver suspensa, somente o processo que obtiver um lock distribuido no
+  Firestore solicita Resume; acessos concorrentes aguardam com HTTP 202;
+- a interface mostra `Preparando seu painel de indicadores. Aguarde alguns
+  instantes...` ate o estado Active;
+- cada dashboard aberto possui sessao propria e heartbeat de 60 segundos;
+- 30 minutos sem atividade encerram apenas o dashboard, mantendo o login do portal;
+- uma rota protegida de reconciliacao expira sessoes abandonadas e solicita
+  Suspend depois de 30 minutos sem nenhuma sessao ativa;
+- antes do Suspend ocorre nova verificacao de sessoes, impedindo desligamento com
+  cliente ativo;
+- Resume, Suspend, empresa que provocou a ativacao, sessoes, duracoes, pico de
+  simultaneidade, horas mensais e estimativa de custo ficam registrados no
+  Firestore;
+- administradores podem consultar o consolidado por
+  `GET /api/admin/power-bi-capacity`.
+
+Colecoes criadas pelo backend:
+
+- `powerBiCapacityControl`;
+- `powerBiDashboardSessions`;
+- `powerBiCapacityEvents`;
+- `powerBiCapacityMonthly`.
+
+O recurso permanece em modo compativel enquanto as variaveis `AZURE_*` nao forem
+configuradas: nessa situacao o Embed existente continua funcionando sem o
+gerenciamento automatico. Para ativar, ainda e necessario cadastrar as variaveis
+documentadas em `.env.example`, atribuir ao service principal as acoes ARM de
+read/resume/suspend e agendar a chamada de
+`/api/cron/power-bi-capacity` a cada minuto com o segredo do cron.
+
+Documentacao operacional completa em `docs/power-bi-capacity-on-demand.md`.
+Build de producao do Next.js 14.2.35 aprovado em copia temporaria limpa; permaneceu
+apenas o aviso preexistente de renderizacao dinamica de `/api/admin/feedback`.

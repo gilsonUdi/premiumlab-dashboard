@@ -6,6 +6,7 @@ import {
   PORTAL_PAGE_KEYS,
 } from '@/lib/portal-config'
 import { generatePowerBiEmbedConfig, hasEmbeddedPowerBiConfig, isPowerBiNavigablePage } from '@/lib/power-bi'
+import { preparePowerBiDashboardAccess } from '@/lib/power-bi-capacity'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
 import { NextResponse } from 'next/server'
 
@@ -24,7 +25,8 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const slug = String(searchParams.get('slug') || '').trim()
     const reportKey = String(searchParams.get('report') || '').trim()
-    const { profile, company } = await resolveAuthorizedCompany(request, slug)
+    const requestedSessionId = String(searchParams.get('session') || '').trim()
+    const { decoded, profile, company } = await resolveAuthorizedCompany(request, slug)
 
     if (!hasEmbeddedPowerBiConfig(company, reportKey)) {
       return NextResponse.json({ error: 'Power BI Embedded ainda nao configurado para este modelo.' }, { status: 400 })
@@ -37,6 +39,30 @@ export async function GET(request) {
 
     if (profile.role !== 'admin' && !canAccessPowerBiReport(company, permissions, reportKey)) {
       return NextResponse.json({ error: 'Usuário sem acesso a este modelo de Power BI.' }, { status: 403 })
+    }
+
+    const capacity = await preparePowerBiDashboardAccess({
+      sessionId: requestedSessionId,
+      company,
+      reportKey,
+      user: {
+        uid: decoded.uid,
+        email: profile.email || decoded.email || '',
+        name: profile.name || profile.email || decoded.email || 'Usuario',
+      },
+    })
+
+    if (!capacity.ready) {
+      return NextResponse.json(
+        {
+          status: 'preparing',
+          message: 'Preparando seu painel de indicadores. Aguarde alguns instantes...',
+          dashboardSessionId: capacity.sessionId,
+          capacityState: capacity.capacityState,
+          retryAfterMs: capacity.retryAfterMs || 5000,
+        },
+        { status: 202 }
+      )
     }
 
     const embedConfig = await generatePowerBiEmbedConfig(
@@ -69,6 +95,8 @@ export async function GET(request) {
       pages: visiblePages,
       initialPageName: visiblePages[0]?.name || navigablePages[0]?.name || null,
       filters: embedConfig.filters || [],
+      dashboardSessionId: capacity.sessionId || '',
+      capacityManaged: capacity.enabled,
     })
   } catch (error) {
     console.error('[power-bi-embed:get]', error)
