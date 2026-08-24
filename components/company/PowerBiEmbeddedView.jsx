@@ -616,7 +616,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     ) : null}
                   </div>
                 </div>
-                <div className="flex h-full w-full">
+                <div className="flex h-full w-full pt-10">
                   {showCompactPages && sidebarPages.length > 0 ? (
                     <nav
                       aria-label="Páginas do relatório"
