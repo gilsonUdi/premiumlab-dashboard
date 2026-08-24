@@ -426,12 +426,21 @@ Colecoes criadas pelo backend:
 - `powerBiCapacityEvents`;
 - `powerBiCapacityMonthly`.
 
-O recurso permanece em modo compativel enquanto as variaveis `AZURE_*` nao forem
-configuradas: nessa situacao o Embed existente continua funcionando sem o
-gerenciamento automatico. Para ativar, ainda e necessario cadastrar as variaveis
-documentadas em `.env.example`, atribuir ao service principal as acoes ARM de
-read/resume/suspend e agendar a chamada de
-`/api/cron/power-bi-capacity` a cada minuto com o segredo do cron.
+Ativacao concluida em 24/08/2026:
+
+- as 9 variaveis novas foram adicionadas na Hostinger sem substituir ou remover
+  as 14 variaveis anteriores do portal;
+- foi criada no Azure a funcao personalizada
+  `Power BI Embedded Capacity Operator`, contendo somente as acoes ARM de
+  read/resume/suspend;
+- a funcao foi atribuida a `n8n-credenciais-powerbi` no escopo exclusivo do
+  recurso `axispowerbiembedded`;
+- o workflow n8n `Power BI - Gerenciamento automatico da capacidade A1`, ID
+  `PjOyI6C6VbyffgDK`, foi publicado com execucao a cada minuto;
+- o teste manual e a primeira execucao automatica responderam HTTP 200 e
+  terminaram com status `success`;
+- a execucao automatica confirmou a capacidade operacional e preservou a A1
+  ativa porque havia uma sessao de dashboard ativa.
 
 Documentacao operacional completa em `docs/power-bi-capacity-on-demand.md`.
 Build de producao do Next.js 14.2.35 aprovado em copia temporaria limpa; permaneceu

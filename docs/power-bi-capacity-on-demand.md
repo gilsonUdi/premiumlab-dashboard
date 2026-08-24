@@ -35,6 +35,11 @@ O service principal deve ter, no escopo da capacidade
 Pode ser usada uma função personalizada com apenas essas ações. `Contributor`
 também funciona, mas concede permissões mais amplas que o necessário.
 
+Em 24/08/2026 foi criada a função personalizada
+`Power BI Embedded Capacity Operator` e atribuída à entidade de serviço
+`n8n-credenciais-powerbi` diretamente no recurso `axispowerbiembedded`. O escopo
+e as três ações acima foram confirmados no IAM do Azure.
+
 ## Agendamento obrigatório
 
 Executar a cada minuto:
@@ -46,6 +51,18 @@ Authorization: Bearer POWER_BI_CAPACITY_CRON_SECRET
 
 Sem esse agendamento, o Resume ao abrir o relatório funciona, mas a expiração de
 sessões abandonadas e o Suspend automático não são garantidos.
+
+O agendamento de produção está publicado no n8n:
+
+- workflow: `Power BI - Gerenciamento automático da capacidade A1`;
+- ID: `PjOyI6C6VbyffgDK`;
+- intervalo: 1 minuto;
+- autenticação: credencial de backend com o segredo do cron;
+- primeira execução automática validada com HTTP 200 e status `success`.
+
+Na Hostinger, as 9 variáveis dessa funcionalidade foram acrescentadas
+individualmente às 14 variáveis já existentes. Nenhuma variável anterior foi
+substituída ou removida.
 
 ## Dados registrados no Firestore
 
