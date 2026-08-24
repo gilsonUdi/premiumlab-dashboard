@@ -408,7 +408,7 @@ Arquitetura implementada:
 - a interface mostra `Preparando seu painel de indicadores. Aguarde alguns
   instantes...` ate o estado Active;
 - cada dashboard aberto possui sessao propria e heartbeat de 60 segundos;
-- 30 minutos sem atividade encerram apenas o dashboard, mantendo o login do portal;
+- 10 minutos sem atividade encerram apenas o dashboard, mantendo o login do portal;
 - uma rota protegida de reconciliacao expira sessoes abandonadas e solicita
   Suspend depois de 30 minutos sem nenhuma sessao ativa;
 - antes do Suspend ocorre nova verificacao de sessoes, impedindo desligamento com

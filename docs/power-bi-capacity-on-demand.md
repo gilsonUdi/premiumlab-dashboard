@@ -11,7 +11,7 @@ gerenciador de capacidade antes da geração do Embed Token.
    o Resume. Os demais recebem `202` e aguardam.
 4. Quando a capacidade fica `Active`, o fluxo original gera o Embed Token.
 5. O navegador envia heartbeat a cada 60 segundos enquanto houver atividade.
-6. A sessão do relatório termina após 30 minutos sem atividade, ao sair da página
+6. A sessão do relatório termina após 10 minutos sem atividade, ao sair da página
    ou ao fechar o relatório.
 7. Uma chamada agendada à rota de reconciliação expira sessões abandonadas e,
    depois de 30 minutos sem sessões, solicita o Suspend.

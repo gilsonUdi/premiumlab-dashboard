@@ -12,7 +12,7 @@ const TOKEN_REFRESH_INTERVAL_MS = 30 * 1000
 const TOKEN_REFRESH_MARGIN_MS = 10 * 60 * 1000
 const CAPACITY_POLL_MAX_ATTEMPTS = 72
 const DASHBOARD_HEARTBEAT_INTERVAL_MS = 60 * 1000
-const DASHBOARD_INACTIVITY_LIMIT_MS = 30 * 60 * 1000
+const DASHBOARD_INACTIVITY_LIMIT_MS = 10 * 60 * 1000
 
 function wait(ms) {
   return new Promise(resolve => window.setTimeout(resolve, ms))
@@ -553,7 +553,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                 >
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: '#C9A45C' }}>Sessão encerrada</p>
                   <p className="mt-4 text-sm leading-7" style={{ color: '#7E97BC' }}>
-                    O painel foi fechado após 30 minutos sem atividade.
+                    O painel foi fechado após 10 minutos sem atividade.
                   </p>
                   <button
                     type="button"
