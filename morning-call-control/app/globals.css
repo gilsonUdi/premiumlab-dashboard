@@ -2186,6 +2186,42 @@ code {
   background: var(--surface-2);
 }
 
+.stateFilterField {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.stateFilterGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+  gap: 7px;
+  margin-top: 4px;
+}
+
+.stateFilterOption {
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.stateFilterOption:hover {
+  border-color: var(--gold-line);
+  color: var(--text);
+}
+
+.stateFilterOption.active {
+  border-color: var(--gold-line);
+  background: var(--gold-soft);
+  color: var(--gold-strong);
+}
+
 .switchGrid {
   display: flex;
   gap: 22px;

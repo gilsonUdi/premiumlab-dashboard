@@ -13,7 +13,7 @@ import {
   Users,
   X
 } from 'lucide-react';
-import { COLLECTIONS, TIMEZONES } from '@/lib/constants';
+import { BRAZILIAN_STATES, COLLECTIONS, TIMEZONES } from '@/lib/constants';
 import { formatDate, matchExecutionToContact, timeAgo } from '@/lib/format';
 import { formatPhone } from '@/lib/phone';
 import {
@@ -38,14 +38,38 @@ const EMPTY_FORM = {
   noticeTime: '07:00',
   timezone: 'America/Cuiaba',
   sendNotice: true,
-  allowManualSend: true
+  allowManualSend: true,
+  morningCallFilters: { states: [] }
 };
+
+function selectedStates(contact) {
+  const states = contact?.morningCallFilters?.states;
+  return Array.isArray(states) ? states : [];
+}
+
+function stateScopeLabel(contact) {
+  const states = selectedStates(contact);
+  return states.length ? states.join(', ') : 'Todos os estados';
+}
 
 function ContactForm({ initial, editing, tenants, firebaseReady, onSubmit, onCancel }) {
   const [form, setForm] = useState(initial);
 
   function set(key, value) {
     setForm(current => ({ ...current, [key]: value }));
+  }
+
+  const states = selectedStates(form);
+
+  function toggleState(state) {
+    const nextStates = states.includes(state)
+      ? states.filter(value => value !== state)
+      : [...states, state];
+
+    setForm(current => ({
+      ...current,
+      morningCallFilters: { states: nextStates }
+    }));
   }
 
   return (
@@ -119,6 +143,33 @@ function ContactForm({ initial, editing, tenants, firebaseReady, onSubmit, onCan
               onChange={event => set('confirmationPhrase', event.target.value)}
             />
           </Field>
+        </div>
+
+        <div className="field stateFilterField">
+          <span className="fieldLabel">Estados considerados no Morning Call</span>
+          <span className="fieldHint">
+            Sem seleção, o relatório considera todos os estados. É possível selecionar mais de uma UF.
+          </span>
+          <div className="stateFilterGrid">
+            <button
+              type="button"
+              className={`stateFilterOption ${states.length === 0 ? 'active' : ''}`.trim()}
+              onClick={() => set('morningCallFilters', { states: [] })}
+            >
+              Todos
+            </button>
+            {BRAZILIAN_STATES.map(state => (
+              <button
+                key={state.id}
+                type="button"
+                className={`stateFilterOption ${states.includes(state.id) ? 'active' : ''}`.trim()}
+                onClick={() => toggleState(state.id)}
+                title={state.label}
+              >
+                {state.id}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="switchGrid">
@@ -236,6 +287,10 @@ function ClientDetail({
                 <strong>{contact.timezone || '—'}</strong>
               </div>
               <div className="infoItem">
+                <span>Abrangência do Morning Call</span>
+                <strong>{stateScopeLabel(contact)}</strong>
+              </div>
+              <div className="infoItem">
                 <span>Último aviso enviado</span>
                 <strong>{formatDate(contact.lastNoticeSentAt)}</strong>
               </div>
@@ -350,7 +405,10 @@ export default function ClientsPage({
                   noticeTime: editingContact.noticeTime || '07:00',
                   timezone: editingContact.timezone || 'America/Cuiaba',
                   sendNotice: editingContact.sendNotice !== false,
-                  allowManualSend: editingContact.allowManualSend !== false
+                  allowManualSend: editingContact.allowManualSend !== false,
+                  morningCallFilters: {
+                    states: selectedStates(editingContact)
+                  }
                 }
               : { ...EMPTY_FORM, tenant: tenants[0]?.id || '' }
           }
@@ -442,6 +500,9 @@ export default function ClientsPage({
                       manual
                     </span>
                   ) : null}
+                  <span className="flag" title="Abrangência comercial do Morning Call">
+                    UF: {selectedStates(contact).length ? selectedStates(contact).join(', ') : 'Todas'}
+                  </span>
                 </div>
                 <div className="clientRight">
                   {lastExecution ? (

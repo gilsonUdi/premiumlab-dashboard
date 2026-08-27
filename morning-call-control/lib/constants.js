@@ -69,6 +69,36 @@ export const TIMEZONES = [
   'America/Boa_Vista'
 ];
 
+export const BRAZILIAN_STATES = [
+  { id: 'AC', label: 'Acre' },
+  { id: 'AL', label: 'Alagoas' },
+  { id: 'AP', label: 'Amapá' },
+  { id: 'AM', label: 'Amazonas' },
+  { id: 'BA', label: 'Bahia' },
+  { id: 'CE', label: 'Ceará' },
+  { id: 'DF', label: 'Distrito Federal' },
+  { id: 'ES', label: 'Espírito Santo' },
+  { id: 'GO', label: 'Goiás' },
+  { id: 'MA', label: 'Maranhão' },
+  { id: 'MT', label: 'Mato Grosso' },
+  { id: 'MS', label: 'Mato Grosso do Sul' },
+  { id: 'MG', label: 'Minas Gerais' },
+  { id: 'PA', label: 'Pará' },
+  { id: 'PB', label: 'Paraíba' },
+  { id: 'PR', label: 'Paraná' },
+  { id: 'PE', label: 'Pernambuco' },
+  { id: 'PI', label: 'Piauí' },
+  { id: 'RJ', label: 'Rio de Janeiro' },
+  { id: 'RN', label: 'Rio Grande do Norte' },
+  { id: 'RS', label: 'Rio Grande do Sul' },
+  { id: 'RO', label: 'Rondônia' },
+  { id: 'RR', label: 'Roraima' },
+  { id: 'SC', label: 'Santa Catarina' },
+  { id: 'SP', label: 'São Paulo' },
+  { id: 'SE', label: 'Sergipe' },
+  { id: 'TO', label: 'Tocantins' }
+];
+
 export const STATUS_META = {
   sent: { label: 'Relatório enviado', tone: 'green' },
   report_sent: { label: 'Relatório enviado', tone: 'green' },

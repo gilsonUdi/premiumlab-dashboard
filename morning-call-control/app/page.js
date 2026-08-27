@@ -14,6 +14,7 @@ import { AlertTriangle, CheckCircle2, Database, X } from 'lucide-react';
 import { db, hasFirebaseConfig } from '@/lib/firebase';
 import { normalizePhone } from '@/lib/phone';
 import {
+  BRAZILIAN_STATES,
   COLLECTIONS,
   DEFAULT_EVOLUTION_BASE_URL,
   getPowerBiDocId,
@@ -35,6 +36,21 @@ import {
   ConsultationCompaniesPage,
   ConsultationOverviewPage
 } from '@/components/ConsultationPages';
+
+const VALID_STATE_CODES = new Set(BRAZILIAN_STATES.map(state => state.id));
+
+function normalizeMorningCallFilters(value) {
+  const source = Array.isArray(value?.states) ? value.states : [];
+  const states = Array.from(
+    new Set(
+      source
+        .map(state => String(state || '').trim().toUpperCase())
+        .filter(state => VALID_STATE_CODES.has(state))
+    )
+  ).sort();
+
+  return { states };
+}
 
 const PAGE_META = {
   home: {
@@ -255,6 +271,7 @@ export default function Home() {
         phone: normalizePhone(form.phone),
         name: form.name.trim(),
         confirmationPhrase: form.confirmationPhrase.trim(),
+        morningCallFilters: normalizeMorningCallFilters(form.morningCallFilters),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         lastNoticeSentAt: null,
@@ -276,6 +293,9 @@ export default function Home() {
     if (typeof payload.name === 'string') payload.name = payload.name.trim();
     if (typeof payload.confirmationPhrase === 'string') {
       payload.confirmationPhrase = payload.confirmationPhrase.trim();
+    }
+    if (payload.morningCallFilters) {
+      payload.morningCallFilters = normalizeMorningCallFilters(payload.morningCallFilters);
     }
 
     try {
