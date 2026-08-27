@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getFirebaseAdminDb } from '@/lib/firebase-admin'
 import { PORTAL_ACTIVITY_COLLECTION } from '@/lib/portal-activity'
-import { requireAdmin, USERS_COLLECTION } from '@/lib/server-auth'
+import { getPowerBiReportCatalog } from '@/lib/power-bi'
+import { COMPANIES_COLLECTION, requireAdmin, USERS_COLLECTION } from '@/lib/server-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,9 +49,11 @@ function serializeActivity(document, adminIds) {
   }
 }
 
-function serializeSession(document, adminIds, now) {
+function serializeSession(document, adminIds, now, reportLabels) {
   const row = document.data()
   const isAdminAccess = Boolean(row.isAdminAccess || row.excludeFromUsageMetrics || adminIds.has(String(row.userId || '')))
+  const reportKey = String(row.reportKey || '')
+  const configuredLabel = reportLabels.get(`${String(row.companyId || '')}:${reportKey}`) || ''
   return {
     id: document.id,
     kind: 'power-bi',
@@ -60,9 +63,9 @@ function serializeSession(document, adminIds, now) {
     companyId: String(row.companyId || ''),
     companySlug: String(row.companySlug || ''),
     companyName: String(row.companyName || ''),
-    toolKey: `power-bi:${String(row.reportKey || '')}`,
-    toolLabel: String(row.reportLabel || row.reportKey || 'Power BI'),
-    reportKey: String(row.reportKey || ''),
+    toolKey: `power-bi:${reportKey}`,
+    toolLabel: configuredLabel || String(row.reportLabel || reportKey || 'Power BI'),
+    reportKey,
     status: String(row.status || ''),
     startAt: iso(row.activatedAt || row.startedAt),
     lastActivityAt: iso(row.lastActivityAt),
@@ -86,18 +89,25 @@ export async function GET(request) {
     const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
     const db = getFirebaseAdminDb()
 
-    const [activitySnapshot, sessionSnapshot, adminSnapshot] = await Promise.all([
+    const [activitySnapshot, sessionSnapshot, adminSnapshot, companySnapshot] = await Promise.all([
       db.collection(PORTAL_ACTIVITY_COLLECTION).orderBy('accessedAt', 'desc').limit(800).get(),
       db.collection(POWER_BI_SESSION_COLLECTION).orderBy('startedAt', 'desc').limit(800).get(),
       db.collection(USERS_COLLECTION).where('role', '==', 'admin').get(),
+      db.collection(COMPANIES_COLLECTION).get(),
     ])
 
     const adminIds = new Set(adminSnapshot.docs.map(document => document.id))
+    const reportLabels = new Map()
+    companySnapshot.docs.forEach(document => {
+      getPowerBiReportCatalog({ id: document.id, ...document.data() }).forEach(report => {
+        reportLabels.set(`${document.id}:${report.id}`, report.label || report.reportName || report.id)
+      })
+    })
     const activities = activitySnapshot.docs
       .map(document => serializeActivity(document, adminIds))
       .filter(row => row.accessedAt && new Date(row.accessedAt) >= cutoff)
     const powerBiSessions = sessionSnapshot.docs
-      .map(document => serializeSession(document, adminIds, now))
+      .map(document => serializeSession(document, adminIds, now, reportLabels))
       .filter(row => row.startAt && new Date(row.startAt) >= cutoff)
 
     const users = new Map()
