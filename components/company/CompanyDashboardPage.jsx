@@ -12,6 +12,7 @@ import {
 } from '@/lib/portal-store'
 import { canAccessPortalPage, getExternalDashboardConfigFromCompany, getSectionVisibility, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
 import { getPowerBiConfigFromCompany, hasAnyPowerBiConfig } from '@/lib/power-bi'
+import PortalActivityTracker from '@/components/company/PortalActivityTracker'
 
 function PlaceholderTool({ company }) {
   const usesExternalDashboard = !company.supabaseEnabled && company.externalDashboardUrl
@@ -141,7 +142,16 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
   }
 
   if (isExternalDashboard) {
-    return <EmbeddedToolFrame company={company} src={externalDashboardUrl} backHref={`/empresa/${company.slug}/externo`} />
+    return (
+      <>
+        <PortalActivityTracker
+          slug={company.slug}
+          toolKey={`external:${selectedExternalDashboard?.id || externalDashboardKey || 'default'}`}
+          toolLabel={selectedExternalDashboard?.label || 'Dashboard externo'}
+        />
+        <EmbeddedToolFrame company={company} src={externalDashboardUrl} backHref={`/empresa/${company.slug}/externo`} />
+      </>
+    )
   }
 
   if (mode === 'external') {
@@ -153,7 +163,16 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
   }
 
   if (isLegacyPowerBi) {
-    return <EmbeddedToolFrame company={company} src={selectedPowerBiReport.embedUrl} backHref={`/empresa/${company.slug}/power-bi`} />
+    return (
+      <>
+        <PortalActivityTracker
+          slug={company.slug}
+          toolKey={`power-bi:${selectedPowerBiReport.id}`}
+          toolLabel={selectedPowerBiReport.label || 'Power BI'}
+        />
+        <EmbeddedToolFrame company={company} src={selectedPowerBiReport.embedUrl} backHref={`/empresa/${company.slug}/power-bi`} />
+      </>
+    )
   }
 
   if (mode === 'power-bi' && hasAnyPowerBiConfig(company)) {
@@ -180,14 +199,21 @@ export default function CompanyDashboardPage({ slug, mode = 'analysis', powerBiR
   const backHref = `/empresa/${company.slug}`
 
   return (
-    <ProductionDashboard
-      companyName={company.name}
-      companySubtitle={mode === 'pps' ? 'PPS' : 'Análise de Dados'}
-      backHref={backHref}
-      tenantSlug={company.slug}
-      mode={mode}
-      sectionVisibility={getSectionVisibility(company, session?.permissions, mode === 'pps' ? 'pps' : 'analysis')}
-      dashboardFeedingModel={company.dashboardFeedingModel || company.dashboardDataSource || company.dashboardDataSourceType || 'firebird_legacy'}
-    />
+    <>
+      <PortalActivityTracker
+        slug={company.slug}
+        toolKey={mode === 'pps' ? 'pps' : 'analysis'}
+        toolLabel={mode === 'pps' ? 'PPS' : 'Análise de Dados'}
+      />
+      <ProductionDashboard
+        companyName={company.name}
+        companySubtitle={mode === 'pps' ? 'PPS' : 'Análise de Dados'}
+        backHref={backHref}
+        tenantSlug={company.slug}
+        mode={mode}
+        sectionVisibility={getSectionVisibility(company, session?.permissions, mode === 'pps' ? 'pps' : 'analysis')}
+        dashboardFeedingModel={company.dashboardFeedingModel || company.dashboardDataSource || company.dashboardDataSourceType || 'firebird_legacy'}
+      />
+    </>
   )
 }

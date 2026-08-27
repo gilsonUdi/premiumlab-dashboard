@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
+  Activity,
   Building2,
   Copy,
   Eye,
@@ -50,6 +51,7 @@ import {
 import { getPowerBiReportCatalog } from '@/lib/power-bi'
 import CompanyChromeColorPicker from '@/components/admin/CompanyChromeColorPicker'
 import QrCodeGenerator from '@/components/admin/QrCodeGenerator'
+import AccessAnalyticsPanel from '@/components/admin/AccessAnalyticsPanel'
 import { DEFAULT_COMPANY_APPEARANCE, normalizeCompanyAppearance } from '@/lib/company-appearance'
 
 function createEmptyPowerBiReport() {
@@ -1559,6 +1561,19 @@ export default function AdminPage() {
               </button>
               <button
                 type="button"
+                onClick={() => setActivePanel('accesses')}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all"
+                style={
+                  activePanel === 'accesses'
+                    ? { background: 'rgba(201, 164, 92,0.08)', color: '#DAB975', border: '1px solid rgba(201, 164, 92,0.15)' }
+                    : { color: '#7E97BC', border: '1px solid transparent' }
+                }
+              >
+                <Activity size={15} />
+                <span>Acessos</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   setActivePanel('feedback')
                   loadFeedbackItems()
@@ -1725,6 +1740,8 @@ export default function AdminPage() {
               </>
             ) : activePanel === 'qr-code' ? (
               <QrCodeGenerator />
+            ) : activePanel === 'accesses' ? (
+              <AccessAnalyticsPanel />
             ) : (
               <>
                 <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

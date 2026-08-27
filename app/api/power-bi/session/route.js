@@ -22,7 +22,7 @@ async function authorizeSessionRequest(request, payload) {
   const sessionId = String(payload?.sessionId || '').trim()
   if (!slug || !reportKey || !sessionId) throw new Error('Sessao de dashboard nao informada.')
 
-  const { decoded, profile, company } = await resolveAuthorizedCompany(request, slug)
+  const { decoded, profile, company, accessContext } = await resolveAuthorizedCompany(request, slug)
   const permissions = normalizeUserPermissions(profile.permissions, company)
   if (profile.role !== 'admin' && !permissions.pages[PORTAL_PAGE_KEYS.POWER_BI]) {
     throw new Error('Acesso negado ao Power BI desta empresa.')
@@ -36,9 +36,14 @@ async function authorizeSessionRequest(request, payload) {
     reportKey,
     company,
     user: {
-      uid: decoded.uid,
+      uid: accessContext.effectiveUserId || decoded.uid,
       email: profile.email || decoded.email || '',
       name: profile.name || profile.email || decoded.email || 'Usuario',
+      isAdminAccess: accessContext.isAdminAccess,
+      isAdminPreview: accessContext.isAdminPreview,
+      adminUserId: accessContext.adminUserId,
+      adminUserEmail: accessContext.adminUserEmail,
+      adminUserName: accessContext.adminUserName,
     },
   }
 }

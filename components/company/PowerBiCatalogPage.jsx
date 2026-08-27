@@ -12,6 +12,7 @@ import {
   loadCompanyState,
 } from '@/lib/portal-store'
 import { canAccessPortalPage, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
+import PortalActivityTracker from '@/components/company/PortalActivityTracker'
 
 function formatRefreshDate(value) {
   const normalized = String(value || '').trim()
@@ -142,6 +143,7 @@ export default function PowerBiCatalogPage({ slug }) {
 
   return (
     <main className="portal-page">
+      <PortalActivityTracker slug={company.slug} toolKey="power-bi-catalog" toolLabel="Catálogo Power BI" />
       <div className="mx-auto max-w-[1380px] px-5 py-5">
 
         {/* Top bar */}

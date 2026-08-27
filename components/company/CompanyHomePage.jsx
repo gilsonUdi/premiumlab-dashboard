@@ -16,6 +16,7 @@ import {
 import { getFirebaseServices } from '@/lib/firebase-client'
 import { canAccessPortalPage, hasAnyExternalDashboardConfig, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
 import { hasAnyPowerBiConfig } from '@/lib/power-bi'
+import PortalActivityTracker from '@/components/company/PortalActivityTracker'
 
 const TOOL_CARDS = [
   {
@@ -358,6 +359,7 @@ export default function CompanyHomePage({ slug }) {
 
   return (
     <main className="portal-page">
+      <PortalActivityTracker slug={company.slug} toolKey="portal-home" toolLabel="Portal da empresa" />
       <div className="mx-auto max-w-[1380px] px-5 py-5">
 
         {/* Top bar — minimal */}

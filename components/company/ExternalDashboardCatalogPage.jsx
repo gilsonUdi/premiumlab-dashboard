@@ -15,6 +15,7 @@ import {
   getExternalDashboardCatalog,
   PORTAL_PAGE_KEYS,
 } from '@/lib/portal-config'
+import PortalActivityTracker from '@/components/company/PortalActivityTracker'
 
 export default function ExternalDashboardCatalogPage({ slug }) {
   const router = useRouter()
@@ -86,6 +87,7 @@ export default function ExternalDashboardCatalogPage({ slug }) {
 
   return (
     <main className="portal-page">
+      <PortalActivityTracker slug={company.slug} toolKey="external-catalog" toolLabel="Catálogo de dashboards externos" />
       <div className="mx-auto max-w-[1380px] px-5 py-5">
         <header className="mb-10 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">

@@ -5,7 +5,7 @@ import {
   normalizeUserPermissions,
   PORTAL_PAGE_KEYS,
 } from '@/lib/portal-config'
-import { generatePowerBiEmbedConfig, hasEmbeddedPowerBiConfig, isPowerBiNavigablePage } from '@/lib/power-bi'
+import { generatePowerBiEmbedConfig, getPowerBiConfigFromCompany, hasEmbeddedPowerBiConfig, isPowerBiNavigablePage } from '@/lib/power-bi'
 import { preparePowerBiDashboardAccess } from '@/lib/power-bi-capacity'
 import { resolveAuthorizedCompany } from '@/lib/server-auth'
 import { NextResponse } from 'next/server'
@@ -26,13 +26,14 @@ export async function GET(request) {
     const slug = String(searchParams.get('slug') || '').trim()
     const reportKey = String(searchParams.get('report') || '').trim()
     const requestedSessionId = String(searchParams.get('session') || '').trim()
-    const { decoded, profile, company } = await resolveAuthorizedCompany(request, slug)
+    const { decoded, profile, company, accessContext } = await resolveAuthorizedCompany(request, slug)
 
     if (!hasEmbeddedPowerBiConfig(company, reportKey)) {
       return NextResponse.json({ error: 'Power BI Embedded ainda nao configurado para este modelo.' }, { status: 400 })
     }
 
     const permissions = normalizeUserPermissions(profile.permissions, company)
+    const selectedReport = getPowerBiConfigFromCompany(company, reportKey)
     if (profile.role !== 'admin' && !permissions.pages[PORTAL_PAGE_KEYS.POWER_BI]) {
       return NextResponse.json({ error: 'Usuário sem acesso ao Power BI desta empresa.' }, { status: 403 })
     }
@@ -45,10 +46,16 @@ export async function GET(request) {
       sessionId: requestedSessionId,
       company,
       reportKey,
+      reportLabel: selectedReport?.label || reportKey,
       user: {
-        uid: decoded.uid,
+        uid: accessContext.effectiveUserId || decoded.uid,
         email: profile.email || decoded.email || '',
         name: profile.name || profile.email || decoded.email || 'Usuario',
+        isAdminAccess: accessContext.isAdminAccess,
+        isAdminPreview: accessContext.isAdminPreview,
+        adminUserId: accessContext.adminUserId,
+        adminUserEmail: accessContext.adminUserEmail,
+        adminUserName: accessContext.adminUserName,
       },
     })
 
