@@ -12,7 +12,6 @@ const TOKEN_REFRESH_INTERVAL_MS = 30 * 1000
 const TOKEN_REFRESH_MARGIN_MS = 10 * 60 * 1000
 const CAPACITY_POLL_MAX_ATTEMPTS = 72
 const DASHBOARD_HEARTBEAT_INTERVAL_MS = 60 * 1000
-const DASHBOARD_INACTIVITY_LIMIT_MS = 10 * 60 * 1000
 
 function wait(ms) {
   return new Promise(resolve => window.setTimeout(resolve, ms))
@@ -39,7 +38,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const pageNavigationRunningRef = useRef(false)
   const dashboardSessionIdRef = useRef('')
   const dashboardAuthHeadersRef = useRef(null)
-  const lastDashboardActivityRef = useRef(Date.now())
   const dashboardSessionEndedRef = useRef(false)
 
   const fetchEmbedConfig = useCallback(async () => {
@@ -73,10 +71,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
 
     throw new Error('A capacidade do Power BI demorou mais que o esperado para iniciar. Tente novamente em alguns instantes.')
   }, [company.slug, reportKey])
-
-  const markDashboardActivity = useCallback(() => {
-    lastDashboardActivityRef.current = Date.now()
-  }, [])
 
   const endDashboardSession = useCallback(async reason => {
     const sessionId = dashboardSessionIdRef.current
@@ -194,7 +188,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         setError('')
         dashboardSessionEndedRef.current = false
         dashboardSessionIdRef.current = ''
-        lastDashboardActivityRef.current = Date.now()
         setSessionExpired(false)
         setCapacityMessage('Preparando seu painel de indicadores. Aguarde alguns instantes...')
         const payload = await fetchEmbedConfig()
@@ -218,19 +211,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   }, [fetchEmbedConfig])
 
   useEffect(() => {
-    const activityEvents = ['pointerdown', 'keydown', 'touchstart', 'wheel']
-    const handleVisibility = () => {
-      if (!document.hidden) markDashboardActivity()
-    }
-    activityEvents.forEach(eventName => window.addEventListener(eventName, markDashboardActivity, { passive: true }))
-    document.addEventListener('visibilitychange', handleVisibility)
-    return () => {
-      activityEvents.forEach(eventName => window.removeEventListener(eventName, markDashboardActivity))
-      document.removeEventListener('visibilitychange', handleVisibility)
-    }
-  }, [markDashboardActivity])
-
-  useEffect(() => {
     const sessionId = config?.dashboardSessionId || dashboardSessionIdRef.current
     if (!config?.capacityManaged || !sessionId) return undefined
 
@@ -238,12 +218,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     dashboardSessionEndedRef.current = false
 
     const heartbeat = async () => {
-      if (document.hidden || dashboardSessionEndedRef.current) return
-      if (Date.now() - lastDashboardActivityRef.current >= DASHBOARD_INACTIVITY_LIMIT_MS) {
-        setSessionExpired(true)
-        await endDashboardSession('inactivity')
-        return
-      }
+      if (dashboardSessionEndedRef.current) return
 
       try {
         const headers = dashboardAuthHeadersRef.current || (await getPortalAuthHeaders())
@@ -263,10 +238,16 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       }
     }
 
+    const handlePageHide = () => {
+      endDashboardSession('closed')
+    }
+
     heartbeat()
     const intervalId = window.setInterval(heartbeat, DASHBOARD_HEARTBEAT_INTERVAL_MS)
+    window.addEventListener('pagehide', handlePageHide)
     return () => {
       window.clearInterval(intervalId)
+      window.removeEventListener('pagehide', handlePageHide)
       endDashboardSession('closed')
     }
   }, [company.slug, config?.capacityManaged, config?.dashboardSessionId, endDashboardSession, reportKey])
@@ -304,7 +285,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   }, [config?.tokenExpiration, refreshEmbedToken])
 
   const handlePowerBiError = useCallback(event => {
-    markDashboardActivity()
     const detail = event?.detail || event || {}
     console.error(detail)
 
@@ -318,7 +298,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         console.error('[power-bi:token-refresh-after-error]', refreshError)
       })
     }
-  }, [markDashboardActivity, refreshEmbedToken])
+  }, [refreshEmbedToken])
 
   const pageMap = useMemo(() => new Map((config?.pages || []).map(page => [page.name, page])), [config?.pages])
   const powerBiLayoutType = isMobileLayout ? models.LayoutType.MobilePortrait : models.LayoutType.Master
@@ -553,7 +533,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                 >
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: '#C9A45C' }}>Sessão encerrada</p>
                   <p className="mt-4 text-sm leading-7" style={{ color: '#7E97BC' }}>
-                    O painel foi fechado após 10 minutos sem atividade.
+                    Esta janela perdeu a sessão ativa do Power BI. Reabra o painel para continuar.
                   </p>
                   <button
                     type="button"
@@ -664,7 +644,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       [
                         'loaded',
                         async () => {
-                          markDashboardActivity()
                           if (!reportRef.current) return
                           reportLoadedRef.current = true
                           try {
@@ -682,7 +661,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       [
                         'pageChanged',
                         event => {
-                          markDashboardActivity()
                           const nextName = event?.detail?.newPage?.name || ''
                           if (!nextName) return
                           if (pageMap.size > 0 && !pageMap.has(nextName)) {
@@ -693,9 +671,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                           setActivePageName(nextName)
                         },
                       ],
-                      ['rendered', markDashboardActivity],
-                      ['dataSelected', markDashboardActivity],
-                      ['buttonClicked', markDashboardActivity],
                       ['error', handlePowerBiError],
                     ])
                   }
