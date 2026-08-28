@@ -39,6 +39,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const dashboardSessionIdRef = useRef('')
   const dashboardAuthHeadersRef = useRef(null)
   const dashboardSessionEndedRef = useRef(false)
+  const dashboardPageRef = useRef({ name: '', label: '', sequence: 0 })
+  const dashboardHeartbeatRef = useRef(null)
 
   const fetchEmbedConfig = useCallback(async () => {
     const headers = await getPortalAuthHeaders()
@@ -192,6 +194,12 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         setCapacityMessage('Preparando seu painel de indicadores. Aguarde alguns instantes...')
         const payload = await fetchEmbedConfig()
         if (!active) return
+        const initialPage = (payload.pages || []).find(page => page.name === payload.initialPageName)
+        dashboardPageRef.current = {
+          name: String(payload.initialPageName || ''),
+          label: String(initialPage?.displayName || payload.initialPageName || ''),
+          sequence: payload.initialPageName ? 1 : 0,
+        }
         setConfig(payload)
         setActivePageName(payload.initialPageName || '')
       } catch (embedError) {
@@ -225,7 +233,14 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         const response = await fetch('/api/power-bi/session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...headers },
-          body: JSON.stringify({ sessionId, slug: company.slug, reportKey }),
+          body: JSON.stringify({
+            sessionId,
+            slug: company.slug,
+            reportKey,
+            pageName: dashboardPageRef.current.name,
+            pageLabel: dashboardPageRef.current.label,
+            pageSequence: dashboardPageRef.current.sequence,
+          }),
           cache: 'no-store',
         })
         const payload = await response.json()
@@ -238,6 +253,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       }
     }
 
+    dashboardHeartbeatRef.current = heartbeat
     const handlePageHide = () => {
       endDashboardSession('closed')
     }
@@ -248,6 +264,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     return () => {
       window.clearInterval(intervalId)
       window.removeEventListener('pagehide', handlePageHide)
+      if (dashboardHeartbeatRef.current === heartbeat) dashboardHeartbeatRef.current = null
       endDashboardSession('closed')
     }
   }, [company.slug, config?.capacityManaged, config?.dashboardSessionId, endDashboardSession, reportKey])
@@ -647,6 +664,18 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                           if (!reportRef.current) return
                           reportLoadedRef.current = true
                           try {
+                            const currentPage = await reportRef.current.getActivePage()
+                            if (currentPage?.name) {
+                              const configuredPage = pageMap.get(currentPage.name)
+                              const previousPage = dashboardPageRef.current
+                              dashboardPageRef.current = {
+                                name: currentPage.name,
+                                label: configuredPage?.displayName || currentPage.displayName || currentPage.name,
+                                sequence: previousPage.name === currentPage.name ? Math.max(1, previousPage.sequence) : previousPage.sequence + 1,
+                              }
+                              setActivePageName(currentPage.name)
+                              dashboardHeartbeatRef.current?.()
+                            }
                             await reportRef.current.updateSettings({
                               layoutType: powerBiLayoutType,
                             })
@@ -668,7 +697,15 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                             return
                           }
                           if (pendingPageNameRef.current && pendingPageNameRef.current !== nextName) return
+                          const configuredPage = pageMap.get(nextName)
+                          const previousPage = dashboardPageRef.current
+                          dashboardPageRef.current = {
+                            name: nextName,
+                            label: configuredPage?.displayName || event?.detail?.newPage?.displayName || nextName,
+                            sequence: previousPage.name === nextName ? Math.max(1, previousPage.sequence) : previousPage.sequence + 1,
+                          }
                           setActivePageName(nextName)
+                          dashboardHeartbeatRef.current?.()
                         },
                       ],
                       ['error', handlePowerBiError],

@@ -52,7 +52,12 @@ export async function POST(request) {
   try {
     const payload = await request.json()
     const context = await authorizeSessionRequest(request, payload)
-    const result = await heartbeatPowerBiDashboardSession(context)
+    const result = await heartbeatPowerBiDashboardSession({
+      ...context,
+      pageName: String(payload?.pageName || '').trim(),
+      pageLabel: String(payload?.pageLabel || '').trim(),
+      pageSequence: Number(payload?.pageSequence || 0),
+    })
     return NextResponse.json(result)
   } catch (error) {
     console.error('[power-bi-session:heartbeat]', error)

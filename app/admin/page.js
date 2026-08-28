@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Activity,
+  BarChart3,
   Building2,
   Copy,
   Eye,
@@ -52,6 +53,7 @@ import { getPowerBiReportCatalog } from '@/lib/power-bi'
 import CompanyChromeColorPicker from '@/components/admin/CompanyChromeColorPicker'
 import QrCodeGenerator from '@/components/admin/QrCodeGenerator'
 import AccessAnalyticsPanel from '@/components/admin/AccessAnalyticsPanel'
+import PowerBiPageAnalyticsPanel from '@/components/admin/PowerBiPageAnalyticsPanel'
 import { DEFAULT_COMPANY_APPEARANCE, normalizeCompanyAppearance } from '@/lib/company-appearance'
 
 function createEmptyPowerBiReport() {
@@ -1574,6 +1576,19 @@ export default function AdminPage() {
               </button>
               <button
                 type="button"
+                onClick={() => setActivePanel('power-bi-pages')}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all"
+                style={
+                  activePanel === 'power-bi-pages'
+                    ? { background: 'rgba(201, 164, 92,0.08)', color: '#DAB975', border: '1px solid rgba(201, 164, 92,0.15)' }
+                    : { color: '#7E97BC', border: '1px solid transparent' }
+                }
+              >
+                <BarChart3 size={15} />
+                <span>Uso do Power BI</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   setActivePanel('feedback')
                   loadFeedbackItems()
@@ -1742,6 +1757,8 @@ export default function AdminPage() {
               <QrCodeGenerator />
             ) : activePanel === 'accesses' ? (
               <AccessAnalyticsPanel />
+            ) : activePanel === 'power-bi-pages' ? (
+              <PowerBiPageAnalyticsPanel />
             ) : (
               <>
                 <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
