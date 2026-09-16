@@ -139,14 +139,17 @@ function ContactForm({ initial, editing, tenants, firebaseReady, onSubmit, onCan
               ))}
             </select>
           </Field>
-          <Field label="Frase de confirmação" hint="Resposta que o cliente envia para receber o relatório.">
+          <Field
+            label="Confirmação do Morning Call comercial"
+            hint="Resposta usada exclusivamente para solicitar o Morning Call comercial."
+          >
             <input
               value={form.confirmationPhrase}
               onChange={event => set('confirmationPhrase', event.target.value)}
             />
           </Field>
           <Field
-            label="Frase do Morning Call Financeiro"
+            label="Confirmação do Morning Call financeiro"
             hint="Resposta usada exclusivamente para solicitar o relatório de contas a receber."
           >
             <input
@@ -306,11 +309,11 @@ function ClientDetail({
           <Panel title="Detalhes" icon={CalendarClock}>
             <div className="infoList">
               <div className="infoItem">
-                <span>Frase de confirmação</span>
+                <span>Confirmação do Morning Call comercial</span>
                 <strong>{contact.confirmationPhrase || '—'}</strong>
               </div>
               <div className="infoItem">
-                <span>Frase do Morning Call Financeiro</span>
+                <span>Confirmação do Morning Call financeiro</span>
                 <strong>{contact.receivablesConfirmationPhrase || 'Receber Morning Call Financeiro'}</strong>
               </div>
               <div className="infoItem">
