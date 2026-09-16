@@ -39,6 +39,8 @@ const EMPTY_FORM = {
   timezone: 'America/Cuiaba',
   sendNotice: true,
   allowManualSend: true,
+  allowReceivablesMorningCall: false,
+  receivablesConfirmationPhrase: 'Receber Morning Call Financeiro',
   morningCallFilters: { states: [] }
 };
 
@@ -143,6 +145,16 @@ function ContactForm({ initial, editing, tenants, firebaseReady, onSubmit, onCan
               onChange={event => set('confirmationPhrase', event.target.value)}
             />
           </Field>
+          <Field
+            label="Frase do Morning Call Financeiro"
+            hint="Resposta usada exclusivamente para solicitar o relatório de contas a receber."
+          >
+            <input
+              value={form.receivablesConfirmationPhrase}
+              onChange={event => set('receivablesConfirmationPhrase', event.target.value)}
+              placeholder="Receber Morning Call Financeiro"
+            />
+          </Field>
         </div>
 
         <div className="field stateFilterField">
@@ -188,6 +200,14 @@ function ContactForm({ initial, editing, tenants, firebaseReady, onSubmit, onCan
               label="Envio manual"
             />
             <span>Pode solicitar manualmente</span>
+          </div>
+          <div className="switchInline">
+            <Switch
+              checked={Boolean(form.allowReceivablesMorningCall)}
+              onChange={value => set('allowReceivablesMorningCall', value)}
+              label="Morning Call Financeiro"
+            />
+            <span>Recebe Morning Call Financeiro</span>
           </div>
         </div>
 
@@ -274,6 +294,13 @@ function ClientDetail({
               onChange={value => onToggleField('allowManualSend', value)}
               disabled={!firebaseReady}
             />
+            <SwitchRow
+              label="Morning Call Financeiro"
+              description="Recebe o aviso e pode solicitar o relatório de contas a receber."
+              checked={contact.allowReceivablesMorningCall === true}
+              onChange={value => onToggleField('allowReceivablesMorningCall', value)}
+              disabled={!firebaseReady}
+            />
           </Panel>
 
           <Panel title="Detalhes" icon={CalendarClock}>
@@ -281,6 +308,10 @@ function ClientDetail({
               <div className="infoItem">
                 <span>Frase de confirmação</span>
                 <strong>{contact.confirmationPhrase || '—'}</strong>
+              </div>
+              <div className="infoItem">
+                <span>Frase do Morning Call Financeiro</span>
+                <strong>{contact.receivablesConfirmationPhrase || 'Receber Morning Call Financeiro'}</strong>
               </div>
               <div className="infoItem">
                 <span>Fuso horário</span>
@@ -406,6 +437,9 @@ export default function ClientsPage({
                   timezone: editingContact.timezone || 'America/Cuiaba',
                   sendNotice: editingContact.sendNotice !== false,
                   allowManualSend: editingContact.allowManualSend !== false,
+                  allowReceivablesMorningCall: editingContact.allowReceivablesMorningCall === true,
+                  receivablesConfirmationPhrase:
+                    editingContact.receivablesConfirmationPhrase || 'Receber Morning Call Financeiro',
                   morningCallFilters: {
                     states: selectedStates(editingContact)
                   }
@@ -498,6 +532,12 @@ export default function ClientsPage({
                     <span className="flag" title="Pode solicitar manualmente">
                       <Phone size={12} />
                       manual
+                    </span>
+                  ) : null}
+                  {contact.allowReceivablesMorningCall === true ? (
+                    <span className="flag" title="Habilitado para o Morning Call Financeiro">
+                      <CalendarClock size={12} />
+                      financeiro
                     </span>
                   ) : null}
                   <span className="flag" title="Abrangência comercial do Morning Call">

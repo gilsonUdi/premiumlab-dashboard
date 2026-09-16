@@ -271,6 +271,8 @@ export default function Home() {
         phone: normalizePhone(form.phone),
         name: form.name.trim(),
         confirmationPhrase: form.confirmationPhrase.trim(),
+        receivablesConfirmationPhrase:
+          form.receivablesConfirmationPhrase?.trim() || 'Receber Morning Call Financeiro',
         morningCallFilters: normalizeMorningCallFilters(form.morningCallFilters),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -293,6 +295,10 @@ export default function Home() {
     if (typeof payload.name === 'string') payload.name = payload.name.trim();
     if (typeof payload.confirmationPhrase === 'string') {
       payload.confirmationPhrase = payload.confirmationPhrase.trim();
+    }
+    if (typeof payload.receivablesConfirmationPhrase === 'string') {
+      payload.receivablesConfirmationPhrase =
+        payload.receivablesConfirmationPhrase.trim() || 'Receber Morning Call Financeiro';
     }
     if (payload.morningCallFilters) {
       payload.morningCallFilters = normalizeMorningCallFilters(payload.morningCallFilters);
