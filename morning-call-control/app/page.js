@@ -317,6 +317,42 @@ export default function Home() {
     }
   }
 
+  async function sendMorningCall(contact, reportType) {
+    try {
+      const response = await fetch('/api/morning-call/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportType,
+          contact: {
+            id: contact.id,
+            tenant: contact.tenant,
+            name: contact.name || '',
+            phone: contact.phone,
+            active: contact.active !== false,
+            allowManualSend: contact.allowManualSend !== false,
+            allowReceivablesMorningCall: contact.allowReceivablesMorningCall === true,
+            confirmationPhrase: contact.confirmationPhrase || 'Receber Morning Call',
+            receivablesConfirmationPhrase:
+              contact.receivablesConfirmationPhrase || 'Receber Morning Call Financeiro'
+          }
+        })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'Nao foi possivel iniciar o envio manual.');
+      }
+
+      showNotice('success', payload.message || 'Envio manual iniciado com sucesso.');
+      return true;
+    } catch (error) {
+      handleActionError(error, 'Nao foi possivel iniciar o envio manual.');
+      return false;
+    }
+  }
+
   async function savePowerBiConfig(form) {
     if (!ensureDb()) return false;
     if (!form.tenant) {
@@ -726,6 +762,7 @@ export default function Home() {
               onFocus={setClientFocusId}
               saveContact={saveContact}
               updateContact={updateContact}
+              sendMorningCall={sendMorningCall}
               removeDoc={removeDoc}
               firebaseReady={firebaseReady}
             />

@@ -15,6 +15,7 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
+MORNING_CALL_INBOUND_WEBHOOK_URL=https://n8n.gsgestao.com.br/webhook/morning-call/evolution
 ```
 
 ## Colecoes Firestore usadas
@@ -46,3 +47,5 @@ O flow principal do Morning Call deve consultar `morning_call_contacts` pelo tel
 Cada contato pode definir `morningCallFilters.states` com uma ou mais UFs. Uma lista vazia mantém o relatório comercial com todos os estados. O fluxo aplica esse escopo somente às consultas da tabela `VENDAS`; a tesouraria permanece consolidada porque a tabela `RECEBER` não possui estado no modelo atual.
 
 O Morning Call Financeiro possui autorização independente. O contato só recebe o aviso e pode solicitar o relatório de contas a receber quando `allowReceivablesMorningCall` estiver explicitamente como `true`. A frase fica em `receivablesConfirmationPhrase` e, quando não informada, usa `Receber Morning Call Financeiro`.
+
+Na tela de detalhes de um cliente, os botoes de envio manual reutilizam o mesmo webhook de entrada do n8n. O painel simula a confirmacao cadastrada do contato, preservando as validacoes de empresa ativa, permissoes e fonte de dados feitas pelo fluxo oficial.

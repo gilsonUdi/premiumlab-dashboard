@@ -10,7 +10,9 @@ import {
   Phone,
   Plus,
   Search,
+  Send,
   Users,
+  WalletCards,
   X
 } from 'lucide-react';
 import { BRAZILIAN_STATES, COLLECTIONS, TIMEZONES } from '@/lib/constants';
@@ -235,13 +237,35 @@ function ClientDetail({
   firebaseReady,
   onBack,
   onEdit,
+  onSendMorningCall,
   onToggleField,
   onRemove
 }) {
+  const [sendingType, setSendingType] = useState(null);
   const history = useMemo(
     () => executions.filter(execution => matchExecutionToContact(execution, contact)),
     [executions, contact]
   );
+
+  async function handleManualSend(reportType) {
+    const financial = reportType === 'financial';
+    const label = financial ? 'Morning Call financeiro' : 'Morning Call comercial';
+
+    if (
+      !window.confirm(
+        `Enviar o ${label} agora para ${contact.name || formatPhone(contact.phone)} (${formatPhone(contact.phone)})?`
+      )
+    ) {
+      return;
+    }
+
+    setSendingType(reportType);
+    try {
+      await onSendMorningCall(contact, reportType);
+    } finally {
+      setSendingType(null);
+    }
+  }
 
   return (
     <>
@@ -252,6 +276,44 @@ function ClientDetail({
             Clientes
           </button>
           <div className="rowActions">
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => handleManualSend('commercial')}
+              disabled={
+                !firebaseReady ||
+                contact.active === false ||
+                contact.allowManualSend === false ||
+                Boolean(sendingType)
+              }
+              title={
+                contact.allowManualSend === false
+                  ? 'Habilite o envio manual nas preferencias deste contato.'
+                  : 'Gerar e enviar o Morning Call comercial agora.'
+              }
+            >
+              <Send size={14} />
+              {sendingType === 'commercial' ? 'Enviando...' : 'Enviar Morning Call'}
+            </button>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => handleManualSend('financial')}
+              disabled={
+                !firebaseReady ||
+                contact.active === false ||
+                contact.allowReceivablesMorningCall !== true ||
+                Boolean(sendingType)
+              }
+              title={
+                contact.allowReceivablesMorningCall !== true
+                  ? 'Habilite o Morning Call Financeiro nas preferencias deste contato.'
+                  : 'Gerar e enviar o Morning Call financeiro agora.'
+              }
+            >
+              <WalletCards size={14} />
+              {sendingType === 'financial' ? 'Enviando...' : 'Enviar financeiro'}
+            </button>
             <button type="button" className="btn ghost" onClick={onEdit}>
               <Pencil size={14} />
               Editar
@@ -366,6 +428,7 @@ export default function ClientsPage({
   onFocus,
   saveContact,
   updateContact,
+  sendMorningCall,
   removeDoc,
   firebaseReady
 }) {
@@ -414,6 +477,7 @@ export default function ClientsPage({
         firebaseReady={firebaseReady}
         onBack={() => onFocus(null)}
         onEdit={() => openForm(focusedContact)}
+        onSendMorningCall={sendMorningCall}
         onToggleField={(field, value) => updateContact(focusedContact.id, { [field]: value })}
         onRemove={async () => {
           await removeDoc(COLLECTIONS.contacts, focusedContact.id);
