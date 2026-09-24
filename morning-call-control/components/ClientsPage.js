@@ -43,8 +43,12 @@ const EMPTY_FORM = {
   allowManualSend: true,
   allowReceivablesMorningCall: false,
   receivablesConfirmationPhrase: 'Receber Morning Call Financeiro',
+  allowPreviewMorningCall: false,
+  previewConfirmationPhrase: 'Prévia Morning Call',
   morningCallFilters: { states: [] }
 };
+
+const isGradual = tenant => String(tenant || '').toLowerCase().includes('gradual');
 
 function selectedStates(contact) {
   const states = contact?.morningCallFilters?.states;
@@ -160,6 +164,15 @@ function ContactForm({ initial, editing, tenants, firebaseReady, onSubmit, onCan
               placeholder="Receber Morning Call Financeiro"
             />
           </Field>
+          {isGradual(form.tenant) ? (
+            <Field label="Solicitação da prévia" hint="Gera a prévia do relatório de amanhã com os dados disponíveis no momento da solicitação; não há aviso diário.">
+              <input
+                value={form.previewConfirmationPhrase}
+                onChange={event => set('previewConfirmationPhrase', event.target.value)}
+                placeholder="Prévia Morning Call"
+              />
+            </Field>
+          ) : null}
         </div>
 
         <div className="field stateFilterField">
@@ -214,6 +227,12 @@ function ContactForm({ initial, editing, tenants, firebaseReady, onSubmit, onCan
             />
             <span>Recebe Morning Call Financeiro</span>
           </div>
+          {isGradual(form.tenant) ? (
+            <div className="switchInline">
+              <Switch checked={Boolean(form.allowPreviewMorningCall)} onChange={value => set('allowPreviewMorningCall', value)} label="Prévia do Morning Call" />
+              <span>Pode solicitar a prévia</span>
+            </div>
+          ) : null}
         </div>
 
         <div className="formActions">
@@ -249,7 +268,7 @@ function ClientDetail({
 
   async function handleManualSend(reportType) {
     const financial = reportType === 'financial';
-    const label = financial ? 'Morning Call financeiro' : 'Morning Call comercial';
+    const label = reportType === 'preview' ? 'prévia do Morning Call' : financial ? 'Morning Call financeiro' : 'Morning Call comercial';
 
     if (
       !window.confirm(
@@ -314,6 +333,18 @@ function ClientDetail({
               <WalletCards size={14} />
               {sendingType === 'financial' ? 'Enviando...' : 'Enviar financeiro'}
             </button>
+            {isGradual(contact.tenant) ? (
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => handleManualSend('preview')}
+                disabled={!firebaseReady || contact.active === false || contact.allowPreviewMorningCall !== true || Boolean(sendingType)}
+                title={contact.allowPreviewMorningCall !== true ? 'Habilite a prévia nas preferências deste contato.' : 'Gerar uma prévia parcial do Morning Call de amanhã.'}
+              >
+                <CalendarClock size={14} />
+                {sendingType === 'preview' ? 'Enviando...' : 'Enviar prévia'}
+              </button>
+            ) : null}
             <button type="button" className="btn ghost" onClick={onEdit}>
               <Pencil size={14} />
               Editar
@@ -366,6 +397,9 @@ function ClientDetail({
               onChange={value => onToggleField('allowReceivablesMorningCall', value)}
               disabled={!firebaseReady}
             />
+            {isGradual(contact.tenant) ? (
+              <SwitchRow label="Prévia do Morning Call" description="Disponível sob solicitação, sem aviso diário. Usa os dados parciais do momento." checked={contact.allowPreviewMorningCall === true} onChange={value => onToggleField('allowPreviewMorningCall', value)} disabled={!firebaseReady} />
+            ) : null}
           </Panel>
 
           <Panel title="Detalhes" icon={CalendarClock}>
@@ -378,6 +412,12 @@ function ClientDetail({
                 <span>Confirmação do Morning Call financeiro</span>
                 <strong>{contact.receivablesConfirmationPhrase || 'Receber Morning Call Financeiro'}</strong>
               </div>
+              {isGradual(contact.tenant) ? (
+                <div className="infoItem">
+                  <span>Solicitação da prévia</span>
+                  <strong>{contact.previewConfirmationPhrase || 'Prévia Morning Call'}</strong>
+                </div>
+              ) : null}
               <div className="infoItem">
                 <span>Fuso horário</span>
                 <strong>{contact.timezone || '—'}</strong>
@@ -507,6 +547,8 @@ export default function ClientsPage({
                   allowReceivablesMorningCall: editingContact.allowReceivablesMorningCall === true,
                   receivablesConfirmationPhrase:
                     editingContact.receivablesConfirmationPhrase || 'Receber Morning Call Financeiro',
+                  allowPreviewMorningCall: editingContact.allowPreviewMorningCall === true,
+                  previewConfirmationPhrase: editingContact.previewConfirmationPhrase || 'Prévia Morning Call',
                   morningCallFilters: {
                     states: selectedStates(editingContact)
                   }
@@ -605,6 +647,12 @@ export default function ClientsPage({
                     <span className="flag" title="Habilitado para o Morning Call Financeiro">
                       <CalendarClock size={12} />
                       financeiro
+                    </span>
+                  ) : null}
+                  {isGradual(contact.tenant) && contact.allowPreviewMorningCall === true ? (
+                    <span className="flag" title="Pode solicitar a prévia do Morning Call">
+                      <CalendarClock size={12} />
+                      prévia
                     </span>
                   ) : null}
                   <span className="flag" title="Abrangência comercial do Morning Call">

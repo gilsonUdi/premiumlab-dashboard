@@ -48,4 +48,6 @@ Cada contato pode definir `morningCallFilters.states` com uma ou mais UFs. Uma l
 
 O Morning Call Financeiro possui autorização independente. O contato só recebe o aviso e pode solicitar o relatório de contas a receber quando `allowReceivablesMorningCall` estiver explicitamente como `true`. A frase fica em `receivablesConfirmationPhrase` e, quando não informada, usa `Receber Morning Call Financeiro`.
 
+A prévia do Morning Call está disponível somente para contatos da Gradual com `allowPreviewMorningCall: true`. A frase de solicitação é `previewConfirmationPhrase` (padrão: `Prévia Morning Call`). Ela reutiliza o relatório comercial e a consulta Firebird, com a data de emissão de amanhã e o fechamento parcial de hoje. A resposta informa o horário da consulta e avisa que os números podem mudar. A prévia não possui aviso diário nem agendamento próprio; a permissão é independente das permissões do Morning Call comercial e financeiro.
+
 Na tela de detalhes de um cliente, os botoes de envio manual reutilizam o mesmo webhook de entrada do n8n. O painel simula a confirmacao cadastrada do contato, preservando as validacoes de empresa ativa, permissoes e fonte de dados feitas pelo fluxo oficial.

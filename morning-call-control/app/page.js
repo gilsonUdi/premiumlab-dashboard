@@ -273,6 +273,10 @@ export default function Home() {
         confirmationPhrase: form.confirmationPhrase.trim(),
         receivablesConfirmationPhrase:
           form.receivablesConfirmationPhrase?.trim() || 'Receber Morning Call Financeiro',
+        allowPreviewMorningCall:
+          String(form.tenant || '').toLowerCase().includes('gradual') && form.allowPreviewMorningCall === true,
+        previewConfirmationPhrase:
+          form.previewConfirmationPhrase?.trim() || 'Prévia Morning Call',
         morningCallFilters: normalizeMorningCallFilters(form.morningCallFilters),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -299,6 +303,14 @@ export default function Home() {
     if (typeof payload.receivablesConfirmationPhrase === 'string') {
       payload.receivablesConfirmationPhrase =
         payload.receivablesConfirmationPhrase.trim() || 'Receber Morning Call Financeiro';
+    }
+    if (typeof payload.previewConfirmationPhrase === 'string') {
+      payload.previewConfirmationPhrase = payload.previewConfirmationPhrase.trim() || 'Prévia Morning Call';
+    }
+    if (payload.tenant || payload.allowPreviewMorningCall === true) {
+      const tenant = payload.tenant || contacts.find(contact => contact.id === id)?.tenant;
+      payload.allowPreviewMorningCall =
+        String(tenant || '').toLowerCase().includes('gradual') && payload.allowPreviewMorningCall === true;
     }
     if (payload.morningCallFilters) {
       payload.morningCallFilters = normalizeMorningCallFilters(payload.morningCallFilters);
@@ -332,9 +344,11 @@ export default function Home() {
             active: contact.active !== false,
             allowManualSend: contact.allowManualSend !== false,
             allowReceivablesMorningCall: contact.allowReceivablesMorningCall === true,
+            allowPreviewMorningCall: contact.allowPreviewMorningCall === true,
             confirmationPhrase: contact.confirmationPhrase || 'Receber Morning Call',
             receivablesConfirmationPhrase:
-              contact.receivablesConfirmationPhrase || 'Receber Morning Call Financeiro'
+              contact.receivablesConfirmationPhrase || 'Receber Morning Call Financeiro',
+            previewConfirmationPhrase: contact.previewConfirmationPhrase || 'Prévia Morning Call'
           }
         })
       });

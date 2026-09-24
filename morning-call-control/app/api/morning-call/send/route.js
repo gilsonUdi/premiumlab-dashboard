@@ -12,9 +12,11 @@ function onlyDigits(value) {
 function buildInboundMessage({ contact, reportType }) {
   const phone = onlyDigits(contact.phone);
   const isFinancial = reportType === 'financial';
-  const text = isFinancial
-    ? contact.receivablesConfirmationPhrase || 'Receber Morning Call Financeiro'
-    : contact.confirmationPhrase || 'Receber Morning Call';
+  const text = reportType === 'preview'
+    ? contact.previewConfirmationPhrase || 'Prévia Morning Call'
+    : isFinancial
+      ? contact.receivablesConfirmationPhrase || 'Receber Morning Call Financeiro'
+      : contact.confirmationPhrase || 'Receber Morning Call';
 
   return {
     event: 'messages.upsert',
@@ -44,7 +46,7 @@ export async function POST(request) {
     const reportType = body?.reportType;
     const phone = onlyDigits(contact.phone);
 
-    if (!['commercial', 'financial'].includes(reportType)) {
+    if (!['commercial', 'financial', 'preview'].includes(reportType)) {
       return NextResponse.json({ error: 'Tipo de Morning Call invalido.' }, { status: 400 });
     }
 
@@ -69,6 +71,16 @@ export async function POST(request) {
     if (reportType === 'financial' && contact.allowReceivablesMorningCall !== true) {
       return NextResponse.json(
         { error: 'O Morning Call financeiro esta desabilitado para este contato.' },
+        { status: 409 }
+      );
+    }
+
+    if (reportType === 'preview' && (
+      !String(contact.tenant).toLowerCase().includes('gradual') ||
+      contact.allowPreviewMorningCall !== true
+    )) {
+      return NextResponse.json(
+        { error: 'A prévia está disponível apenas para contatos Gradual habilitados.' },
         { status: 409 }
       );
     }
@@ -124,7 +136,9 @@ export async function POST(request) {
       message:
         reportType === 'financial'
           ? 'Morning Call financeiro enviado para a fila de processamento.'
-          : 'Morning Call comercial enviado para a fila de processamento.'
+          : reportType === 'preview'
+            ? 'Prévia do Morning Call enviada para a fila de processamento.'
+            : 'Morning Call comercial enviado para a fila de processamento.'
     });
   } catch (error) {
     return NextResponse.json(
