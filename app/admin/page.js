@@ -10,6 +10,7 @@ import {
   Copy,
   Eye,
   FileDown,
+  KeyRound,
   LogOut,
   MessageSquareText,
   Pencil,
@@ -23,7 +24,6 @@ import {
   X,
 } from 'lucide-react'
 import {
-  ADMIN_CREDENTIALS,
   clearPortalSession,
   createCompanyUser,
   deleteCompany,
@@ -197,6 +197,15 @@ export default function AdminPage() {
   const [state, setState] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [message, setMessage] = useState('')
+  const [adminEmail, setAdminEmail] = useState('')
+  const [isLegacyCredentialsOpen, setIsLegacyCredentialsOpen] = useState(false)
+  const [legacyAccounts, setLegacyAccounts] = useState([])
+  const [adminEmailEditable, setAdminEmailEditable] = useState(false)
+  const [legacyDrafts, setLegacyDrafts] = useState({})
+  const [legacyCredentialsError, setLegacyCredentialsError] = useState('')
+  const [legacyCredentialsMessage, setLegacyCredentialsMessage] = useState('')
+  const [legacyCredentialsLoading, setLegacyCredentialsLoading] = useState(false)
+  const [savingLegacyTarget, setSavingLegacyTarget] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [deletingCompanyId, setDeletingCompanyId] = useState('')
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false)
@@ -224,19 +233,72 @@ export default function AdminPage() {
   const [feedbackNewCount, setFeedbackNewCount] = useState(0)
   const [feedbackFilterStatus, setFeedbackFilterStatus] = useState('all')
 
+  async function openLegacyCredentials() {
+    setIsLegacyCredentialsOpen(true)
+    setLegacyCredentialsLoading(true)
+    setLegacyCredentialsError('')
+    setLegacyCredentialsMessage('')
+    setLegacyDrafts({})
+    setLegacyAccounts([])
+    try {
+      const token = await getPortalAccessToken()
+      const response = await fetch('/api/admin/legacy-credentials', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar as contas.')
+      setAdminEmailEditable(payload.adminEmailEditable === true)
+      setLegacyAccounts(payload.accounts || [])
+      setLegacyDrafts(Object.fromEntries((payload.accounts || []).map(account => [account.id, { email: account.email, password: '' }])))
+    } catch (error) {
+      setLegacyCredentialsError(error.message || 'Não foi possível carregar as contas.')
+    } finally {
+      setLegacyCredentialsLoading(false)
+    }
+  }
+
+  async function saveLegacyCredentials(target) {
+    const draft = legacyDrafts[target] || {}
+    setSavingLegacyTarget(target)
+    setLegacyCredentialsError('')
+    setLegacyCredentialsMessage('')
+    try {
+      const token = await getPortalAccessToken()
+      const response = await fetch('/api/admin/legacy-credentials', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ target, email: draft.email, password: draft.password }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Não foi possível atualizar a conta.')
+      setLegacyAccounts(accounts => accounts.map(account => account.id === target ? { ...account, email: payload.email } : account))
+      setLegacyDrafts(drafts => ({ ...drafts, [target]: { email: payload.email, password: '' } }))
+      if (payload.requiresLogin) {
+        await clearPortalSession()
+        router.replace('/login')
+      } else {
+        setLegacyCredentialsMessage('Credenciais atualizadas. As sessões anteriores dessa conta foram revogadas.')
+      }
+    } catch (error) {
+      setLegacyCredentialsError(error.message || 'Não foi possível atualizar a conta.')
+    } finally {
+      setLegacyDrafts(drafts => ({ ...drafts, [target]: { ...drafts[target], password: '' } }))
+      setSavingLegacyTarget('')
+    }
+  }
+
   useEffect(() => {
     let active = true
 
     async function hydrate() {
       try {
         const session = await getCurrentPortalSession()
-        const normalizedSessionEmail = String(session?.email || '').trim().toLowerCase()
-        const normalizedAdminEmail = String(ADMIN_CREDENTIALS.email || '').trim().toLowerCase()
-
-        if (!session || session.type !== 'admin' || normalizedSessionEmail !== normalizedAdminEmail) {
+        if (!session || session.type !== 'admin') {
           router.replace('/login')
           return
         }
+        setAdminEmail(session.email || '')
 
         const seededState = await ensurePremiumLabTenant()
         if (!active) return
@@ -1527,7 +1589,7 @@ export default function AdminPage() {
                 <p className="text-sm font-semibold text-white">Administração</p>
               </div>
             </div>
-            <p className="mt-3 text-xs" style={{ color: '#1E3A66' }}>{ADMIN_CREDENTIALS.email}</p>
+            <p className="mt-3 text-xs" style={{ color: '#1E3A66' }}>{adminEmail}</p>
           </div>
 
           {/* Nav */}
@@ -1644,10 +1706,16 @@ export default function AdminPage() {
                     <h2 className="text-2xl font-bold tracking-tight text-white">Empresas</h2>
                     <p className="mt-1 text-sm" style={{ color: '#AEC3DF' }}>{state.companies.length} empresas cadastradas no portal.</p>
                   </div>
-                  <button type="button" className="portal-primary-button" onClick={openCreateCompanyModal}>
-                    <Plus size={15} />
-                    Nova empresa
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="portal-ghost-button" onClick={openLegacyCredentials}>
+                      <KeyRound size={15} />
+                      Credenciais antigas
+                    </button>
+                    <button type="button" className="portal-primary-button" onClick={openCreateCompanyModal}>
+                      <Plus size={15} />
+                      Nova empresa
+                    </button>
+                  </div>
                 </header>
 
                 {message ? (
@@ -1878,6 +1946,46 @@ export default function AdminPage() {
           </div>
         </section>
       </div>
+
+      {isLegacyCredentialsOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-4 py-6" style={{ background: 'rgba(4,11,24,0.8)' }}>
+          <div className="w-full max-w-[640px] rounded-2xl p-6" style={{ background: '#0D1D38', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-bold text-white">Credenciais antigas</h3>
+                <p className="mt-1 text-sm" style={{ color: '#AEC3DF' }}>Contas que antes tinham senha no código. A nova senha é salva somente no Firebase Authentication.</p>
+              </div>
+              <button type="button" className="portal-ghost-button" onClick={() => { setIsLegacyCredentialsOpen(false); setLegacyDrafts({}) }} disabled={Boolean(savingLegacyTarget)} aria-label="Fechar">
+                <X size={15} />
+              </button>
+            </div>
+            {legacyCredentialsError ? <p className="mb-4 rounded-lg bg-red-950/50 p-3 text-sm text-red-200" role="alert">{legacyCredentialsError}</p> : null}
+            {legacyCredentialsMessage ? <p className="mb-4 rounded-lg bg-emerald-950/50 p-3 text-sm text-emerald-200" role="status">{legacyCredentialsMessage}</p> : null}
+            {legacyCredentialsLoading ? <p className="text-sm text-slate-300">Carregando contas...</p> : null}
+            <div className="space-y-4">
+              {legacyAccounts.map(account => (
+                <form key={account.id} className="rounded-xl p-4" style={{ background: '#0A162B', border: '1px solid rgba(255,255,255,0.08)' }} onSubmit={event => { event.preventDefault(); saveLegacyCredentials(account.id) }}>
+                  <p className="mb-3 font-semibold text-white">{account.label}</p>
+                  {!account.available ? <p className="mb-3 text-sm text-amber-200">Conta não encontrada no Firebase Authentication; cadastre-a antes de trocar as credenciais.</p> : null}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm text-slate-200">E-mail
+                      <input className="portal-input mt-1" type="email" autoComplete="off" required value={legacyDrafts[account.id]?.email || ''} onChange={event => setLegacyDrafts(drafts => ({ ...drafts, [account.id]: { ...drafts[account.id], email: event.target.value } }))} disabled={!account.available || Boolean(savingLegacyTarget) || (account.id === 'admin' && !adminEmailEditable)} />
+                    </label>
+                    <label className="text-sm text-slate-200">Nova senha
+                      <input className="portal-input mt-1" type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={legacyDrafts[account.id]?.password || ''} onChange={event => setLegacyDrafts(drafts => ({ ...drafts, [account.id]: { ...drafts[account.id], password: event.target.value } }))} disabled={!account.available || Boolean(savingLegacyTarget)} />
+                    </label>
+                  </div>
+                  {account.id === 'admin' && !adminEmailEditable ? <p className="mt-2 text-xs text-amber-200">O e-mail administrativo será liberado após a publicação e validação das novas regras do Firestore. A senha já pode ser trocada.</p> : null}
+                  <div className="mt-3 flex justify-end">
+                    <button type="submit" className="portal-primary-button" disabled={!account.available || Boolean(savingLegacyTarget)}>{savingLegacyTarget === account.id ? 'Salvando...' : 'Salvar'}</button>
+                  </div>
+                </form>
+              ))}
+            </div>
+            <p className="mt-4 text-xs text-slate-400">Após trocar a conta de administrador, entre novamente com as novas credenciais.</p>
+          </div>
+        </div>
+      ) : null}
 
       {isCompanyModalOpen ? (
         <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto px-4 py-4 sm:items-center sm:py-8" style={{ background: 'rgba(4,11,24,0.75)' }}>

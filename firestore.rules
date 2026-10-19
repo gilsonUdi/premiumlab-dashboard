@@ -10,19 +10,35 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'gilson@gsgestao.com.br' ||
-        (currentUser().exists() && currentUser().data.role == 'admin')
-      );
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && currentUser().data.role == 'admin';
     }
 
     function isOwnUser(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function canCreateOwnCompanyProfile(userId) {
+      return isOwnUser(userId)
+        && request.resource.data.keys().hasOnly([
+          'role', 'email', 'name', 'companyId', 'companySlug', 'active', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'role', 'email', 'name', 'companyId', 'companySlug', 'active'
+        ])
+        && request.resource.data.role == 'company'
+        && request.resource.data.active == true
+        && request.resource.data.email == request.auth.token.email
+        && exists(/databases/$(database)/documents/companies/$(request.resource.data.companyId))
+        && get(/databases/$(database)/documents/companies/$(request.resource.data.companyId)).data.email == request.resource.data.email
+        && get(/databases/$(database)/documents/companies/$(request.resource.data.companyId)).data.slug == request.resource.data.companySlug;
+    }
+
     match /users/{userId} {
       allow read: if isOwnUser(userId) || isAdmin();
-      allow create, update: if isOwnUser(userId) || isAdmin();
+      allow create: if canCreateOwnCompanyProfile(userId) || isAdmin();
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
