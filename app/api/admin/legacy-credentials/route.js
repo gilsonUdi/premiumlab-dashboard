@@ -78,8 +78,8 @@ export async function PATCH(request) {
     const target = String(body?.target || '')
     const email = String(body?.email || '').trim().toLowerCase()
     const password = String(body?.password || '')
-    if (!['admin', 'premium'].includes(target) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 12 || password.length > 128) {
-      return NextResponse.json({ error: 'Informe um e-mail válido e uma senha de 12 a 128 caracteres.' }, { status: 400 })
+    if (!['admin', 'premium'].includes(target) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8 || password.length > 128) {
+      return NextResponse.json({ error: 'Informe um e-mail válido e uma senha de 8 a 128 caracteres.' }, { status: 400 })
     }
 
     const auth = getFirebaseAdminAuth()

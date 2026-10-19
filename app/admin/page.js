@@ -1972,7 +1972,7 @@ export default function AdminPage() {
                       <input className="portal-input mt-1" type="email" autoComplete="off" required value={legacyDrafts[account.id]?.email || ''} onChange={event => setLegacyDrafts(drafts => ({ ...drafts, [account.id]: { ...drafts[account.id], email: event.target.value } }))} disabled={!account.available || Boolean(savingLegacyTarget) || (account.id === 'admin' && !adminEmailEditable)} />
                     </label>
                     <label className="text-sm text-slate-200">Nova senha
-                      <input className="portal-input mt-1" type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={legacyDrafts[account.id]?.password || ''} onChange={event => setLegacyDrafts(drafts => ({ ...drafts, [account.id]: { ...drafts[account.id], password: event.target.value } }))} disabled={!account.available || Boolean(savingLegacyTarget)} />
+                      <input className="portal-input mt-1" type="password" autoComplete="new-password" minLength={8} maxLength={128} required value={legacyDrafts[account.id]?.password || ''} onChange={event => setLegacyDrafts(drafts => ({ ...drafts, [account.id]: { ...drafts[account.id], password: event.target.value } }))} disabled={!account.available || Boolean(savingLegacyTarget)} />
                     </label>
                   </div>
                   {account.id === 'admin' && !adminEmailEditable ? <p className="mt-2 text-xs text-amber-200">O e-mail administrativo será liberado após a publicação e validação das novas regras do Firestore. A senha já pode ser trocada.</p> : null}
