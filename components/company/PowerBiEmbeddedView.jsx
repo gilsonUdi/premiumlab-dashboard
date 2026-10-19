@@ -7,6 +7,7 @@ import { models } from 'powerbi-client'
 import { ArrowLeft, ChevronRight, Maximize2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { getPortalAuthHeaders } from '@/lib/portal-store'
 import { resolveCompanyChrome } from '@/lib/company-appearance'
+import { observeReportViewport, readReportViewport, reportLayoutSettings, reportCanvasWidth, createReportLayoutUpdater } from '@/lib/power-bi-viewport.mjs'
 
 const TOKEN_REFRESH_INTERVAL_MS = 30 * 1000
 const TOKEN_REFRESH_MARGIN_MS = 10 * 60 * 1000
@@ -24,16 +25,43 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [loading, setLoading] = useState(true)
   const [activePageName, setActivePageName] = useState('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [isMobileLayout, setIsMobileLayout] = useState(false)
-  const [isMobileDevice, setIsMobileDevice] = useState(false)
-  const [showCompactPages, setShowCompactPages] = useState(false)
+  const [viewport, setViewport] = useState({ mode: 'desktop', touch: false, compactPages: false })
+  const isMobileDevice = viewport.touch
+  const [tokenExpiration, setTokenExpiration] = useState('')
+  const [pageAspectRatio, setPageAspectRatio] = useState(16 / 9)
+  const [frameSize, setFrameSize] = useState({ width: 0, height: 0 })
+  const [scrollLeft, setScrollLeft] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [capacityMessage, setCapacityMessage] = useState('Preparando seu painel de indicadores. Aguarde alguns instantes...')
   const [sessionExpired, setSessionExpired] = useState(false)
   const reportRef = useRef(null)
-  const embedShellRef = useRef(null)
-  const tokenRefreshPromiseRef = useRef(null)
   const reportLoadedRef = useRef(false)
+  const embedShellRef = useRef(null)
+  const reportViewportRef = useRef(null)
+  const initialLayoutSettingsRef = useRef(null)
+  const layoutSettingsRef = useRef(null)
+  layoutSettingsRef.current = reportLayoutSettings(viewport.mode, models)
+  const layoutUpdaterRef = useRef(null)
+  if (!layoutUpdaterRef.current) {
+    layoutUpdaterRef.current = createReportLayoutUpdater(
+      () => reportRef.current,
+      () => reportLoadedRef.current,
+      () => layoutSettingsRef.current,
+      layoutError => console.error('[power-bi:layout]', layoutError),
+    )
+  }
+  const captureReport = useCallback(embeddedReport => {
+    reportRef.current = embeddedReport
+    reportLoadedRef.current = false
+  }, [])
+  const syncReportPageSize = useCallback(async () => {
+    try {
+      const page = await reportRef.current?.getActivePage()
+      const { width, height } = page?.defaultSize || {}
+      setPageAspectRatio(width > 0 && height > 0 ? width / height : 16 / 9)
+    } catch (pageError) { console.error('[power-bi:page-size]', pageError) }
+  }, [])
+  const tokenRefreshPromiseRef = useRef(null)
   const pendingPageNameRef = useRef('')
   const pageNavigationRunningRef = useRef(false)
   const dashboardSessionIdRef = useRef('')
@@ -107,11 +135,9 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         await reportRef.current.setAccessToken(payload.accessToken)
       }
 
-      setConfig(previous => ({
-        ...(previous || payload),
-        accessToken: payload.accessToken,
-        tokenExpiration: payload.tokenExpiration,
-      }))
+      // Updating embedConfig makes powerbi-client-react embed the report again.
+      // Renew the running instance only; preserve page, filters and zoom.
+      setTokenExpiration(payload.tokenExpiration || '')
       setError('')
       return payload
     })()
@@ -124,50 +150,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     }
   }, [fetchEmbedConfig])
 
-  useEffect(() => {
-    const mobilePortraitQuery = window.matchMedia('(max-width: 767px) and (orientation: portrait)')
-    const syncLayout = () => {
-      const isPortrait = window.innerHeight >= window.innerWidth
-      const mobileLayout = mobilePortraitQuery.matches || (window.innerWidth <= 767 && isPortrait)
-      setIsMobileLayout(mobileLayout)
-      // A sidebar de páginas do desktop só existe a partir de `lg` (1024px) e a
-      // faixa inferior só vale no retrato do celular. Ao deitar o aparelho a
-      // largura passa de 767px e as páginas ficavam sem nenhum acesso; esta
-      // barra compacta cobre essa faixa.
-      setShowCompactPages(!mobileLayout && window.innerWidth < 1024)
-    }
-    const syncLayoutAfterViewportSettles = () => {
-      syncLayout()
-      window.setTimeout(syncLayout, 250)
-    }
-
-    syncLayout()
-    mobilePortraitQuery.addEventListener('change', syncLayoutAfterViewportSettles)
-    window.addEventListener('resize', syncLayoutAfterViewportSettles)
-    window.addEventListener('orientationchange', syncLayoutAfterViewportSettles)
-
-    return () => {
-      mobilePortraitQuery.removeEventListener('change', syncLayoutAfterViewportSettles)
-      window.removeEventListener('resize', syncLayoutAfterViewportSettles)
-      window.removeEventListener('orientationchange', syncLayoutAfterViewportSettles)
-    }
-  }, [])
-
-  useEffect(() => {
-    const coarsePointerQuery = window.matchMedia('(hover: none) and (pointer: coarse)')
-    const syncMobileDevice = () => {
-      setIsMobileDevice(coarsePointerQuery.matches || navigator.maxTouchPoints > 0)
-    }
-
-    syncMobileDevice()
-    coarsePointerQuery.addEventListener('change', syncMobileDevice)
-    window.addEventListener('orientationchange', syncMobileDevice)
-
-    return () => {
-      coarsePointerQuery.removeEventListener('change', syncMobileDevice)
-      window.removeEventListener('orientationchange', syncMobileDevice)
-    }
-  }, [])
+  useEffect(() => observeReportViewport(window, setViewport), [])
 
   useEffect(() => {
     const syncFullscreen = () => {
@@ -200,6 +183,13 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
           label: String(initialPage?.displayName || payload.initialPageName || ''),
           sequence: payload.initialPageName ? 1 : 0,
         }
+        // Start with a mobile-capable layout even if opened in landscape.
+        // The SDK can then switch orientation without resetting its iframe.
+        const initialViewport = readReportViewport(window)
+        initialLayoutSettingsRef.current = reportLayoutSettings(
+          initialViewport.mode === 'desktop' ? 'landscape' : initialViewport.mode, models,
+        )
+        setTokenExpiration(payload.tokenExpiration || '')
         setConfig(payload)
         setActivePageName(payload.initialPageName || '')
       } catch (embedError) {
@@ -270,12 +260,12 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   }, [company.slug, config?.capacityManaged, config?.dashboardSessionId, endDashboardSession, reportKey])
 
   useEffect(() => {
-    if (!config?.tokenExpiration) return undefined
+    if (!tokenExpiration) return undefined
 
     let active = true
 
     const checkTokenExpiration = async () => {
-      const expirationTime = Date.parse(config.tokenExpiration)
+      const expirationTime = Date.parse(tokenExpiration)
       if (!Number.isFinite(expirationTime)) return
       if (expirationTime - Date.now() > TOKEN_REFRESH_MARGIN_MS) return
 
@@ -299,7 +289,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       window.clearInterval(intervalId)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [config?.tokenExpiration, refreshEmbedToken])
+  }, [tokenExpiration, refreshEmbedToken])
 
   const handlePowerBiError = useCallback(event => {
     const detail = event?.detail || event || {}
@@ -318,8 +308,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   }, [refreshEmbedToken])
 
   const pageMap = useMemo(() => new Map((config?.pages || []).map(page => [page.name, page])), [config?.pages])
-  const powerBiLayoutType = isMobileLayout ? models.LayoutType.MobilePortrait : models.LayoutType.Master
-  const powerBiLayoutKey = isMobileLayout ? 'mobile-portrait' : 'web-master'
 
   const runPendingPageNavigation = useCallback(async () => {
     if (pageNavigationRunningRef.current || !reportLoadedRef.current || !reportRef.current) return
@@ -367,27 +355,33 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         },
         navContentPaneEnabled: false,
         background: models.BackgroundType.Default,
-        layoutType: powerBiLayoutType,
+        ...initialLayoutSettingsRef.current,
       },
       filters: Array.isArray(config.filters) ? config.filters : [],
     }
-  }, [config, powerBiLayoutType])
+  }, [config])
+  const embedAvailable = Boolean(embedConfig)
 
   useEffect(() => {
-    if (!reportRef.current) return
+    layoutUpdaterRef.current()
+  }, [viewport.mode])
 
-    async function updateLayout() {
-      try {
-        await reportRef.current.updateSettings({
-          layoutType: powerBiLayoutType,
-        })
-      } catch (layoutError) {
-        console.error(layoutError)
-      }
-    }
+  useEffect(() => {
+    const container = reportViewportRef.current
+    if (!container) return undefined
+    const measure = () => setFrameSize({ width: container.clientWidth, height: container.clientHeight })
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [loading, error, sessionExpired, embedAvailable])
 
-    updateLayout()
-  }, [powerBiLayoutType])
+  const canvasWidth = reportCanvasWidth(frameSize.width, frameSize.height, viewport.mode, pageAspectRatio)
+  const maxHorizontalScroll = Math.max(0, canvasWidth - frameSize.width)
+  useEffect(() => {
+    if (reportViewportRef.current) reportViewportRef.current.scrollLeft = 0
+    setScrollLeft(0)
+  }, [viewport.mode, activePageName])
 
   const toggleFullscreen = async () => {
     try {
@@ -536,8 +530,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
           </div>
         </aside>
 
-        <div className="min-w-0">
-          <div className="h-full w-full" style={{ background: 'var(--portal-bg)' }}>
+        <div className="min-h-0 min-w-0">
+          <div className="h-full min-h-0 w-full" style={{ background: 'var(--portal-bg)' }}>
             {loading ? (
               <div className="flex h-full items-center justify-center px-6 text-sm" style={{ color: '#AEC3DF' }}>
                 {capacityMessage || 'Preparando seu painel de indicadores. Aguarde alguns instantes...'}
@@ -574,11 +568,11 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
             ) : embedConfig ? (
               <div
                 ref={embedShellRef}
-                className={`relative h-full w-full overflow-hidden ${isFullscreen ? 'fixed inset-0 z-[80] h-[100dvh]' : ''}`}
-                style={{ background: '#0A162B' }}
+                className={`relative flex h-full w-full flex-col overflow-hidden ${isFullscreen ? 'fixed inset-0 z-[80] h-[100dvh]' : ''}`}
+                style={{ background: '#0A162B', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }}
               >
                 <div
-                  className="absolute inset-x-0 top-0 z-20 backdrop-blur"
+                  className="z-20 shrink-0 backdrop-blur"
                   style={{
                     paddingTop: 'env(safe-area-inset-top, 0px)',
                     background: companyChrome.background,
@@ -613,49 +607,14 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     ) : null}
                   </div>
                 </div>
-                <div className="flex h-full w-full pt-10">
-                  {showCompactPages && sidebarPages.length > 0 ? (
-                    <nav
-                      aria-label="Páginas do relatório"
-                      className="z-10 flex w-[132px] shrink-0 flex-col gap-1.5 overflow-y-auto px-2 pb-3"
-                      style={{
-                        paddingTop: 'calc(2.5rem + env(safe-area-inset-top, 0px) + 0.5rem)',
-                        paddingLeft: 'calc(0.5rem + env(safe-area-inset-left, 0px))',
-                        background: companyChrome.background,
-                        borderRight: `1px solid ${companyChrome.border}`,
-                      }}
-                    >
-                      {sidebarPages.map(page => {
-                        const isActive = activePageName === page.name
-                        return (
-                          <button
-                            key={page.name}
-                            type="button"
-                            onClick={() => handleSelectPage(page.name)}
-                            title={page.displayName || page.name}
-                            aria-current={isActive ? 'page' : undefined}
-                            className="shrink-0 rounded-lg px-2.5 py-2 text-left text-[11px] font-medium leading-snug transition"
-                            style={
-                              isActive
-                                ? { background: 'rgba(201, 164, 92,0.15)', color: '#DAB975', border: '1px solid rgba(201, 164, 92,0.25)' }
-                                : { background: 'rgba(255,255,255,0.05)', color: '#7E97BC', border: '1px solid transparent' }
-                            }
-                          >
-                            {page.displayName || page.name}
-                          </button>
-                        )
-                      })}
-                    </nav>
-                  ) : null}
-                  <div className="relative min-w-0 flex-1">
+                <div className="flex min-h-0 w-full flex-1 flex-col">
+                  <div ref={reportViewportRef} className="power-bi-report-viewport relative min-h-0 min-w-0 flex-1 overflow-auto"
+                    onScroll={event => setScrollLeft(event.currentTarget.scrollLeft)}>
+                    <div className="h-full" style={{ width: canvasWidth || '100%', minWidth: '100%' }}>
                 <PowerBIEmbed
-                  key={powerBiLayoutKey}
                   embedConfig={embedConfig}
-                  cssClassName="h-full w-full"
-                  getEmbeddedComponent={embeddedReport => {
-                    reportRef.current = embeddedReport
-                    reportLoadedRef.current = false
-                  }}
+                  cssClassName="power-bi-report-frame h-full w-full"
+                  getEmbeddedComponent={captureReport}
                   eventHandlers={
                     new Map([
                       [
@@ -676,9 +635,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                               setActivePageName(currentPage.name)
                               dashboardHeartbeatRef.current?.()
                             }
-                            await reportRef.current.updateSettings({
-                              layoutType: powerBiLayoutType,
-                            })
+                            await layoutUpdaterRef.current()
+                            await syncReportPageSize()
                             if (pendingPageNameRef.current) {
                               await runPendingPageNavigation()
                             }
@@ -705,6 +663,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                             sequence: previousPage.name === nextName ? Math.max(1, previousPage.sequence) : previousPage.sequence + 1,
                           }
                           setActivePageName(nextName)
+                          syncReportPageSize()
                           dashboardHeartbeatRef.current?.()
                         },
                       ],
@@ -712,9 +671,22 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     ])
                   }
                 />
-                {isMobileLayout && sidebarPages.length > 0 ? (
+                    </div>
+                  </div>
+                  {viewport.mode === 'landscape' ? (
+                    <label className="flex h-8 shrink-0 items-center gap-2 px-3 text-[10px]" style={{ color: companyChrome.muted }}>
+                      <span className="shrink-0">Mover painel</span>
+                      <input type="range" min={0} max={maxHorizontalScroll} step={1}
+                        aria-label="Mover relatório horizontalmente" className="min-w-0 flex-1"
+                        disabled={maxHorizontalScroll <= 0} value={Math.min(scrollLeft, maxHorizontalScroll)}
+                        onChange={event => {
+                          if (reportViewportRef.current) reportViewportRef.current.scrollLeft = Number(event.target.value)
+                        }} />
+                    </label>
+                  ) : null}
+                {viewport.compactPages && sidebarPages.length > 0 ? (
                   <div
-                    className="absolute inset-x-0 bottom-0 z-20 px-3 py-2 backdrop-blur"
+                    className="z-20 shrink-0 px-3 py-2 backdrop-blur"
                     style={{
                       paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
                       background: 'rgba(13,29,56,0.92)',
@@ -744,7 +716,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     </div>
                   </div>
                 ) : null}
-                  </div>
                 </div>
               </div>
             ) : null}
