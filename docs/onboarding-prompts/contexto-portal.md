@@ -2,8 +2,88 @@
 
 Voce esta assumindo continuidade tecnica do Portal GS / DashboardPremium, portal web multi-tenant da GS Gestao para laboratorios opticos. Trate este prompt como contexto oficial.
 
-## Produto
 
+## Seguranca - ponto de retomada em 20/10/2026
+
+Esta secao atualiza o relatorio de 13/10. Nesta retomada foram conferidos codigo
+e documentos, sem pentest, acesso ao console Firebase ou validacao da producao.
+
+### Etapa alcancada
+
+- Removidas as senhas fixas, a criacao automatica do administrador pelo navegador
+  e a redefinicao automatica da senha Premium antiga. Identificadores/e-mails de
+  cadastro remanescentes nao equivalem a senhas nem concedem privilegios.
+- Janela "Credenciais antigas" implementada no admin para Administrador e Premium.
+  A rota /api/admin/legacy-credentials exige admin ativo, UID autorizado no servidor,
+  verificacao de revogacao e login recente (10 minutos) para gravar.
+- Senhas sao atualizadas somente no Firebase Authentication; Firestore recebe
+  metadados e auditoria. A rotina solicita revogacao das sessoes antigas.
+- Minimo da janela reduzido de 12 para 8 caracteres a pedido do usuario; publicado
+  por commit/push. A troca da propria senha ainda aceita 6: alinhar essa politica.
+- Usuario confirmou variaveis configuradas, perfil administrativo existente,
+  login funcionando e novas regras publicadas, com acesso anonimo e autoalteracao
+  de role negados. Isto e validacao informada pelo usuario, nao teste independente.
+- Nao houve confirmacao explicita da troca efetiva das DUAS senhas antigas.
+  Confirmar a rotacao antes de considerar o incidente encerrado.
+- O script provision-admin-profile.mjs so provisiona o perfil administrativo.
+  Nao e necessario repeti-lo se o perfil correto ja existe e funciona.
+
+### Variaveis necessarias
+
+- FIREBASE_PROJECT_ID: gstenant (backend aceita NEXT_PUBLIC_FIREBASE_PROJECT_ID
+  como fallback para o identificador do projeto).
+- FIREBASE_CLIENT_EMAIL e FIREBASE_PRIVATE_KEY OU FIREBASE_PRIVATE_KEY_BASE64:
+  conta de servico no servidor; nunca expor a chave com prefixo NEXT_PUBLIC.
+- PORTAL_CREDENTIALS_ADMIN_UID: UID autorizado a gerir as credenciais.
+- PORTAL_ALLOW_ADMIN_EMAIL_CHANGE: manter false ate validar regras e fluxo de
+  mudanca de e-mail. Nao precisa habilitar para trocar somente senha.
+- PORTAL_ADMIN_EMAIL e GOOGLE_APPLICATION_CREDENTIALS pertencem ao procedimento
+  do script. O segundo aponta para JSON no ambiente que EXECUTA o script,
+  nao para um caminho do PC que o site acessaria. O backend atual usa as
+  variaveis da conta de servico acima, nao esse caminho como alternativa.
+- Preservar variaveis existentes de Firebase cliente, Supabase e Power BI.
+  MORNING_CALL_ADMIN_UIDS e do painel auxiliar, nao desta janela do portal.
+
+### Proximas etapas, em ordem
+
+1. Reforcar lib/server-auth.js: rejeitar perfis inativos/papeis desconhecidos,
+   validar companySlug E companyId, definir checagem de tokens revogados nas APIs.
+   A funcao central ainda usa verifyIdToken sem checar revogacao; a gestao de
+   credenciais ja faz essa checagem. Preservar a previa administrativa de usuarios.
+   Definir desativacao coordenada em perfil, Authentication e sessoes.
+2. Exigir permissao de modulo em /api/options ANTES de consultar os dados.
+   Hoje ela verifica tenant, mas nao permissao de modulo; reduzir exposicao
+   desnecessaria de nomes de tabelas/colunas e listas.
+3. Conferir e versionar as regras realmente PUBLICADAS. O firestore.rules
+   versionado ainda contem oito colecoes publicas e companies legivel por qualquer
+   autenticado. Isso NAO prova exposicao atual em producao, pois o usuario informou
+   novas regras publicadas. Restringir leitura de empresas por vinculo depois de
+   verificar login, admin e dependencias das integracoes.
+4. Confirmar rotacao das senhas antigas e alinhar minimo de 8 na troca da propria
+   senha. Nao afirmar que a rotacao ja aconteceu apenas porque o botao funciona.
+5. Automatizar testes: anonimo, empresa A acessando B, perfil inativo, papel
+   invalido, token revogado e usuario sem modulo. Usar homologacao/Emulator Suite.
+6. Validar RLS/OLS e identidade no embed Power BI quando aplicavel: paginas
+   ocultas e filtros de interface nao constituem isolamento seguro dos dados.
+7. Depois: MFA administrativo, limites de requisicao, logs/alertas, dependencias,
+   cabecalhos, backups e pentest autorizado. Nao sao controles ja comprovados.
+
+### Limites e cuidados
+
+- Portal: gstenant. Painel legado Morning Call/AI Control e fluxos n8n examinados:
+  morning-call-5628c. Nao aplicar regras de um projeto no outro por suposicao.
+- Existem arquivos locais de migracao do painel auxiliar para APIs protegidas;
+  implantacao, fechamento das colecoes e compatibilidade com todos os consumidores
+  ainda precisam de confirmacao. Preparacao local nao e publicacao.
+- Esta retomada apenas DOCUMENTOU o estado e o plano: nao implementou os reforcos,
+  publicou regras, rotacionou chaves nem executou testes ativos em contas reais.
+- Fazer commit/push apenas dos arquivos da tarefa e preservar trabalhos paralelos.
+  Houve divergencia de leitura Git no Google Drive; publicar de copia limpa fora
+  dele e conferir o conteudo efetivamente staged.
+- Referencia de sessoes: https://firebase.google.com/docs/auth/admin/manage-sessions
+
+
+## Produto
 Nome:
 - GS Portal / DashboardPremium
 
