@@ -193,17 +193,35 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     }
     const show = event => diagnostic.record('page_show', { persisted: Boolean(event.persisted) })
     const visibility = () => diagnostic.record(document.hidden ? 'tab_hidden' : 'tab_visible')
+    const scriptError = () => diagnostic.record('script_error')
+    const rejected = () => diagnostic.record('unhandled_rejection')
+    const aliveTimer = window.setInterval(() => {
+      if (!document.hidden) diagnostic.record('page_alive', { outcome: reportLoadedRef.current ? 'loaded' : 'loading' })
+    }, 15000)
     window.addEventListener('pagehide', hide)
     window.addEventListener('pageshow', show)
+    window.addEventListener('error', scriptError)
+    window.addEventListener('unhandledrejection', rejected)
     document.addEventListener('visibilitychange', visibility)
     return () => {
       window.removeEventListener('pagehide', hide)
       window.removeEventListener('pageshow', show)
+      window.removeEventListener('error', scriptError)
+      window.removeEventListener('unhandledrejection', rejected)
+      window.clearInterval(aliveTimer)
       document.removeEventListener('visibilitychange', visibility)
       diagnostic.close()
       if (diagnosticsRef.current === diagnostic) diagnosticsRef.current = null
     }
   }, [company.slug, reportKey])
+
+  useEffect(() => {
+    if (!diagnosticVisible) return
+    const update = () => setDiagnosticText(diagnosticsRef.current?.snapshot() || '{}')
+    update()
+    const timer = window.setInterval(update, 1000)
+    return () => window.clearInterval(timer)
+  }, [diagnosticVisible])
 
   useEffect(() => observeReportViewport(window, setViewport), [])
 
@@ -815,7 +833,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                           dashboardHeartbeatRef.current?.()
                         },
                       ],
-                      ['error', handlePowerBiError],
+                      ['rendered', () => recordDiagnostic('sdk_rendered')],
+                      ['error', event => { recordDiagnostic('sdk_error'); handlePowerBiError(event) }],
                     ])
                   }
                 />
@@ -904,7 +923,11 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
             <div className="flex justify-end gap-2">
               <button type="button" className="portal-ghost-button" onClick={() => setDiagnosticVisible(false)}>Fechar</button>
               <button type="button" className="portal-primary-button"
-                onClick={() => navigator.clipboard?.writeText(diagnosticText).catch(() => {})}>Copiar diagnóstico</button>
+                onClick={() => {
+                  const latest = diagnosticsRef.current?.snapshot() || '{}'
+                  setDiagnosticText(latest)
+                  navigator.clipboard?.writeText(latest).catch(() => {})
+                }}>Copiar diagnóstico</button>
             </div>
           </section>
         </div>

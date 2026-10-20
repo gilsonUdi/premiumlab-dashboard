@@ -77,3 +77,23 @@ test('diagnostics are bounded, do not store credentials/data and survive blocked
   browser.sessionStorage.setItem = () => {throw Error('blocked');};
   assert.doesNotThrow(() => createReportDiagnostics(browser,'report').record('iframe_loaded'));
 });
+
+test('diagnostics recover a lost tab history from local backup and refresh capture time', () => {
+  const browser = fakeBrowser();
+  const backup = new Map();
+  browser.localStorage = { getItem: key => backup.get(key), setItem: (key, value) => backup.set(key, value) };
+  let time = 1000;
+  const first = createReportDiagnostics(browser, 'report', () => time);
+  first.record('sdk_rendered');
+  browser.sessionStorage = { getItem: () => null, setItem: () => {} };
+  time = 2000;
+  const recovered = createReportDiagnostics(browser, 'report', () => time);
+  const snapshot = JSON.parse(recovered.snapshot());
+  assert.equal(snapshot.capturedAt, 2000);
+  assert.ok(snapshot.events.some(event => event.event === 'sdk_rendered'));
+  assert.equal(snapshot.events.at(-1).event, 'history_recovered');
+  time = 3000;
+  recovered.record('page_alive', { outcome: 'loaded' });
+  assert.equal(JSON.parse(recovered.snapshot()).capturedAt, 3000);
+  assert.equal(JSON.parse(recovered.snapshot()).events.at(-1).event, 'page_alive');
+});
