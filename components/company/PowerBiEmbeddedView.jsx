@@ -11,6 +11,9 @@ import { observeReportViewport, readReportViewport, reportLayoutSettings, report
 
 import { attachReportGestures, clampReportZoom } from '@/lib/power-bi-gestures.mjs'
 
+import { sendDashboardHeartbeat } from '@/lib/power-bi-session-client.mjs'
+import { createReportDiagnostics } from '@/lib/power-bi-diagnostics.mjs'
+
 const TOKEN_REFRESH_INTERVAL_MS = 30 * 1000
 const TOKEN_REFRESH_MARGIN_MS = 10 * 60 * 1000
 const CAPACITY_POLL_MAX_ATTEMPTS = 72
@@ -23,6 +26,10 @@ function wait(ms) {
 export default function PowerBiEmbeddedView({ company, reportKey }) {
   const companyChrome = useMemo(() => resolveCompanyChrome(company), [company])
   const [config, setConfig] = useState(null)
+  const [diagnosticVisible, setDiagnosticVisible] = useState(false)
+  const [diagnosticText, setDiagnosticText] = useState('')
+  const diagnosticsRef = useRef(null)
+  const recordDiagnostic = useCallback((event, details) => diagnosticsRef.current?.record(event, details), [])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [activePageName, setActivePageName] = useState('')
@@ -42,9 +49,15 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       anchor = { x, y, contentX: (scroller.scrollLeft + x) / reportZoomRef.current,
         contentY: (scroller.scrollTop + y) / reportZoomRef.current }
     }
+    const nextZoom = clampReportZoom(value)
     zoomAnchorRef.current = anchor
-    reportZoomRef.current = clampReportZoom(value)
-    setReportZoom(reportZoomRef.current)
+    if (nextZoom === reportZoomRef.current && anchor && scroller) {
+      scroller.scrollLeft = anchor.contentX * nextZoom - anchor.x
+      scroller.scrollTop = anchor.contentY * nextZoom - anchor.y
+      zoomAnchorRef.current = null
+    }
+    reportZoomRef.current = nextZoom
+    setReportZoom(nextZoom)
   }, [])
   const [tokenExpiration, setTokenExpiration] = useState('')
   const [pageAspectRatio, setPageAspectRatio] = useState(16 / 9)
@@ -70,9 +83,10 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     )
   }
   const captureReport = useCallback(embeddedReport => {
+    recordDiagnostic('sdk_instance')
     reportRef.current = embeddedReport
     reportLoadedRef.current = false
-  }, [])
+  }, [recordDiagnostic])
   const syncReportPageSize = useCallback(async () => {
     try {
       const page = await reportRef.current?.getActivePage()
@@ -127,7 +141,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     dashboardSessionEndedRef.current = true
 
     try {
-      const headers = dashboardAuthHeadersRef.current || (await getPortalAuthHeaders())
+      const headers = await getPortalAuthHeaders().catch(() => dashboardAuthHeadersRef.current || {})
       await fetch('/api/power-bi/session', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', ...headers },
@@ -157,6 +171,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       // Updating embedConfig makes powerbi-client-react embed the report again.
       // Renew the running instance only; preserve page, filters and zoom.
       setTokenExpiration(payload.tokenExpiration || '')
+      recordDiagnostic('token_refreshed')
       setError('')
       return payload
     })()
@@ -167,7 +182,28 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     } finally {
       tokenRefreshPromiseRef.current = null
     }
-  }, [fetchEmbedConfig])
+  }, [fetchEmbedConfig, recordDiagnostic])
+
+  useEffect(() => {
+    const diagnostic = createReportDiagnostics(window, `${company.slug}:${reportKey}`)
+    diagnosticsRef.current = diagnostic
+    const hide = event => {
+      diagnostic.record('page_hide', { persisted: Boolean(event.persisted) })
+      if (!event.persisted) diagnostic.close()
+    }
+    const show = event => diagnostic.record('page_show', { persisted: Boolean(event.persisted) })
+    const visibility = () => diagnostic.record(document.hidden ? 'tab_hidden' : 'tab_visible')
+    window.addEventListener('pagehide', hide)
+    window.addEventListener('pageshow', show)
+    document.addEventListener('visibilitychange', visibility)
+    return () => {
+      window.removeEventListener('pagehide', hide)
+      window.removeEventListener('pageshow', show)
+      document.removeEventListener('visibilitychange', visibility)
+      diagnostic.close()
+      if (diagnosticsRef.current === diagnostic) diagnosticsRef.current = null
+    }
+  }, [company.slug, reportKey])
 
   useEffect(() => observeReportViewport(window, setViewport), [])
 
@@ -189,6 +225,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     async function loadConfig() {
       try {
         setLoading(true)
+        recordDiagnostic('embed_config_requested')
         setError('')
         dashboardSessionEndedRef.current = false
         dashboardSessionIdRef.current = ''
@@ -210,6 +247,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         )
         setTokenExpiration(payload.tokenExpiration || '')
         setConfig(payload)
+        recordDiagnostic('embed_config_ready')
         setActivePageName(payload.initialPageName || '')
       } catch (embedError) {
         console.error(embedError)
@@ -225,7 +263,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     return () => {
       active = false
     }
-  }, [fetchEmbedConfig])
+  }, [fetchEmbedConfig, recordDiagnostic])
 
   useEffect(() => {
     const sessionId = config?.dashboardSessionId || dashboardSessionIdRef.current
@@ -234,49 +272,61 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     dashboardSessionIdRef.current = sessionId
     dashboardSessionEndedRef.current = false
 
+    let disposed = false
+    let heartbeatRunning = false
+    let heartbeatQueued = false
     const heartbeat = async () => {
-      if (dashboardSessionEndedRef.current) return
-
+      if (disposed || dashboardSessionEndedRef.current) return
+      if (heartbeatRunning) { heartbeatQueued = true; return }
+      heartbeatRunning = true
       try {
-        const headers = dashboardAuthHeadersRef.current || (await getPortalAuthHeaders())
-        const response = await fetch('/api/power-bi/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...headers },
-          body: JSON.stringify({
-            sessionId,
-            slug: company.slug,
-            reportKey,
-            pageName: dashboardPageRef.current.name,
-            pageLabel: dashboardPageRef.current.label,
-            pageSequence: dashboardPageRef.current.sequence,
-          }),
-          cache: 'no-store',
+        const result = await sendDashboardHeartbeat(fetch, getPortalAuthHeaders, {
+          sessionId, slug: company.slug, reportKey,
+          pageName: dashboardPageRef.current.name,
+          pageLabel: dashboardPageRef.current.label,
+          pageSequence: dashboardPageRef.current.sequence,
         })
-        const payload = await response.json()
-        if (!response.ok || payload.active === false) {
+        if (disposed || dashboardSessionEndedRef.current) return
+        recordDiagnostic('heartbeat', { status: result.status, outcome: result.outcome })
+        if (result.outcome === 'ended') {
           setSessionExpired(true)
           dashboardSessionEndedRef.current = true
         }
       } catch (heartbeatError) {
+        // Keep the live iframe on connection failures. The next heartbeat retries.
+        recordDiagnostic('heartbeat_transport_error')
         console.error('[power-bi:heartbeat]', heartbeatError)
+      } finally {
+        heartbeatRunning = false
+        if (heartbeatQueued && !disposed && !dashboardSessionEndedRef.current) {
+          heartbeatQueued = false
+          heartbeat()
+        }
       }
+    }
+    const handlePageHide = event => {
+      // Going into the browser's back/forward cache is not closing the report.
+      if (!event.persisted) endDashboardSession('closed')
+    }
+    const handlePageShow = event => {
+      if (event.persisted) heartbeat()
     }
 
     dashboardHeartbeatRef.current = heartbeat
-    const handlePageHide = () => {
-      endDashboardSession('closed')
-    }
 
     heartbeat()
     const intervalId = window.setInterval(heartbeat, DASHBOARD_HEARTBEAT_INTERVAL_MS)
     window.addEventListener('pagehide', handlePageHide)
+    window.addEventListener('pageshow', handlePageShow)
     return () => {
+      disposed = true
       window.clearInterval(intervalId)
       window.removeEventListener('pagehide', handlePageHide)
+      window.removeEventListener('pageshow', handlePageShow)
       if (dashboardHeartbeatRef.current === heartbeat) dashboardHeartbeatRef.current = null
       endDashboardSession('closed')
     }
-  }, [company.slug, config?.capacityManaged, config?.dashboardSessionId, endDashboardSession, reportKey])
+  }, [company.slug, config?.capacityManaged, config?.dashboardSessionId, endDashboardSession, recordDiagnostic, reportKey])
 
   useEffect(() => {
     if (!tokenExpiration) return undefined
@@ -382,18 +432,47 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const embedAvailable = Boolean(embedConfig)
 
   useEffect(() => {
+    recordDiagnostic('layout', { mode: viewport.mode })
     layoutUpdaterRef.current()
-  }, [viewport.mode])
+  }, [viewport.mode, recordDiagnostic])
 
   useEffect(() => {
     const container = reportViewportRef.current
     if (!container) return undefined
-    const measure = () => setFrameSize({ width: container.clientWidth, height: container.clientHeight })
+    let lastWidth = -1; let lastHeight = -1
+    const measure = () => {
+      const width = container.clientWidth; const height = container.clientHeight
+      if (width === lastWidth && height === lastHeight) return
+      lastWidth = width; lastHeight = height
+      recordDiagnostic('frame_size', { width, height })
+      setFrameSize(previous => previous.width === width && previous.height === height ? previous : { width, height })
+    }
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(container)
     return () => observer.disconnect()
-  }, [loading, error, sessionExpired, embedAvailable])
+  }, [loading, error, sessionExpired, embedAvailable, recordDiagnostic])
+
+  useEffect(() => {
+    const host = reportViewportRef.current
+    if (!host || typeof MutationObserver === 'undefined') return undefined
+    let iframe
+    const loaded = () => recordDiagnostic('iframe_loaded')
+    const connect = () => {
+      const next = host.querySelector('iframe')
+      if (next === iframe) return
+      iframe?.removeEventListener('load', loaded)
+      iframe = next
+      if (iframe) {
+        recordDiagnostic('iframe_created')
+        iframe.addEventListener('load', loaded)
+      }
+    }
+    connect()
+    const observer = new MutationObserver(connect)
+    observer.observe(host, { childList: true, subtree: true })
+    return () => { observer.disconnect(); iframe?.removeEventListener('load', loaded) }
+  }, [loading, error, sessionExpired, embedAvailable, recordDiagnostic])
 
   const canvasWidth = reportCanvasWidth(frameSize.width, frameSize.height, viewport.mode, pageAspectRatio)
   const effectiveZoom = isLandscape ? reportZoom : 1
@@ -638,11 +717,17 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                         Axis
                       </span>
                     </div>
+                    <button type="button" className="portal-ghost-button h-8 px-2 text-[10px]"
+                      onClick={() => { setDiagnosticText(diagnosticsRef.current?.snapshot() || '{}'); setDiagnosticVisible(true) }}>
+                      Diagnóstico
+                    </button>
                     {isLandscape ? (
                       <div className="flex shrink-0 items-center gap-1" aria-label="Zoom do BI">
                         <button type="button" className="portal-ghost-button h-8 px-2 text-xs"
-                          aria-pressed={reportInteraction} onClick={() => setReportInteraction(value => !value)}>
-                          {reportInteraction ? 'Interagir' : 'Mover/zoom'}
+                          aria-pressed={reportInteraction} title="Ative para usar filtros; desative para mover e ampliar"
+                          style={reportInteraction ? { background: 'rgba(201,164,92,0.25)' } : undefined}
+                          onClick={() => setReportInteraction(value => !value)}>
+                          Interagir
                         </button>
                         <button type="button" className="portal-ghost-button h-8 px-2" aria-label="Diminuir zoom do BI"
                           disabled={reportZoom <= 1} onClick={() => changeReportZoom(reportZoom - 0.25)}>−</button>
@@ -684,6 +769,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                         async () => {
                           if (!reportRef.current) return
                           reportLoadedRef.current = true
+                          recordDiagnostic('sdk_loaded')
                           try {
                             const currentPage = await reportRef.current.getActivePage()
                             if (currentPage?.name) {
@@ -806,7 +892,23 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
           </div>
         </div>
       </section>
+      {diagnosticVisible ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-3">
+          <section role="dialog" aria-modal="true" aria-label="Diagnóstico do BI"
+            className="flex max-h-[85dvh] w-full max-w-xl flex-col gap-3 rounded-xl bg-[#112345] p-4 text-white">
+            <h2 className="text-sm font-semibold">Diagnóstico do BI</h2>
+            <p className="text-xs">Registro local de carregamentos, conexão e sessão. Não contém senhas, tokens ou dados do relatório.
+              Se o painel reiniciar, copie este registro depois de reabri-lo.</p>
+            <textarea readOnly value={diagnosticText} aria-label="Registro de diagnóstico"
+              className="min-h-0 flex-1 overflow-auto rounded bg-[#0A162B] p-2 font-mono text-xs" rows={9} />
+            <div className="flex justify-end gap-2">
+              <button type="button" className="portal-ghost-button" onClick={() => setDiagnosticVisible(false)}>Fechar</button>
+              <button type="button" className="portal-primary-button"
+                onClick={() => navigator.clipboard?.writeText(diagnosticText).catch(() => {})}>Copiar diagnóstico</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   )
 }
-                                                                                                                                                                                                                                                                                                                                                                                                                             
