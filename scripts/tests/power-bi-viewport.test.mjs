@@ -56,6 +56,20 @@ test('uses native MobileLandscape instead of a desktop Master on phones', () => 
   assert.deepEqual(reportLayoutSettings('desktop',models), { layoutType: 0 });
 });
 
+test('browser pinch does not switch report layout; a real rotation still does', () => {
+  const phone = browser(844,390);
+  const modes = [];
+  const cleanup = observeReportViewport(phone, view => modes.push(view.mode));
+  phone.visualViewport = { scale: 2 };
+  phone.innerWidth = 400; phone.innerHeight = 600;
+  phone.emit('resize'); phone.flush();
+  assert.deepEqual(modes,['landscape']);
+  phone.screen.orientation.type = 'portrait-primary';
+  phone.emit('orientationchange'); phone.flush();
+  assert.deepEqual(modes,['landscape','portrait']);
+  cleanup();
+});
+
 test('wide pages get scrollable width rather than clipping; portrait/desktop fit host', () => {
   assert.equal(reportCanvasWidth(650,300,'landscape',3), 900);
   assert.equal(reportCanvasWidth(844,250,'landscape'), 844);

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { PowerBIEmbed } from 'powerbi-client-react'
 import { models } from 'powerbi-client'
@@ -8,6 +8,8 @@ import { ArrowLeft, ChevronRight, Maximize2, PanelLeftClose, PanelLeftOpen } fro
 import { getPortalAuthHeaders } from '@/lib/portal-store'
 import { resolveCompanyChrome } from '@/lib/company-appearance'
 import { observeReportViewport, readReportViewport, reportLayoutSettings, reportCanvasWidth, createReportLayoutUpdater } from '@/lib/power-bi-viewport.mjs'
+
+import { attachReportGestures, clampReportZoom } from '@/lib/power-bi-gestures.mjs'
 
 const TOKEN_REFRESH_INTERVAL_MS = 30 * 1000
 const TOKEN_REFRESH_MARGIN_MS = 10 * 60 * 1000
@@ -27,6 +29,23 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [viewport, setViewport] = useState({ mode: 'desktop', touch: false, compactPages: false })
   const isMobileDevice = viewport.touch
+  const isLandscape = viewport.mode === 'landscape'
+  const [reportZoom, setReportZoom] = useState(1)
+  const [reportInteraction, setReportInteraction] = useState(false)
+  const reportZoomRef = useRef(1)
+  const zoomAnchorRef = useRef(null)
+  const gestureSurfaceRef = useRef(null)
+  const changeReportZoom = useCallback((value, anchor) => {
+    const scroller = reportViewportRef.current
+    if (!anchor && scroller) {
+      const x = scroller.clientWidth / 2; const y = scroller.clientHeight / 2
+      anchor = { x, y, contentX: (scroller.scrollLeft + x) / reportZoomRef.current,
+        contentY: (scroller.scrollTop + y) / reportZoomRef.current }
+    }
+    zoomAnchorRef.current = anchor
+    reportZoomRef.current = clampReportZoom(value)
+    setReportZoom(reportZoomRef.current)
+  }, [])
   const [tokenExpiration, setTokenExpiration] = useState('')
   const [pageAspectRatio, setPageAspectRatio] = useState(16 / 9)
   const [frameSize, setFrameSize] = useState({ width: 0, height: 0 })
@@ -377,9 +396,31 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   }, [loading, error, sessionExpired, embedAvailable])
 
   const canvasWidth = reportCanvasWidth(frameSize.width, frameSize.height, viewport.mode, pageAspectRatio)
-  const maxHorizontalScroll = Math.max(0, canvasWidth - frameSize.width)
+  const effectiveZoom = isLandscape ? reportZoom : 1
+  const maxHorizontalScroll = Math.max(0, canvasWidth * effectiveZoom - frameSize.width)
+  useLayoutEffect(() => {
+    const anchor = zoomAnchorRef.current
+    const scroller = reportViewportRef.current
+    if (!anchor || !scroller || !isLandscape) return
+    scroller.scrollLeft = anchor.contentX * reportZoom - anchor.x
+    scroller.scrollTop = anchor.contentY * reportZoom - anchor.y
+    zoomAnchorRef.current = null
+  }, [reportZoom, isLandscape])
   useEffect(() => {
-    if (reportViewportRef.current) reportViewportRef.current.scrollLeft = 0
+    const surface = gestureSurfaceRef.current
+    const scroller = reportViewportRef.current
+    if (!isLandscape || reportInteraction || !surface || !scroller) return undefined
+    return attachReportGestures(surface, scroller, () => reportZoomRef.current, changeReportZoom)
+  }, [isLandscape, reportInteraction, changeReportZoom, embedAvailable, loading, error, sessionExpired])
+  useEffect(() => {
+    if (reportViewportRef.current) {
+      reportViewportRef.current.scrollLeft = 0
+      reportViewportRef.current.scrollTop = 0
+    }
+    reportZoomRef.current = 1
+    zoomAnchorRef.current = null
+    setReportZoom(1)
+    setReportInteraction(false)
     setScrollLeft(0)
   }, [viewport.mode, activePageName])
 
@@ -422,11 +463,11 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const sidebarPages = config?.pages || []
 
   return (
-    <main className="portal-page relative h-[100dvh] overflow-hidden">
+    <main className={`portal-page relative h-[100dvh] overflow-hidden ${isLandscape ? 'power-bi-landscape' : ''}`}>
       <Link
         href={`/empresa/${company.slug}/power-bi`}
         aria-label="Voltar ao portal"
-        className="absolute left-4 top-4 z-30 hidden h-11 w-11 items-center justify-center rounded-full text-white transition md:inline-flex md:left-6 md:top-6"
+        className={`absolute left-4 top-4 z-30 hidden h-11 w-11 items-center justify-center rounded-full text-white transition ${isLandscape ? '' : 'md:inline-flex md:left-6 md:top-6'}`}
         style={{
           background: 'rgba(255,255,255,0.05)',
           border: '1px solid rgba(255,255,255,0.07)',
@@ -436,17 +477,19 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         <ArrowLeft size={18} />
       </Link>
 
-      <section className={`grid h-[100dvh] grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[64px_minmax(0,1fr)]' : 'lg:grid-cols-[272px_minmax(0,1fr)]'}`}>
+      <section className={`grid h-[100dvh] min-h-0 grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[64px_minmax(0,1fr)]' : 'lg:grid-cols-[272px_minmax(0,1fr)]'}`}
+        style={isLandscape ? { gridTemplateColumns: `${sidebarCollapsed ? 52 : 160}px minmax(0, 1fr)` } : undefined}>
         <aside
-          className="hidden pt-20 lg:flex lg:min-h-0 lg:flex-col"
+          className={isLandscape ? 'power-bi-pages-sidebar flex min-h-0 flex-col pt-2' : 'hidden pt-20 lg:flex lg:min-h-0 lg:flex-col'}
+          aria-label="Páginas do relatório"
           style={{ background: companyChrome.background, borderRight: `1px solid ${companyChrome.border}`, color: companyChrome.foreground }}
         >
-          <div className={`${sidebarCollapsed ? 'px-2 pb-4' : 'px-5 pb-5'}`}>
+          <div className={`shrink-0 ${sidebarCollapsed ? 'px-2 pb-2' : isLandscape ? 'px-3 pb-2' : 'px-5 pb-5'}`}>
             <div className={`flex items-start ${sidebarCollapsed ? 'justify-center' : 'justify-between gap-3'}`}>
               {sidebarCollapsed ? null : (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: companyChrome.muted }}>Power BI</p>
-                  <h1 className="mt-1 text-lg font-semibold leading-tight" style={{ color: companyChrome.foreground }}>{config?.reportName || company.powerBiLabel || company.name}</h1>
+                  <h1 className={`mt-1 font-semibold leading-tight ${isLandscape ? 'text-xs' : 'text-lg'}`} style={{ color: companyChrome.foreground }}>{config?.reportName || company.powerBiLabel || company.name}</h1>
                 </div>
               )}
               <button
@@ -461,7 +504,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
             </div>
           </div>
 
-          <div className={`min-h-0 flex-1 overflow-y-auto ${sidebarCollapsed ? 'px-2 pb-6' : 'px-3 pb-6'}`}>
+          <div className={`power-bi-pages-scroll min-h-0 flex-1 overflow-y-auto ${sidebarCollapsed ? 'px-2 pb-3' : 'px-3 pb-3'}`}
+            tabIndex={0} aria-label="Lista de páginas do relatório">
             {loading ? (
               <div
                 className="rounded-xl px-4 py-3 text-sm"
@@ -493,7 +537,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       type="button"
                       onClick={() => handleSelectPage(page.name)}
                       title={page.displayName || page.name}
-                      className={`flex w-full items-center ${sidebarCollapsed ? 'justify-center px-1 py-3' : 'justify-between px-4 py-3'} rounded-xl text-left text-sm transition`}
+                      className={`flex w-full items-center ${sidebarCollapsed ? 'justify-center px-1 py-3' : isLandscape ? 'justify-between px-2 py-2' : 'justify-between px-4 py-3'} rounded-xl text-left ${isLandscape ? 'text-xs' : 'text-sm'} transition`}
                       style={
                         isActive
                           ? {
@@ -585,7 +629,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       <Link
                         href={`/empresa/${company.slug}`}
                         aria-label="Voltar ao portal"
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition md:hidden"
+                        className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition ${isLandscape ? '' : 'md:hidden'}`}
                         style={{ background: companyChrome.subtle, color: companyChrome.foreground }}
                       >
                         <ArrowLeft size={14} />
@@ -594,6 +638,20 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                         Axis
                       </span>
                     </div>
+                    {isLandscape ? (
+                      <div className="flex shrink-0 items-center gap-1" aria-label="Zoom do BI">
+                        <button type="button" className="portal-ghost-button h-8 px-2 text-xs"
+                          aria-pressed={reportInteraction} onClick={() => setReportInteraction(value => !value)}>
+                          {reportInteraction ? 'Interagir' : 'Mover/zoom'}
+                        </button>
+                        <button type="button" className="portal-ghost-button h-8 px-2" aria-label="Diminuir zoom do BI"
+                          disabled={reportZoom <= 1} onClick={() => changeReportZoom(reportZoom - 0.25)}>−</button>
+                        <button type="button" className="portal-ghost-button h-8 px-2 text-xs" aria-label="Ajustar BI à tela"
+                          onClick={() => changeReportZoom(1)}>{Math.round(reportZoom * 100)}%</button>
+                        <button type="button" className="portal-ghost-button h-8 px-2" aria-label="Aumentar zoom do BI"
+                          disabled={reportZoom >= 3} onClick={() => changeReportZoom(reportZoom + 0.25)}>+</button>
+                      </div>
+                    ) : null}
                     {!isMobileDevice ? (
                       <button
                         type="button"
@@ -608,9 +666,13 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                   </div>
                 </div>
                 <div className="flex min-h-0 w-full flex-1 flex-col">
-                  <div ref={reportViewportRef} className="power-bi-report-viewport relative min-h-0 min-w-0 flex-1 overflow-auto"
+                  <div className="relative min-h-0 min-w-0 flex-1">
+                  <div ref={reportViewportRef} className="power-bi-report-viewport h-full w-full overflow-auto"
                     onScroll={event => setScrollLeft(event.currentTarget.scrollLeft)}>
-                    <div className="h-full" style={{ width: canvasWidth || '100%', minWidth: '100%' }}>
+                    <div className="relative" style={{ width: canvasWidth ? canvasWidth * effectiveZoom : '100%',
+                      height: frameSize.height ? frameSize.height * effectiveZoom : '100%', minWidth: '100%' }}>
+                    <div className="absolute left-0 top-0" style={{ width: canvasWidth || '100%', height: frameSize.height || '100%',
+                      transform: `scale(${effectiveZoom})`, transformOrigin: '0 0' }}>
                 <PowerBIEmbed
                   embedConfig={embedConfig}
                   cssClassName="power-bi-report-frame h-full w-full"
@@ -672,8 +734,30 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                   }
                 />
                     </div>
+                    </div>
                   </div>
-                  {viewport.mode === 'landscape' ? (
+                  {isLandscape && !reportInteraction ? (
+                    <div ref={gestureSurfaceRef} className="power-bi-gesture-surface absolute inset-0 z-10"
+                      role="region" tabIndex={0} aria-label="BI: use pinça para ampliar e arraste para mover. Alterne para Interagir para usar filtros."
+                      onKeyDown={event => {
+                        const scroller = reportViewportRef.current
+                        if (!scroller) return
+                        if (event.key === '+' || event.key === '=') changeReportZoom(reportZoom + 0.25)
+                        else if (event.key === '-') changeReportZoom(reportZoom - 0.25)
+                        else if (event.key === 'ArrowRight') scroller.scrollLeft += 60
+                        else if (event.key === 'ArrowLeft') scroller.scrollLeft -= 60
+                        else if (event.key === 'ArrowDown') scroller.scrollTop += 60
+                        else if (event.key === 'ArrowUp') scroller.scrollTop -= 60
+                        else return
+                        event.preventDefault()
+                      }}>
+                      <span className="pointer-events-none absolute bottom-1 left-2 rounded bg-black/70 px-2 py-1 text-[10px] text-white">
+                        Pinça para zoom · arraste para mover · alterne para Interagir para usar filtros
+                      </span>
+                    </div>
+                  ) : null}
+                  </div>
+                  {isLandscape ? (
                     <label className="flex h-8 shrink-0 items-center gap-2 px-3 text-[10px]" style={{ color: companyChrome.muted }}>
                       <span className="shrink-0">Mover painel</span>
                       <input type="range" min={0} max={maxHorizontalScroll} step={1}
@@ -684,7 +768,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                         }} />
                     </label>
                   ) : null}
-                {viewport.compactPages && sidebarPages.length > 0 ? (
+                {viewport.mode === 'portrait' && viewport.compactPages && sidebarPages.length > 0 ? (
                   <div
                     className="z-20 shrink-0 px-3 py-2 backdrop-blur"
                     style={{
@@ -725,3 +809,4 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     </main>
   )
 }
+                                                                                                                                                                                                                                                                                                                                                                                                                             

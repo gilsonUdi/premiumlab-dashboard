@@ -76,6 +76,22 @@ body {
   border: 0;
 }
 
+.power-bi-pages-scroll {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+.power-bi-gesture-surface {
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.power-bi-gesture-surface:active {
+  cursor: grabbing;
+}
+
 .company-color-range {
   height: 4px;
   cursor: pointer;
