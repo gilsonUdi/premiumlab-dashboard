@@ -54,7 +54,7 @@ test('landscape uses the regular renderer while initial embed retains mobile cap
   assert.deepEqual(reportLayoutSettings('portrait',models), { layoutType: 2 });
   assert.deepEqual(reportLayoutSettings('landscape',models), { layoutType: 0 });
   assert.deepEqual(reportLayoutSettings('desktop',models), { layoutType: 0 });
-  assert.deepEqual(initialReportLayoutSettings('portrait',models), { layoutType: 2 });
+  assert.deepEqual(initialReportLayoutSettings('portrait',models), { layoutType: 3 });
   assert.deepEqual(initialReportLayoutSettings('landscape',models), { layoutType: 3 });
   assert.deepEqual(initialReportLayoutSettings('desktop',models), { layoutType: 3 });
 });
@@ -208,7 +208,7 @@ test('mobile report uses compact controls and no empty bottom strip or data-cove
   assert.match(source, /reportLoadedRef.current && reportRenderedRef.current/);
   assert.doesNotMatch(source, /Mover painel/);
   assert.match(source, /power-bi-report-viewport h-full w-full overflow-auto/);
-  assert.match(source, /if \(reportRenderedRef.current\) return/);
+  assert.match(source, /if \(!reportRenderedRef.current\)/);
   assert.match(source, /Carregando os visuais do relatório/);
   assert.match(css, /\.portal-page\.power-bi-page\s*\{[^}]*padding-bottom: 0;/);
   assert.match(css, /\.power-bi-landscape \.power-bi-toolbar \.portal-ghost-button\s*\{\s*height: 32px/);
@@ -234,6 +234,53 @@ test('base-size iframe avoids CSS transforms and legacy momentum layer', () => {
   assert.match(source, /transform: effectiveZoom === 1 \? 'none' : `scale\(\$\{effectiveZoom\}\)`/);
   assert.match(source, /recordDiagnostic\('iframe_geometry'/);
   assert.match(source, /getBoundingClientRect/);
-  assert.match(source, /landscape-master-v2/);
+  assert.match(source, /landscape-page-sync-v3/);
   assert.match(css, /\.power-bi-report-viewport\s*\{[^}]*-webkit-overflow-scrolling: auto;/);
+});
+
+test('wide landscape wins over stale portrait APIs but a portrait keyboard stays portrait', () => {
+  assert.equal(readReportViewport(browser(844,390,true,'portrait-primary')).mode, 'landscape');
+  assert.equal(readReportViewport(browser(1180,820,true,'portrait-primary')).mode, 'landscape');
+  assert.equal(readReportViewport(browser(390,844,true,'landscape-primary')).mode, 'portrait');
+  assert.equal(readReportViewport(browser(390,300,true,'portrait-primary')).mode, 'portrait');
+});
+
+test('same horizontal settings must be reapplied on each newly rendered page', async () => {
+  let page = 'a';
+  const applied = [];
+  const report = { updateSettings: async settings => applied.push([page, settings.layoutType]) };
+  const update = createReportLayoutUpdater(() => report, () => true, () => ({layoutType:0}), assert.fail, null, () => page);
+  await update(); await update();
+  page = 'b';
+  await update(); await update();
+  page = 'a';
+  await update();
+  assert.deepEqual(applied, [['a',0],['b',0],['a',0]]);
+});
+
+test('page changing during SDK update is not lost behind the previous page cache', async () => {
+  let page = 'a'; let release;
+  const applied = [];
+  const report = { updateSettings: async () => {
+    applied.push(page);
+    if (applied.length === 1) await new Promise(resolve => { release = resolve; });
+  }};
+  const update = createReportLayoutUpdater(() => report, () => true, () => ({layoutType:0}), assert.fail, null, () => page);
+  const running = update();
+  await Promise.resolve();
+  page = 'b'; update();
+  release(); await running;
+  assert.deepEqual(applied, ['a','b']);
+});
+
+test('a rapid round trip to the same page still reapplies its current layout', async () => {
+  let page = 'a'; let release; let calls = 0;
+  const report = { updateSettings: async () => {
+    if (++calls === 1) await new Promise(resolve => { release = resolve; });
+  }};
+  const update = createReportLayoutUpdater(() => report, () => true, () => ({layoutType:0}), assert.fail, null, () => page);
+  const running = update(); await Promise.resolve();
+  page = 'b'; update(); page = 'a'; update();
+  release(); await running;
+  assert.equal(calls,2);
 });

@@ -78,19 +78,19 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       outcome: !iframe ? 'missing' : bounds?.width > 0 && bounds?.height > 0 ? 'visible-size' : 'zero-size' })
   }, [recordDiagnostic])
   const initialLayoutSettingsRef = useRef(null)
-  const layoutSettingsRef = useRef(null)
-  layoutSettingsRef.current = reportLayoutSettings(viewport.mode, models)
+  const layoutPageRef = useRef('')
   const layoutUpdaterRef = useRef(null)
   if (!layoutUpdaterRef.current) {
     layoutUpdaterRef.current = createReportLayoutUpdater(
       () => reportRef.current,
       () => reportLoadedRef.current && reportRenderedRef.current && frameSizeRef.current.width > 0 && frameSizeRef.current.height > 0,
-      () => layoutSettingsRef.current,
+      () => reportLayoutSettings(readReportViewport(window).mode, models),
       layoutError => console.error('[power-bi:layout]', layoutError),
       (state, settings) => {
         recordDiagnostic(`layout_${state}`, { layoutType: settings.layoutType })
         if (state === 'applied') recordFrameGeometry()
       },
+      () => layoutPageRef.current,
     )
   }
   const captureReport = useCallback(embeddedReport => {
@@ -200,7 +200,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   useEffect(() => {
     const diagnostic = createReportDiagnostics(window, `${company.slug}:${reportKey}`)
     diagnosticsRef.current = diagnostic
-    diagnostic.record('viewer_revision', { outcome: 'landscape-master-v2' })
+    diagnostic.record('viewer_revision', { outcome: 'landscape-page-sync-v3' })
     const hide = event => {
       diagnostic.record('page_hide', { persisted: Boolean(event.persisted) })
       if (!event.persisted) diagnostic.close()
@@ -276,6 +276,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         // The SDK can then switch orientation without resetting its iframe.
         const initialViewport = readReportViewport(window)
         initialLayoutSettingsRef.current = initialReportLayoutSettings(initialViewport.mode, models)
+        layoutPageRef.current = payload.initialPageName || ''
         recordDiagnostic('layout_initial', { layoutType: initialLayoutSettingsRef.current.layoutType })
         setTokenExpiration(payload.tokenExpiration || '')
         setConfig(payload)
@@ -421,6 +422,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
 
         try {
           await reportRef.current.setPage(pageName)
+          layoutPageRef.current = pageName
+          await layoutUpdaterRef.current()
           if (!pendingPageNameRef.current) setActivePageName(pageName)
         } catch (pageError) {
           console.error(pageError)
@@ -838,6 +841,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                             sequence: previousPage.name === nextName ? Math.max(1, previousPage.sequence) : previousPage.sequence + 1,
                           }
                           setActivePageName(nextName)
+                          layoutPageRef.current = nextName
+                          layoutUpdaterRef.current()
                           syncReportPageSize()
                           dashboardHeartbeatRef.current?.()
                         },
@@ -845,9 +850,12 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       ['rendered', () => {
                         recordDiagnostic('sdk_rendered')
                         recordFrameGeometry()
-                        if (reportRenderedRef.current) return
-                        reportRenderedRef.current = true
-                        setReportVisualsReady(true)
+                        if (!reportRenderedRef.current) {
+                          reportRenderedRef.current = true
+                          setReportVisualsReady(true)
+                        }
+                        // Reconcile after page rendering too; the updater deduplicates
+                        // the same page/layout so this cannot create a render loop.
                         layoutUpdaterRef.current()
                       }],
                       ['error', event => { recordDiagnostic('sdk_error'); handlePowerBiError(event) }],

@@ -150,6 +150,14 @@ e documentos, sem pentest, acesso ao console Firebase ou validacao da producao.
 - A pedido dele, removidos botao Interagir, estado alternavel e camada de gestos que interceptava toques sobre o iframe. Filtros e cliques ficam sempre disponiveis, inclusive depois de rotacao/troca de pagina.
 - Mantidos controles de zoom menos/100%/mais e a geometria aprovada. O gesto customizado de pinca/arraste do portal nao intercepta mais o relatorio; os eventos chegam diretamente ao Power BI.
 
+## Layout vertical indevido com o celular deitado — 21/10/2026
+
+- Print mostrou a sidebar horizontal correta, mas o relatorio no layout MobilePortrait. Encontrado cache de layout associado somente a instancia/configuracao, nao a pagina: uma nova pagina podia deixar de receber o mesmo Master ja aplicado na anterior.
+- Cache agora considera a pagina; ao concluir setPage, receber pageChanged e rendered, o controlador reconcilia a orientacao atual, sem recriar iframe/sessao. Eventos rendered repetidos sao deduplicados para nao criar loops.
+- O SDK instalado confirma que updateSettings envia PATCH de settings sem substituir initialLayoutType. A base inicial agora e sempre MobileLandscape, mobile-capable e horizontal; MobilePortrait e aplicado explicitamente em runtime somente quando o aparelho esta em pe. Assim uma carga tardia nao tem MobilePortrait como configuracao inicial a restaurar.
+- Viewport largo prevalece sobre APIs de orientacao temporariamente atrasadas; teclado em celular vertical estreito nao dispara horizontal. O envio ao SDK relê o viewport real, evitando capturar um modo React antigo durante rotacoes rapidas.
+- Mantidos Master na horizontal, interacao sempre habilitada e dimensionamento aprovado. Diagnostico identifica esta revisao por landscape-page-sync-v3. Confirmacao visual em iPhone depende de teste apos o deploy.
+
 ## Produto
 Nome:
 - GS Portal / DashboardPremium
