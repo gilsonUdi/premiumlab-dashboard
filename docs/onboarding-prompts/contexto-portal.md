@@ -144,6 +144,12 @@ e documentos, sem pentest, acesso ao console Firebase ou validacao da producao.
 - Diagnostico agora registra `viewer_revision: landscape-master-v2`, `layout_initial`, `layout_requested`, `layout_applied`/`layout_failed` com layoutType, e `iframe_geometry` (somente dimensoes, sem conteudo, tokens ou URL). `page_alive` distingue loaded de rendered.
 - Controle do navegador indisponivel nesta rodada (`transport closed before response`), sem validacao visual no iPhone. Testes locais com SDK simulado verificam layout Master, retorno vertical, uma unica instancia/sessao e zoom isolado. Confirmar no aparelho depois do deploy; caso persista, solicitar novo diagnostico para distinguir layout rejeitado de iframe sem tamanho/pintura.
 
+## BI sempre interativo — 21/10/2026
+
+- Usuario confirmou que a correcao horizontal do commit `00cab8c` resolveu a tela vazia.
+- A pedido dele, removidos botao Interagir, estado alternavel e camada de gestos que interceptava toques sobre o iframe. Filtros e cliques ficam sempre disponiveis, inclusive depois de rotacao/troca de pagina.
+- Mantidos controles de zoom menos/100%/mais e a geometria aprovada. O gesto customizado de pinca/arraste do portal nao intercepta mais o relatorio; os eventos chegam diretamente ao Power BI.
+
 ## Produto
 Nome:
 - GS Portal / DashboardPremium

@@ -77,3 +77,10 @@ test('landscape uses left sidebar; bottom pages are portrait only; zoom does not
   assert.doesNotMatch(config,/reportZoom/);
   assert.match(source,/transform: effectiveZoom === 1 \? 'none' : `scale\(\$\{effectiveZoom\}\)`/);
 });
+
+test('report is always interactive without a toggle or a gesture interception overlay', () => {
+  const source = readFileSync(new URL('../../components/company/PowerBiEmbeddedView.jsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /reportInteraction|setReportInteraction|gestureSurfaceRef|power-bi-gesture-surface|Interagir/);
+  assert.match(source, /aria-label="Aumentar zoom do BI"/);
+  assert.match(source, /aria-label="Diminuir zoom do BI"/);
+});

@@ -9,7 +9,7 @@ import { getPortalAuthHeaders } from '@/lib/portal-store'
 import { resolveCompanyChrome } from '@/lib/company-appearance'
 import { observeReportViewport, readReportViewport, reportLayoutSettings, initialReportLayoutSettings, reportCanvasWidth, createReportLayoutUpdater } from '@/lib/power-bi-viewport.mjs'
 
-import { attachReportGestures, clampReportZoom } from '@/lib/power-bi-gestures.mjs'
+import { clampReportZoom } from '@/lib/power-bi-gestures.mjs'
 
 import { sendDashboardHeartbeat } from '@/lib/power-bi-session-client.mjs'
 import { createReportDiagnostics } from '@/lib/power-bi-diagnostics.mjs'
@@ -38,10 +38,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const isMobileDevice = viewport.touch
   const isLandscape = viewport.mode === 'landscape'
   const [reportZoom, setReportZoom] = useState(1)
-  const [reportInteraction, setReportInteraction] = useState(false)
   const reportZoomRef = useRef(1)
   const zoomAnchorRef = useRef(null)
-  const gestureSurfaceRef = useRef(null)
   const changeReportZoom = useCallback((value, anchor) => {
     const scroller = reportViewportRef.current
     if (!anchor && scroller) {
@@ -526,12 +524,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     zoomAnchorRef.current = null
   }, [reportZoom, isLandscape])
   useEffect(() => {
-    const surface = gestureSurfaceRef.current
-    const scroller = reportViewportRef.current
-    if (!isLandscape || reportInteraction || !surface || !scroller) return undefined
-    return attachReportGestures(surface, scroller, () => reportZoomRef.current, changeReportZoom)
-  }, [isLandscape, reportInteraction, changeReportZoom, embedAvailable, loading, error, sessionExpired])
-  useEffect(() => {
     if (reportViewportRef.current) {
       reportViewportRef.current.scrollLeft = 0
       reportViewportRef.current.scrollTop = 0
@@ -539,7 +531,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     reportZoomRef.current = 1
     zoomAnchorRef.current = null
     setReportZoom(1)
-    setReportInteraction(false)
   }, [viewport.mode, activePageName])
 
   const toggleFullscreen = async () => {
@@ -765,12 +756,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     </button>
                     {isLandscape ? (
                       <div className="flex shrink-0 items-center gap-1" aria-label="Zoom do BI">
-                        <button type="button" className="portal-ghost-button h-8 px-2 text-xs"
-                          aria-pressed={reportInteraction} title="Ative para usar filtros; desative para mover e ampliar"
-                          style={reportInteraction ? { background: 'rgba(201,164,92,0.25)' } : undefined}
-                          onClick={() => setReportInteraction(value => !value)}>
-                          Interagir
-                        </button>
                         <button type="button" className="portal-ghost-button h-8 px-2" aria-label="Diminuir zoom do BI"
                           disabled={reportZoom <= 1} onClick={() => changeReportZoom(reportZoom - 0.25)}>−</button>
                         <button type="button" className="portal-ghost-button h-8 px-2 text-xs" aria-label="Ajustar BI à tela"
@@ -872,26 +857,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     </div>
                     </div>
                   </div>
-                  {isLandscape && !reportInteraction ? (
-                    <div ref={gestureSurfaceRef} className="power-bi-gesture-surface absolute inset-0 z-10"
-                      role="region" tabIndex={0} aria-label="BI: use pinça para ampliar e arraste para mover. Alterne para Interagir para usar filtros."
-                      onKeyDown={event => {
-                        const scroller = reportViewportRef.current
-                        if (!scroller) return
-                        if (event.key === '+' || event.key === '=') changeReportZoom(reportZoom + 0.25)
-                        else if (event.key === '-') changeReportZoom(reportZoom - 0.25)
-                        else if (event.key === 'ArrowRight') scroller.scrollLeft += 60
-                        else if (event.key === 'ArrowLeft') scroller.scrollLeft -= 60
-                        else if (event.key === 'ArrowDown') scroller.scrollTop += 60
-                        else if (event.key === 'ArrowUp') scroller.scrollTop -= 60
-                        else return
-                        event.preventDefault()
-                      }}>
-                      <span className="sr-only">
-                        Pinça para zoom · arraste para mover · alterne para Interagir para usar filtros
-                      </span>
-                    </div>
-                  ) : null}
                   {!reportVisualsReady ? (
                     <div role="status" className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4 text-center text-sm text-white/80">
                       Carregando os visuais do relatório…
