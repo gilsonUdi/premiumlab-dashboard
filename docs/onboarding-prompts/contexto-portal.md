@@ -158,6 +158,12 @@ e documentos, sem pentest, acesso ao console Firebase ou validacao da producao.
 - Viewport largo prevalece sobre APIs de orientacao temporariamente atrasadas; teclado em celular vertical estreito nao dispara horizontal. O envio ao SDK relê o viewport real, evitando capturar um modo React antigo durante rotacoes rapidas.
 - Mantidos Master na horizontal, interacao sempre habilitada e dimensionamento aprovado. Diagnostico identifica esta revisao por landscape-page-sync-v3. Confirmacao visual em iPhone depende de teste apos o deploy.
 
+## Navegacao inferior tambem no celular deitado — 21/10/2026
+
+- A pedido do usuario, paginas do relatorio agora ficam na faixa inferior tanto em portrait quanto landscape. A sidebar lateral continua exclusiva do desktop amplo; tablets classificados como mobile tambem usam a faixa inferior, inclusive com largura acima de 1024px.
+- O grid usa uma unica coluna no modo mobile, liberando toda a largura ao BI. A faixa tem rolagem horizontal, respeita a area segura inferior e indica a pagina ativa para acessibilidade.
+- Esta mudanca e somente de navegacao: o layout do relatorio continua Master na horizontal e MobilePortrait em pe. Nao altera sincronizacao, tokens ou instancia do iframe.
+
 ## Produto
 Nome:
 - GS Portal / DashboardPremium

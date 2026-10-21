@@ -37,6 +37,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [viewport, setViewport] = useState({ mode: 'desktop', touch: false, compactPages: false })
   const isMobileDevice = viewport.touch
   const isLandscape = viewport.mode === 'landscape'
+  const useBottomPageNavigation = viewport.mode !== 'desktop' || viewport.compactPages
   const [reportZoom, setReportZoom] = useState(1)
   const reportZoomRef = useRef(1)
   const zoomAnchorRef = useRef(null)
@@ -593,10 +594,10 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         <ArrowLeft size={18} />
       </Link>
 
-      <section className={`grid h-full min-h-0 grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[64px_minmax(0,1fr)]' : 'lg:grid-cols-[272px_minmax(0,1fr)]'}`}
-        style={isLandscape ? { gridTemplateColumns: `${sidebarCollapsed ? 52 : 160}px minmax(0, 1fr)` } : undefined}>
+      <section className={`grid h-full min-h-0 grid-cols-1 ${useBottomPageNavigation ? '' : sidebarCollapsed ? 'lg:grid-cols-[64px_minmax(0,1fr)]' : 'lg:grid-cols-[272px_minmax(0,1fr)]'}`}
+        style={useBottomPageNavigation ? { gridTemplateColumns: 'minmax(0, 1fr)' } : undefined}>
         <aside
-          className={isLandscape ? 'power-bi-pages-sidebar flex min-h-0 flex-col pt-2' : 'hidden pt-20 lg:flex lg:min-h-0 lg:flex-col'}
+          className={useBottomPageNavigation ? 'hidden' : 'hidden pt-20 lg:flex lg:min-h-0 lg:flex-col'}
           aria-label="Páginas do relatório"
           style={{ background: companyChrome.background, borderRight: `1px solid ${companyChrome.border}`, color: companyChrome.foreground }}
         >
@@ -871,8 +872,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     </div>
                   ) : null}
                   </div>
-                {viewport.mode === 'portrait' && viewport.compactPages && sidebarPages.length > 0 ? (
-                  <div
+                {useBottomPageNavigation && sidebarPages.length > 0 ? (
+                  <nav aria-label="Navegação inferior das páginas do relatório"
                     className="z-20 shrink-0 px-3 py-2 backdrop-blur"
                     style={{
                       paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
@@ -881,13 +882,14 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       boxShadow: '0 -4px 20px rgba(3, 8, 20, 0.3)',
                     }}
                   >
-                    <div className="flex gap-2 overflow-x-auto overscroll-x-contain">
+                    <div className="flex gap-2 overflow-x-auto overscroll-x-contain touch-pan-x">
                       {sidebarPages.map(page => {
                         const isActive = activePageName === page.name
                         return (
                           <button
                             key={page.name}
                             type="button"
+                            aria-current={isActive ? 'page' : undefined}
                             onClick={() => handleSelectPage(page.name)}
                             className="shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition"
                             style={
@@ -901,7 +903,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                         )
                       })}
                     </div>
-                  </div>
+                  </nav>
                 ) : null}
                 </div>
               </div>

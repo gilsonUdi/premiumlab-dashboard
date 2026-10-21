@@ -69,10 +69,15 @@ test('zoom stays between fit and 300%, avoiding unbounded iframe rendering', () 
   assert.equal(clampReportZoom(1.5),1.5);
 });
 
-test('landscape uses left sidebar; bottom pages are portrait only; zoom does not enter SDK config', () => {
+test('both mobile orientations use bottom pages while zoom stays outside SDK config', () => {
   const source = readFileSync(new URL('../../components/company/PowerBiEmbeddedView.jsx',import.meta.url),'utf8');
-  assert.match(source,/power-bi-pages-sidebar/);
-  assert.match(source,/viewport.mode === 'portrait' && viewport.compactPages/);
+  assert.match(source,/useBottomPageNavigation = viewport.mode !== 'desktop' \|\| viewport.compactPages/);
+  assert.match(source,/useBottomPageNavigation && sidebarPages.length > 0/);
+  assert.match(source,/useBottomPageNavigation \? 'hidden'/);
+  assert.match(source,/gridTemplateColumns: 'minmax\(0, 1fr\)'/);
+  assert.match(source,/aria-label="Navegação inferior das páginas do relatório"/);
+  assert.match(source,/overflow-x-auto overscroll-x-contain touch-pan-x/);
+  assert.doesNotMatch(source,/power-bi-pages-sidebar/);
   const config = source.slice(source.indexOf('const embedConfig ='),source.indexOf('const embedAvailable ='));
   assert.doesNotMatch(config,/reportZoom/);
   assert.match(source,/transform: effectiveZoom === 1 \? 'none' : `scale\(\$\{effectiveZoom\}\)`/);
