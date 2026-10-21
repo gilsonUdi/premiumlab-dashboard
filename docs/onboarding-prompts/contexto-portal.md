@@ -136,6 +136,14 @@ e documentos, sem pentest, acesso ao console Firebase ou validacao da producao.
 - Toolbar horizontal compacta tem regras CSS especificas: os estilos globais de botoes estavam sobrepondo as classes compactas. Durante a primeira renderizacao, aparece um aviso de carregamento em vez de uma area preta sem explicacao.
 - Validacao local: 32 testes automatizados aprovados e regressao React com SDK simulado aprovada. Isso nao substitui teste no iPhone real apos o deploy. Se continuar sem visuais, capturar novo diagnostico incluindo o tempo de espera.
 
+## BI horizontal — tela vazia apesar de renderizacao confirmada (21/10/2026)
+
+- Usuario confirmou dimensionamento correto, mas o BI continuou preto. Novo diagnostico (capturedAt 1792598239137) registra `sdk_loaded`, `sdk_rendered` e heartbeats ativos, inclusive depois da rotacao. Logo, esperar o primeiro `rendered` nao resolveu e nao se deve continuar tratando isso como apenas falta de carregamento.
+- Mudanca de compatibilidade: runtime horizontal agora usa `LayoutType.Master` (layout padrao do relatorio) em vez de `MobileLandscape`. Portrait continua `MobilePortrait`. A configuracao inicial permanece mobile-capable, separada em `initialReportLayoutSettings`, permitindo voltar ao vertical sem reset/novo iframe.
+- Removida transformacao CSS em zoom 100% (`none`, nao `scale(1)`), e desativada a camada legada `-webkit-overflow-scrolling: touch` ao redor do iframe. Zoom acima de 100%, arraste e geometria da tela permanecem. Isso reduz caminhos de composicao; a causa interna do iPhone ainda nao foi comprovada.
+- Diagnostico agora registra `viewer_revision: landscape-master-v2`, `layout_initial`, `layout_requested`, `layout_applied`/`layout_failed` com layoutType, e `iframe_geometry` (somente dimensoes, sem conteudo, tokens ou URL). `page_alive` distingue loaded de rendered.
+- Controle do navegador indisponivel nesta rodada (`transport closed before response`), sem validacao visual no iPhone. Testes locais com SDK simulado verificam layout Master, retorno vertical, uma unica instancia/sessao e zoom isolado. Confirmar no aparelho depois do deploy; caso persista, solicitar novo diagnostico para distinguir layout rejeitado de iframe sem tamanho/pintura.
+
 ## Produto
 Nome:
 - GS Portal / DashboardPremium

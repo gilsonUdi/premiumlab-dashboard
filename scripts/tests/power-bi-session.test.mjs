@@ -97,3 +97,13 @@ test('diagnostics recover a lost tab history from local backup and refresh captu
   assert.equal(JSON.parse(recovered.snapshot()).capturedAt, 3000);
   assert.equal(JSON.parse(recovered.snapshot()).events.at(-1).event, 'page_alive');
 });
+
+test('layout and iframe diagnostic fields exclude report content and credentials', () => {
+  const trace = createReportDiagnostics(fakeBrowser(), 'report', () => 1000);
+  trace.record('layout_applied', { layoutType: 0, accessToken: 'secret', settings: { private: true } });
+  trace.record('iframe_geometry', { width: 672, height: 327, outcome: 'visible-size', src: 'private-url' });
+  const events = JSON.parse(trace.snapshot()).events;
+  assert.deepEqual(events.at(-2), { time: 1000, event: 'layout_applied', layoutType: 0 });
+  assert.deepEqual(events.at(-1), { time: 1000, event: 'iframe_geometry', width: 672, height: 327, outcome: 'visible-size' });
+  assert.doesNotMatch(trace.snapshot(), /secret|private-url|settings/);
+});

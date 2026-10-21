@@ -75,5 +75,5 @@ test('landscape uses left sidebar; bottom pages are portrait only; zoom does not
   assert.match(source,/viewport.mode === 'portrait' && viewport.compactPages/);
   const config = source.slice(source.indexOf('const embedConfig ='),source.indexOf('const embedAvailable ='));
   assert.doesNotMatch(config,/reportZoom/);
-  assert.match(source,/transform: `scale\(\$\{effectiveZoom\}\)`/);
+  assert.match(source,/transform: effectiveZoom === 1 \? 'none' : `scale\(\$\{effectiveZoom\}\)`/);
 });

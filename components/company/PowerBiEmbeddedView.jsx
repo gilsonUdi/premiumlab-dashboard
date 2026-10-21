@@ -7,7 +7,7 @@ import { models } from 'powerbi-client'
 import { ArrowLeft, ChevronRight, Maximize2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { getPortalAuthHeaders } from '@/lib/portal-store'
 import { resolveCompanyChrome } from '@/lib/company-appearance'
-import { observeReportViewport, readReportViewport, reportLayoutSettings, reportCanvasWidth, createReportLayoutUpdater } from '@/lib/power-bi-viewport.mjs'
+import { observeReportViewport, readReportViewport, reportLayoutSettings, initialReportLayoutSettings, reportCanvasWidth, createReportLayoutUpdater } from '@/lib/power-bi-viewport.mjs'
 
 import { attachReportGestures, clampReportZoom } from '@/lib/power-bi-gestures.mjs'
 
@@ -73,6 +73,12 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [reportVisualsReady, setReportVisualsReady] = useState(false)
   const embedShellRef = useRef(null)
   const reportViewportRef = useRef(null)
+  const recordFrameGeometry = useCallback(() => {
+    const iframe = reportViewportRef.current?.querySelector?.('iframe')
+    const bounds = iframe?.getBoundingClientRect?.()
+    recordDiagnostic('iframe_geometry', { width: bounds?.width || 0, height: bounds?.height || 0,
+      outcome: !iframe ? 'missing' : bounds?.width > 0 && bounds?.height > 0 ? 'visible-size' : 'zero-size' })
+  }, [recordDiagnostic])
   const initialLayoutSettingsRef = useRef(null)
   const layoutSettingsRef = useRef(null)
   layoutSettingsRef.current = reportLayoutSettings(viewport.mode, models)
@@ -83,6 +89,10 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       () => reportLoadedRef.current && reportRenderedRef.current && frameSizeRef.current.width > 0 && frameSizeRef.current.height > 0,
       () => layoutSettingsRef.current,
       layoutError => console.error('[power-bi:layout]', layoutError),
+      (state, settings) => {
+        recordDiagnostic(`layout_${state}`, { layoutType: settings.layoutType })
+        if (state === 'applied') recordFrameGeometry()
+      },
     )
   }
   const captureReport = useCallback(embeddedReport => {
@@ -192,6 +202,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   useEffect(() => {
     const diagnostic = createReportDiagnostics(window, `${company.slug}:${reportKey}`)
     diagnosticsRef.current = diagnostic
+    diagnostic.record('viewer_revision', { outcome: 'landscape-master-v2' })
     const hide = event => {
       diagnostic.record('page_hide', { persisted: Boolean(event.persisted) })
       if (!event.persisted) diagnostic.close()
@@ -201,7 +212,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     const scriptError = () => diagnostic.record('script_error')
     const rejected = () => diagnostic.record('unhandled_rejection')
     const aliveTimer = window.setInterval(() => {
-      if (!document.hidden) diagnostic.record('page_alive', { outcome: reportLoadedRef.current ? 'loaded' : 'loading' })
+      if (!document.hidden) diagnostic.record('page_alive', { outcome: reportRenderedRef.current ? 'rendered' : reportLoadedRef.current ? 'loaded' : 'loading' })
     }, 15000)
     window.addEventListener('pagehide', hide)
     window.addEventListener('pageshow', show)
@@ -222,11 +233,12 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
 
   useEffect(() => {
     if (!diagnosticVisible) return
+    recordFrameGeometry()
     const update = () => setDiagnosticText(diagnosticsRef.current?.snapshot() || '{}')
     update()
     const timer = window.setInterval(update, 1000)
     return () => window.clearInterval(timer)
-  }, [diagnosticVisible])
+  }, [diagnosticVisible, recordFrameGeometry])
 
   useEffect(() => observeReportViewport(window, setViewport), [])
 
@@ -265,9 +277,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         // Start with a mobile-capable layout even if opened in landscape.
         // The SDK can then switch orientation without resetting its iframe.
         const initialViewport = readReportViewport(window)
-        initialLayoutSettingsRef.current = reportLayoutSettings(
-          initialViewport.mode === 'desktop' ? 'landscape' : initialViewport.mode, models,
-        )
+        initialLayoutSettingsRef.current = initialReportLayoutSettings(initialViewport.mode, models)
+        recordDiagnostic('layout_initial', { layoutType: initialLayoutSettingsRef.current.layoutType })
         setTokenExpiration(payload.tokenExpiration || '')
         setConfig(payload)
         recordDiagnostic('embed_config_ready')
@@ -787,7 +798,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     <div className="relative" style={{ width: canvasWidth ? canvasWidth * effectiveZoom : '100%',
                       height: frameSize.height ? frameSize.height * effectiveZoom : '100%', minWidth: '100%' }}>
                     <div className="absolute left-0 top-0" style={{ width: canvasWidth || '100%', height: frameSize.height || '100%',
-                      transform: `scale(${effectiveZoom})`, transformOrigin: '0 0' }}>
+                      transform: effectiveZoom === 1 ? 'none' : `scale(${effectiveZoom})`, transformOrigin: '0 0' }}>
                 <PowerBIEmbed
                   embedConfig={embedConfig}
                   cssClassName="power-bi-report-frame h-full w-full"
@@ -848,6 +859,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       ],
                       ['rendered', () => {
                         recordDiagnostic('sdk_rendered')
+                        recordFrameGeometry()
                         if (reportRenderedRef.current) return
                         reportRenderedRef.current = true
                         setReportVisualsReady(true)

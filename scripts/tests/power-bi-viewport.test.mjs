@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { readReportViewport, observeReportViewport, reportLayoutSettings, reportCanvasWidth, createReportLayoutUpdater } from '../../lib/power-bi-viewport.mjs';
+import { readReportViewport, observeReportViewport, reportLayoutSettings, initialReportLayoutSettings, reportCanvasWidth, createReportLayoutUpdater } from '../../lib/power-bi-viewport.mjs';
 
 function browser(width, height, touch = true, orientation = '') {
   const events = new Map();
@@ -49,11 +49,14 @@ test('rotation burst settles once, and cleanup cancels pending timers/listeners'
   assert.equal(modes.length, 2);
 });
 
-test('uses native MobileLandscape instead of a desktop Master on phones', () => {
+test('landscape uses the regular renderer while initial embed retains mobile capability', () => {
   const models = { LayoutType: { Master: 0, MobilePortrait: 2, MobileLandscape: 3 } };
   assert.deepEqual(reportLayoutSettings('portrait',models), { layoutType: 2 });
-  assert.deepEqual(reportLayoutSettings('landscape',models), { layoutType: 3 });
+  assert.deepEqual(reportLayoutSettings('landscape',models), { layoutType: 0 });
   assert.deepEqual(reportLayoutSettings('desktop',models), { layoutType: 0 });
+  assert.deepEqual(initialReportLayoutSettings('portrait',models), { layoutType: 2 });
+  assert.deepEqual(initialReportLayoutSettings('landscape',models), { layoutType: 3 });
+  assert.deepEqual(initialReportLayoutSettings('desktop',models), { layoutType: 3 });
 });
 
 test('Safari visible area excludes browser bars and follows viewport offsets', () => {
@@ -210,4 +213,27 @@ test('mobile report uses compact controls and no empty bottom strip or data-cove
   assert.match(css, /\.portal-page\.power-bi-page\s*\{[^}]*padding-bottom: 0;/);
   assert.match(css, /\.power-bi-landscape \.power-bi-toolbar \.portal-ghost-button\s*\{\s*height: 32px/);
   assert.doesNotMatch(source, /pointer-events-none absolute bottom-1 left-2/);
+});
+
+test('layout diagnostics distinguish request, success and failure without logging SDK payloads', async () => {
+  const transitions = [];
+  let fail = true;
+  const report = { updateSettings: async () => { if (fail) throw Error('test'); } };
+  const update = createReportLayoutUpdater(() => report, () => true, () => ({ layoutType: 0 }),
+    () => {}, (state, settings) => transitions.push([state, settings.layoutType]));
+  await update();
+  fail = false;
+  await update();
+  await update();
+  assert.deepEqual(transitions, [['requested',0],['failed',0],['requested',0],['applied',0]]);
+});
+
+test('base-size iframe avoids CSS transforms and legacy momentum layer', () => {
+  const source = readFileSync(new URL('../../components/company/PowerBiEmbeddedView.jsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../app/globals.css', import.meta.url), 'utf8');
+  assert.match(source, /transform: effectiveZoom === 1 \? 'none' : `scale\(\$\{effectiveZoom\}\)`/);
+  assert.match(source, /recordDiagnostic\('iframe_geometry'/);
+  assert.match(source, /getBoundingClientRect/);
+  assert.match(source, /landscape-master-v2/);
+  assert.match(css, /\.power-bi-report-viewport\s*\{[^}]*-webkit-overflow-scrolling: auto;/);
 });
