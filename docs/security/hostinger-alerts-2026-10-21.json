@@ -1,0 +1,195 @@
+{
+  "checkedAt": "2026-10-21",
+  "source": "Hostinger hPanel — gsgestao.com.br — scanner 2026-10-20 15:31",
+  "total": 36,
+  "severity": {
+    "critical": 2,
+    "high": 16,
+    "moderate": 15,
+    "low": 3
+  },
+  "notes": "Read all four pages and expanded each alert. Minimum versions are Hostinger recommendations, not universal safe ranges for all major branches.",
+  "alerts": [
+    {
+      "id": "GHSA-2xp9-vwfh-vxw4",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.24"
+    },
+    {
+      "id": "CVE-2026-75604",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.24"
+    },
+    {
+      "id": "CVE-2026-101916",
+      "package": "@grpc/grpc-js",
+      "hostingerRecommendedMinimum": "1.13.6"
+    },
+    {
+      "id": "CVE-2026-101915",
+      "package": "@grpc/grpc-js",
+      "hostingerRecommendedMinimum": "1.13.6"
+    },
+    {
+      "id": "CVE-2026-73646",
+      "package": "postcss",
+      "hostingerRecommendedMinimum": "8.5.18"
+    },
+    {
+      "id": "CVE-2026-45623",
+      "package": "postcss",
+      "hostingerRecommendedMinimum": "8.5.12"
+    },
+    {
+      "id": "CVE-2026-64649",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.21"
+    },
+    {
+      "id": "CVE-2026-64645",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.21"
+    },
+    {
+      "id": "CVE-2026-64641",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.21"
+    },
+    {
+      "id": "CVE-2026-64648",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.21"
+    },
+    {
+      "id": "CVE-2026-64647",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.21"
+    },
+    {
+      "id": "CVE-2026-64646",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.21"
+    },
+    {
+      "id": "CVE-2026-64643",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.21"
+    },
+    {
+      "id": "CVE-2026-44578",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.16"
+    },
+    {
+      "id": "CVE-2026-44573",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.16"
+    },
+    {
+      "id": "GHSA-8h8q-6873-q5fj",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.16"
+    },
+    {
+      "id": "CVE-2026-44581",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.16"
+    },
+    {
+      "id": "CVE-2026-44580",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.16"
+    },
+    {
+      "id": "CVE-2026-44577",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.16"
+    },
+    {
+      "id": "CVE-2026-44576",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.16"
+    },
+    {
+      "id": "CVE-2026-44572",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.16"
+    },
+    {
+      "id": "CVE-2026-44582",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.16"
+    },
+    {
+      "id": "CVE-2026-41907",
+      "package": "uuid",
+      "hostingerRecommendedMinimum": "11.1.1"
+    },
+    {
+      "id": "GHSA-q4gf-8mx6-v5v3",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.15"
+    },
+    {
+      "id": "CVE-2026-27903",
+      "package": "minimatch",
+      "hostingerRecommendedMinimum": "9.0.7"
+    },
+    {
+      "id": "CVE-2026-27904",
+      "package": "minimatch",
+      "hostingerRecommendedMinimum": "9.0.7"
+    },
+    {
+      "id": "CVE-2026-26996",
+      "package": "minimatch",
+      "hostingerRecommendedMinimum": "9.0.6"
+    },
+    {
+      "id": "GHSA-h25m-26qc-wcjf",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.0.8"
+    },
+    {
+      "id": "CVE-2025-64756",
+      "package": "glob",
+      "hostingerRecommendedMinimum": "10.5.0"
+    },
+    {
+      "id": "CVE-2026-104844",
+      "package": "postcss-selector-parser",
+      "hostingerRecommendedMinimum": "7.1.6"
+    },
+    {
+      "id": "CVE-2026-69153",
+      "package": "postcss",
+      "hostingerRecommendedMinimum": "8.5.23"
+    },
+    {
+      "id": "CVE-2026-41305",
+      "package": "postcss",
+      "hostingerRecommendedMinimum": "8.5.10"
+    },
+    {
+      "id": "CVE-2026-29057",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.13"
+    },
+    {
+      "id": "CVE-2026-27980",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.14"
+    },
+    {
+      "id": "CVE-2025-59471",
+      "package": "next",
+      "hostingerRecommendedMinimum": "15.5.10"
+    },
+    {
+      "id": "CVE-2025-50537",
+      "package": "eslint",
+      "hostingerRecommendedMinimum": "9.26.0",
+      "withdrawn": true
+    }
+  ]
+}

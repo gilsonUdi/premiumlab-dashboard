@@ -1,5 +1,6 @@
 import CompanyHomePage from '@/components/company/CompanyHomePage'
 
-export default function CompanyPage({ params }) {
-  return <CompanyHomePage slug={params.slug} />
+export default async function CompanyPage({ params }) {
+  const { slug } = await params
+  return <CompanyHomePage slug={slug} />
 }

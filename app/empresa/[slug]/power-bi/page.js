@@ -1,5 +1,6 @@
 import PowerBiCatalogPage from '@/components/company/PowerBiCatalogPage'
 
-export default function CompanyPowerBiRoute({ params }) {
-  return <PowerBiCatalogPage slug={params.slug} />
+export default async function CompanyPowerBiRoute({ params }) {
+  const { slug } = await params
+  return <PowerBiCatalogPage slug={slug} />
 }

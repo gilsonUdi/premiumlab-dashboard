@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import ProductionDashboard from '@/components/ProductionDashboard'
-import PowerBiEmbeddedView from '@/components/company/PowerBiEmbeddedView'
 import {
   getCompanyById,
   getCompanyBySlug,
@@ -13,6 +13,12 @@ import {
 import { canAccessPortalPage, getExternalDashboardConfigFromCompany, getSectionVisibility, PORTAL_PAGE_KEYS } from '@/lib/portal-config'
 import { getPowerBiConfigFromCompany, hasAnyPowerBiConfig } from '@/lib/power-bi'
 import PortalActivityTracker from '@/components/company/PortalActivityTracker'
+
+// The Power BI SDK depends on browser globals (self/window), even at import time.
+const PowerBiEmbeddedView = dynamic(() => import('@/components/company/PowerBiEmbeddedView'), {
+  ssr: false,
+  loading: () => <p className="portal-page p-6" role="status">Preparando o painel de indicadores…</p>,
+})
 
 function PlaceholderTool({ company }) {
   const usesExternalDashboard = !company.supabaseEnabled && company.externalDashboardUrl

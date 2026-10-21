@@ -1,5 +1,6 @@
 import CompanyDashboardPage from '@/components/company/CompanyDashboardPage'
 
-export default function CompanyPpsRoute({ params }) {
-  return <CompanyDashboardPage slug={params.slug} mode="pps" />
+export default async function CompanyPpsRoute({ params }) {
+  const { slug } = await params
+  return <CompanyDashboardPage slug={slug} mode="pps" />
 }

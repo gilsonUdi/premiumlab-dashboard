@@ -11,7 +11,8 @@ async function carregarContato(id) {
 }
 
 export default async function ContatoPublicoPage({ params }) {
-  const contato = await carregarContato(params.id)
+  const { id } = await params
+  const contato = await carregarContato(id)
   if (!contato) notFound()
   return <PublicContactCard contato={contato} />
 }

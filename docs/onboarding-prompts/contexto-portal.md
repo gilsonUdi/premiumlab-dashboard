@@ -83,6 +83,33 @@ e documentos, sem pentest, acesso ao console Firebase ou validacao da producao.
 - Referencia de sessoes: https://firebase.google.com/docs/auth/admin/manage-sessions
 
 
+## Correcoes Hostinger — retomada de 21/10/2026
+
+- Usuario autorizou ler cada alerta no navegador e aplicar correcoes de dependencias.
+  A conexao falhou inicialmente, mas voltou apos ele pedir nova tentativa.
+- Lidos quatro paginas e detalhes dos 36 alertas: 2 criticos, 16 altos, 15 moderados,
+  3 baixos. Fonte: hPanel gsgestao.com.br, scanner 20/10/2026 15:31, repositorio do portal.
+- Inventario individual: docs/security/hostinger-alerts-2026-10-21.json.
+- Relatorio, versoes e pendencias: docs/security/hostinger-remediacao-2026-10-21.md.
+- Atualizacao preparada: Next/eslint-config-next 15.5.28, PostCSS 8.5.31,
+  postcss-selector-parser 7.1.7, gRPC 1.14.6, UUID 11.1.1 e ESLint 9.39.5,
+  incluindo dependencias aninhadas por overrides. Glob 10.3.10/minimatch 9.0.3
+  nao permanecem na arvore; preservar os ramos corrigidos de cada major.
+- Nove paginas/rotas migradas para await params; criado lockfile raiz e delimitada
+  a raiz de tracing. Preservar os ajustes de BI e nao misturar mudancas de autorizacao.
+- CVE-2025-50537 foi retirado; a propria Hostinger informa isso na descricao.
+- npm audit ainda tem oito entradas altas derivadas de braces/cadeia Tailwind e
+  xlsx; nao afirmar zero vulnerabilidades. Requer trabalho separado/testes de CSS
+  e exportacao. Nao fazer downgrade cego nem npm audit fix --force.
+- Checkout limpo usado para esta publicacao, fora do Google Drive:
+  C:\Users\Windows 11\AppData\Local\Temp\portal-bi-publish-a3712b44c3c64dcb90e267a7d417b935.
+  A pasta original G: permanece com trabalhos paralelos; nao sobrescrever seu
+  package-lock.json nao rastreado nem resetar/limpar o checkout.
+- Build final aprovado, 25 testes aprovados e smoke HTTP das rotas de empresa/login
+  aprovado. O teste detectou e corrigiu importacao Power BI no servidor: componente
+  carregado via next/dynamic com ssr:false. A copia sem env nao validou login real
+  nem dados autenticados. Scanner so confirma a producao apos nova implantacao.
+
 ## Produto
 Nome:
 - GS Portal / DashboardPremium

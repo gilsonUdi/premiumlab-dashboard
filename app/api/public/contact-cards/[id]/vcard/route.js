@@ -13,7 +13,8 @@ function nomeArquivo(nome) {
 }
 
 export async function GET(_request, { params }) {
-  const snapshot = await getFirebaseAdminDb().collection('publicContactCards').doc(String(params.id || '')).get()
+  const { id } = await params
+  const snapshot = await getFirebaseAdminDb().collection('publicContactCards').doc(String(id || '')).get()
   if (!snapshot.exists || snapshot.data()?.active === false) {
     return NextResponse.json({ error: 'Contato não encontrado.' }, { status: 404 })
   }

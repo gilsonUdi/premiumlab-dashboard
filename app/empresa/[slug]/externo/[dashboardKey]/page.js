@@ -1,5 +1,6 @@
 import CompanyDashboardPage from '@/components/company/CompanyDashboardPage'
 
-export default function CompanyExternalDashboardEmbedRoute({ params }) {
-  return <CompanyDashboardPage slug={params.slug} mode="external" externalDashboardKey={params.dashboardKey} />
+export default async function CompanyExternalDashboardEmbedRoute({ params }) {
+  const { slug, dashboardKey } = await params
+  return <CompanyDashboardPage slug={slug} mode="external" externalDashboardKey={dashboardKey} />
 }
