@@ -110,6 +110,23 @@ e documentos, sem pentest, acesso ao console Firebase ou validacao da producao.
   carregado via next/dynamic com ssr:false. A copia sem env nao validou login real
   nem dados autenticados. Scanner so confirma a producao apos nova implantacao.
 
+## BI horizontal no iPhone — ajuste de 21/10/2026
+
+- Print mostrou topo encoberto, faixa inferior vazia e primeira rotacao sem visuais.
+- Corrigidos min-height global 100vh herdado pelo BI, altura duplicada da grade e
+  ausencia de listeners VisualViewport resize/scroll e ScreenOrientation.
+- Em mobile, superficie usa dimensoes e offsets da area visivel; min-height:0 e
+  safe areas no contorno completo. Grade h-full; desktop preservado.
+- Layout SDK aplicado depois de frame positivo e estabilizado. Falha em getActivePage
+  nao impede aplicacao inicial. Nao recriar iframe ou alterar embedConfig na rotacao.
+- Preservados zoom isolado, pagina selecionada, sessao e atualizacao de token.
+- 29 testes e build Next 15.5.28 aprovados. Harness React externo validou frame
+  inicialmente zero, primeira rotacao, offsets e uma unica instancia do embed.
+- Sem iPhone fisico: repetir apos implantar, com barras visiveis/ocultas. Nao afirmar
+  Safari real validado nem fim de todos os reinicios. Nao alteradas dependencias/auth.
+- Git e implementacao continuam no checkout limpo fora do Google Drive; preservar G:
+  e trabalhos paralelos, como registrado na secao Hostinger.
+
 ## Produto
 Nome:
 - GS Portal / DashboardPremium

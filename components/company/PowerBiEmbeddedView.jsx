@@ -62,6 +62,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [tokenExpiration, setTokenExpiration] = useState('')
   const [pageAspectRatio, setPageAspectRatio] = useState(16 / 9)
   const [frameSize, setFrameSize] = useState({ width: 0, height: 0 })
+  const frameSizeRef = useRef(frameSize)
+  frameSizeRef.current = frameSize
   const [scrollLeft, setScrollLeft] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [capacityMessage, setCapacityMessage] = useState('Preparando seu painel de indicadores. Aguarde alguns instantes...')
@@ -77,7 +79,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   if (!layoutUpdaterRef.current) {
     layoutUpdaterRef.current = createReportLayoutUpdater(
       () => reportRef.current,
-      () => reportLoadedRef.current,
+      () => reportLoadedRef.current && frameSizeRef.current.width > 0 && frameSizeRef.current.height > 0,
       () => layoutSettingsRef.current,
       layoutError => console.error('[power-bi:layout]', layoutError),
     )
@@ -451,8 +453,15 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
 
   useEffect(() => {
     recordDiagnostic('layout', { mode: viewport.mode })
-    layoutUpdaterRef.current()
   }, [viewport.mode, recordDiagnostic])
+
+  // Safari settles its browser bars and iframe dimensions after orientationchange.
+  // Apply SDK layout only after that measured area commits, including the first turn.
+  useEffect(() => {
+    if (frameSize.width <= 0 || frameSize.height <= 0) return undefined
+    const timer = window.setTimeout(() => layoutUpdaterRef.current(), 150)
+    return () => window.clearTimeout(timer)
+  }, [viewport.mode, frameSize.width, frameSize.height])
 
   useEffect(() => {
     const container = reportViewportRef.current
@@ -560,7 +569,11 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const sidebarPages = config?.pages || []
 
   return (
-    <main className={`portal-page relative h-[100dvh] overflow-hidden ${isLandscape ? 'power-bi-landscape' : ''}`}>
+    <main className={`portal-page power-bi-page relative h-[100dvh] overflow-hidden ${isLandscape ? 'power-bi-landscape' : ''}`}
+      style={viewport.mode !== 'desktop' && viewport.bounds ? {
+        position: 'fixed', top: viewport.bounds.top, left: viewport.bounds.left,
+        width: viewport.bounds.width, height: viewport.bounds.height,
+      } : undefined}>
       <Link
         href={`/empresa/${company.slug}/power-bi`}
         aria-label="Voltar ao portal"
@@ -574,7 +587,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         <ArrowLeft size={18} />
       </Link>
 
-      <section className={`grid h-[100dvh] min-h-0 grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[64px_minmax(0,1fr)]' : 'lg:grid-cols-[272px_minmax(0,1fr)]'}`}
+      <section className={`grid h-full min-h-0 grid-cols-1 ${sidebarCollapsed ? 'lg:grid-cols-[64px_minmax(0,1fr)]' : 'lg:grid-cols-[272px_minmax(0,1fr)]'}`}
         style={isLandscape ? { gridTemplateColumns: `${sidebarCollapsed ? 52 : 160}px minmax(0, 1fr)` } : undefined}>
         <aside
           className={isLandscape ? 'power-bi-pages-sidebar flex min-h-0 flex-col pt-2' : 'hidden pt-20 lg:flex lg:min-h-0 lg:flex-col'}
@@ -710,12 +723,11 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
               <div
                 ref={embedShellRef}
                 className={`relative flex h-full w-full flex-col overflow-hidden ${isFullscreen ? 'fixed inset-0 z-[80] h-[100dvh]' : ''}`}
-                style={{ background: '#0A162B', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }}
+                style={{ background: '#0A162B' }}
               >
                 <div
                   className="z-20 shrink-0 backdrop-blur"
                   style={{
-                    paddingTop: 'env(safe-area-inset-top, 0px)',
                     background: companyChrome.background,
                     borderBottom: `1px solid ${companyChrome.border}`,
                     boxShadow: '0 4px 20px rgba(3, 8, 20, 0.3)',
@@ -788,6 +800,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                           if (!reportRef.current) return
                           reportLoadedRef.current = true
                           recordDiagnostic('sdk_loaded')
+                          // A page metadata failure must not prevent the orientation update.
+                          await layoutUpdaterRef.current()
                           try {
                             const currentPage = await reportRef.current.getActivePage()
                             if (currentPage?.name) {
@@ -801,7 +815,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                               setActivePageName(currentPage.name)
                               dashboardHeartbeatRef.current?.()
                             }
-                            await layoutUpdaterRef.current()
                             await syncReportPageSize()
                             if (pendingPageNameRef.current) {
                               await runPendingPageNavigation()

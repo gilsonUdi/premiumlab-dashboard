@@ -56,6 +56,61 @@ test('uses native MobileLandscape instead of a desktop Master on phones', () => 
   assert.deepEqual(reportLayoutSettings('desktop',models), { layoutType: 0 });
 });
 
+test('Safari visible area excludes browser bars and follows viewport offsets', () => {
+  const phone = browser(844, 390, true, 'landscape-primary');
+  phone.visualViewport = { width: 844, height: 268, offsetTop: 42, offsetLeft: 0, scale: 1 };
+  assert.deepEqual(readReportViewport(phone).bounds, { width: 844, height: 268, top: 42, left: 0 });
+  phone.visualViewport = { width: 422, height: 134, offsetTop: 80, offsetLeft: 30, scale: 2 };
+  assert.deepEqual(readReportViewport(phone).bounds, { width: 844, height: 390, top: 0, left: 0 });
+});
+
+test('first rotation follows visual viewport and screen orientation events and cleans up', () => {
+  const phone = browser(390, 844, true, 'portrait-primary');
+  phone.visualViewport = { width: 390, height: 700, scale: 1,
+    addEventListener: (event, handler) => phone.events.set(`visual:${event}`, handler),
+    removeEventListener: event => phone.events.delete(`visual:${event}`) };
+  phone.screen.orientation.addEventListener = (event, handler) => phone.events.set(`screen:${event}`, handler);
+  phone.screen.orientation.removeEventListener = event => phone.events.delete(`screen:${event}`);
+  const views = [];
+  const cleanup = observeReportViewport(phone, value => views.push(value));
+  // The window event can arrive before Safari has changed its actual visible area.
+  phone.emit('orientationchange'); phone.flush();
+  phone.innerWidth = 844; phone.innerHeight = 390;
+  phone.screen.orientation.type = 'landscape-primary';
+  phone.visualViewport.width = 844; phone.visualViewport.height = 268;
+  phone.emit('visual:resize'); phone.emit('screen:change'); phone.flush();
+  assert.equal(views.at(-1).mode, 'landscape');
+  assert.equal(views.at(-1).bounds.height, 268);
+  phone.visualViewport.height = 320;
+  phone.emit('visual:scroll'); phone.flush();
+  assert.equal(views.at(-1).bounds.height, 320);
+  cleanup();
+  assert.equal(phone.events.size, 0);
+});
+
+test('a report loaded at zero size receives layout after its first measurable frame', async () => {
+  let width = 0; let height = 0;
+  const layouts = [];
+  const update = createReportLayoutUpdater(() => ({ updateSettings: async settings => layouts.push(settings.layoutType) }),
+    () => width > 0 && height > 0, () => ({ layoutType: 3 }), assert.fail);
+  await update();
+  assert.deepEqual(layouts, []);
+  width = 672; height = 210;
+  await update();
+  assert.deepEqual(layouts, [3]);
+});
+
+test('BI surface overrides global 100vh and updates settings after frame measurements', () => {
+  const css = readFileSync(new URL('../../app/globals.css', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../../components/company/PowerBiEmbeddedView.jsx', import.meta.url), 'utf8');
+  assert.match(css, /\.portal-page\.power-bi-page\s*\{\s*min-height: 0/);
+  assert.match(source, /height: viewport.bounds.height/);
+  assert.match(source, /\[viewport.mode, frameSize.width, frameSize.height\]/);
+  assert.match(source, /grid h-full min-h-0/);
+  const loaded = source.slice(source.indexOf("recordDiagnostic('sdk_loaded')"));
+  assert.ok(loaded.indexOf('await layoutUpdaterRef.current()') < loaded.indexOf('getActivePage()'));
+});
+
 test('browser pinch does not switch report layout; a real rotation still does', () => {
   const phone = browser(844,390);
   const modes = [];
