@@ -483,7 +483,16 @@ select.portal-input:disabled {
   padding-top: env(safe-area-inset-top, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: 0;
+}
+
+/* Global portal button rules otherwise override the compact toolbar utilities. */
+.power-bi-landscape .power-bi-toolbar > div { height: 36px; padding: 0 8px; }
+.power-bi-landscape .power-bi-toolbar .portal-ghost-button {
+  height: 32px;
+  padding: 0 8px;
+  font-size: 11px;
+  gap: 4px;
 }
 
 .portal-grid-background {

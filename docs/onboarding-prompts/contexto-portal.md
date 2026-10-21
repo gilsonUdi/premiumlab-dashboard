@@ -127,6 +127,15 @@ e documentos, sem pentest, acesso ao console Firebase ou validacao da producao.
 - Git e implementacao continuam no checkout limpo fora do Google Drive; preservar G:
   e trabalhos paralelos, como registrado na secao Hostinger.
 
+## BI horizontal no iPhone — segunda revisao de 21/10/2026
+
+- Novo diagnostico: ultima abertura teve `sdk_loaded`, rotacao durante o carregamento e nenhum `sdk_rendered` ate a captura. Isso sustenta a hipotese de interrupcao da primeira renderizacao, mas nao comprova a causa interna do Safari/Power BI.
+- Atualizacoes de layout agora aguardam a primeira renderizacao visual e dimensoes positivas. Mudancas de orientacao pendentes usam o layout mais recente, serializadas, sem recriar iframe/token/sessao. Eventos `rendered` posteriores nao iniciam ciclos de atualizacao.
+- Resizes da barra do navegador nao repetem `updateSettings` para o mesmo layout; falhas podem ser tentadas novamente e novas instancias recebem a configuracao.
+- Removidos padding inferior da superficie, que duplicava a reserva inferior, e a faixa Mover painel. Arraste/pinca/scroll nativo e setas do teclado continuam disponiveis, sem reservar altura para uma segunda barra nem criar ciclos de redimensionamento ao aparecer/desaparecer conforme o overflow. Instrucoes de gestos nao cobrem mais os dados.
+- Toolbar horizontal compacta tem regras CSS especificas: os estilos globais de botoes estavam sobrepondo as classes compactas. Durante a primeira renderizacao, aparece um aviso de carregamento em vez de uma area preta sem explicacao.
+- Validacao local: 32 testes automatizados aprovados e regressao React com SDK simulado aprovada. Isso nao substitui teste no iPhone real apos o deploy. Se continuar sem visuais, capturar novo diagnostico incluindo o tempo de espera.
+
 ## Produto
 Nome:
 - GS Portal / DashboardPremium

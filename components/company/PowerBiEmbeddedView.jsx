@@ -64,12 +64,13 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [frameSize, setFrameSize] = useState({ width: 0, height: 0 })
   const frameSizeRef = useRef(frameSize)
   frameSizeRef.current = frameSize
-  const [scrollLeft, setScrollLeft] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [capacityMessage, setCapacityMessage] = useState('Preparando seu painel de indicadores. Aguarde alguns instantes...')
   const [sessionExpired, setSessionExpired] = useState(false)
   const reportRef = useRef(null)
   const reportLoadedRef = useRef(false)
+  const reportRenderedRef = useRef(false)
+  const [reportVisualsReady, setReportVisualsReady] = useState(false)
   const embedShellRef = useRef(null)
   const reportViewportRef = useRef(null)
   const initialLayoutSettingsRef = useRef(null)
@@ -79,7 +80,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   if (!layoutUpdaterRef.current) {
     layoutUpdaterRef.current = createReportLayoutUpdater(
       () => reportRef.current,
-      () => reportLoadedRef.current && frameSizeRef.current.width > 0 && frameSizeRef.current.height > 0,
+      () => reportLoadedRef.current && reportRenderedRef.current && frameSizeRef.current.width > 0 && frameSizeRef.current.height > 0,
       () => layoutSettingsRef.current,
       layoutError => console.error('[power-bi:layout]', layoutError),
     )
@@ -88,6 +89,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     recordDiagnostic('sdk_instance')
     reportRef.current = embeddedReport
     reportLoadedRef.current = false
+    reportRenderedRef.current = false
+    setReportVisualsReady(false)
   }, [recordDiagnostic])
   const syncReportPageSize = useCallback(async () => {
     try {
@@ -503,7 +506,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
 
   const canvasWidth = reportCanvasWidth(frameSize.width, frameSize.height, viewport.mode, pageAspectRatio)
   const effectiveZoom = isLandscape ? reportZoom : 1
-  const maxHorizontalScroll = Math.max(0, canvasWidth * effectiveZoom - frameSize.width)
   useLayoutEffect(() => {
     const anchor = zoomAnchorRef.current
     const scroller = reportViewportRef.current
@@ -527,7 +529,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     zoomAnchorRef.current = null
     setReportZoom(1)
     setReportInteraction(false)
-    setScrollLeft(0)
   }, [viewport.mode, activePageName])
 
   const toggleFullscreen = async () => {
@@ -726,7 +727,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                 style={{ background: '#0A162B' }}
               >
                 <div
-                  className="z-20 shrink-0 backdrop-blur"
+                  className="power-bi-toolbar z-20 shrink-0 backdrop-blur"
                   style={{
                     background: companyChrome.background,
                     borderBottom: `1px solid ${companyChrome.border}`,
@@ -782,8 +783,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                 </div>
                 <div className="flex min-h-0 w-full flex-1 flex-col">
                   <div className="relative min-h-0 min-w-0 flex-1">
-                  <div ref={reportViewportRef} className="power-bi-report-viewport h-full w-full overflow-auto"
-                    onScroll={event => setScrollLeft(event.currentTarget.scrollLeft)}>
+                  <div ref={reportViewportRef} className="power-bi-report-viewport h-full w-full overflow-auto">
                     <div className="relative" style={{ width: canvasWidth ? canvasWidth * effectiveZoom : '100%',
                       height: frameSize.height ? frameSize.height * effectiveZoom : '100%', minWidth: '100%' }}>
                     <div className="absolute left-0 top-0" style={{ width: canvasWidth || '100%', height: frameSize.height || '100%',
@@ -800,7 +800,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                           if (!reportRef.current) return
                           reportLoadedRef.current = true
                           recordDiagnostic('sdk_loaded')
-                          // A page metadata failure must not prevent the orientation update.
+                          // Queued layout changes wait for the first visual render, not just metadata.
                           await layoutUpdaterRef.current()
                           try {
                             const currentPage = await reportRef.current.getActivePage()
@@ -846,7 +846,13 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                           dashboardHeartbeatRef.current?.()
                         },
                       ],
-                      ['rendered', () => recordDiagnostic('sdk_rendered')],
+                      ['rendered', () => {
+                        recordDiagnostic('sdk_rendered')
+                        if (reportRenderedRef.current) return
+                        reportRenderedRef.current = true
+                        setReportVisualsReady(true)
+                        layoutUpdaterRef.current()
+                      }],
                       ['error', event => { recordDiagnostic('sdk_error'); handlePowerBiError(event) }],
                     ])
                   }
@@ -869,23 +875,17 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                         else return
                         event.preventDefault()
                       }}>
-                      <span className="pointer-events-none absolute bottom-1 left-2 rounded bg-black/70 px-2 py-1 text-[10px] text-white">
+                      <span className="sr-only">
                         Pinça para zoom · arraste para mover · alterne para Interagir para usar filtros
                       </span>
                     </div>
                   ) : null}
-                  </div>
-                  {isLandscape ? (
-                    <label className="flex h-8 shrink-0 items-center gap-2 px-3 text-[10px]" style={{ color: companyChrome.muted }}>
-                      <span className="shrink-0">Mover painel</span>
-                      <input type="range" min={0} max={maxHorizontalScroll} step={1}
-                        aria-label="Mover relatório horizontalmente" className="min-w-0 flex-1"
-                        disabled={maxHorizontalScroll <= 0} value={Math.min(scrollLeft, maxHorizontalScroll)}
-                        onChange={event => {
-                          if (reportViewportRef.current) reportViewportRef.current.scrollLeft = Number(event.target.value)
-                        }} />
-                    </label>
+                  {!reportVisualsReady ? (
+                    <div role="status" className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4 text-center text-sm text-white/80">
+                      Carregando os visuais do relatório…
+                    </div>
                   ) : null}
+                  </div>
                 {viewport.mode === 'portrait' && viewport.compactPages && sidebarPages.length > 0 ? (
                   <div
                     className="z-20 shrink-0 px-3 py-2 backdrop-blur"

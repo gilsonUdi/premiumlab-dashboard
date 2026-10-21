@@ -167,3 +167,47 @@ test('component does not remount on orientation or replace config on token renew
   assert.doesNotMatch(refresh, /setConfig\(/);
   assert.match(source, /\}, \[config\]\)/);
 });
+
+test('rotation before first visual render waits and applies only the latest layout', async () => {
+  let rendered = false;
+  let settings = { layoutType: 2 };
+  const layouts = [];
+  const report = { updateSettings: async value => layouts.push(value.layoutType) };
+  const update = createReportLayoutUpdater(() => report, () => rendered, () => settings, assert.fail);
+  await update();
+  settings = { layoutType: 3 };
+  await update();
+  assert.deepEqual(layouts, []);
+  rendered = true;
+  await update();
+  await update();
+  assert.deepEqual(layouts, [3]);
+});
+
+test('same-layout viewport resizes are deduplicated but failures and new instances retry', async () => {
+  let count = 0;
+  let errors = 0;
+  let report = { updateSettings: async () => { if (++count === 1) throw new Error('retry'); } };
+  const update = createReportLayoutUpdater(() => report, () => true, () => ({ layoutType: 3 }), () => errors++);
+  await update();
+  await update();
+  await update();
+  assert.equal(count, 2);
+  assert.equal(errors, 1);
+  report = { updateSettings: async () => count++ };
+  await update();
+  assert.equal(count, 3);
+});
+
+test('mobile report uses compact controls and no empty bottom strip or data-covering hint', () => {
+  const source = readFileSync(new URL('../../components/company/PowerBiEmbeddedView.jsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../app/globals.css', import.meta.url), 'utf8');
+  assert.match(source, /reportLoadedRef.current && reportRenderedRef.current/);
+  assert.doesNotMatch(source, /Mover painel/);
+  assert.match(source, /power-bi-report-viewport h-full w-full overflow-auto/);
+  assert.match(source, /if \(reportRenderedRef.current\) return/);
+  assert.match(source, /Carregando os visuais do relatório/);
+  assert.match(css, /\.portal-page\.power-bi-page\s*\{[^}]*padding-bottom: 0;/);
+  assert.match(css, /\.power-bi-landscape \.power-bi-toolbar \.portal-ghost-button\s*\{\s*height: 32px/);
+  assert.doesNotMatch(source, /pointer-events-none absolute bottom-1 left-2/);
+});
