@@ -13,6 +13,7 @@ import { clampReportZoom } from '@/lib/power-bi-gestures.mjs'
 
 import { sendDashboardHeartbeat } from '@/lib/power-bi-session-client.mjs'
 import { createReportDiagnostics } from '@/lib/power-bi-diagnostics.mjs'
+import { shouldOptimizeMobileReport, createMobileReportOptimizer } from '@/lib/power-bi-mobile.mjs'
 
 const TOKEN_REFRESH_INTERVAL_MS = 30 * 1000
 const TOKEN_REFRESH_MARGIN_MS = 10 * 60 * 1000
@@ -64,6 +65,12 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [capacityMessage, setCapacityMessage] = useState('Preparando seu painel de indicadores. Aguarde alguns instantes...')
   const [sessionExpired, setSessionExpired] = useState(false)
+  const [mobilePlan, setMobilePlan] = useState(null)
+  const [mobileUpdating, setMobileUpdating] = useState(false)
+  const mobileOptimizationRef = useRef(false)
+  const mobileAllowedPagesRef = useRef([])
+  const mobileRequestRef = useRef({ pageName: '', mode: 'content', block: 0 })
+  const mobileRenderPendingRef = useRef(null)
   const reportRef = useRef(null)
   const reportLoadedRef = useRef(false)
   const reportRenderedRef = useRef(false)
@@ -78,10 +85,55 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   }, [recordDiagnostic])
   const initialLayoutSettingsRef = useRef(null)
   const layoutPageRef = useRef('')
+  const mobileOptimizerRef = useRef(null)
+  if (!mobileOptimizerRef.current) {
+    mobileOptimizerRef.current = createMobileReportOptimizer(models,
+      (report, pageName) => report === reportRef.current && pageName === layoutPageRef.current && reportLoadedRef.current,
+      plan => {
+        mobileRequestRef.current = { pageName: plan.pageName, mode: plan.mode, block: plan.block }
+        setMobilePlan(plan)
+        recordDiagnostic('mobile_layout_applied', { outcome: `${plan.visibleCount}-visuals` })
+      })
+  }
+  const updateMobileReport = useCallback(async (changes = {}) => {
+    if (!mobileOptimizationRef.current || !reportLoadedRef.current || !reportRef.current) return
+    const report = reportRef.current
+    const previous = mobileRequestRef.current
+    const pageName = layoutPageRef.current
+    const request = { ...(previous.pageName === pageName ? previous : { mode: 'content', block: 0 }),
+      ...changes, pageName, landscape: readReportViewport(window).mode === 'landscape' }
+    mobileRequestRef.current = request
+    setMobileUpdating(true)
+    try {
+      await mobileOptimizerRef.current.update(report, request, mobileAllowedPagesRef.current)
+    } catch (mobileError) {
+      recordDiagnostic('mobile_layout_failed')
+      console.error('[power-bi:mobile]', mobileError)
+      // Never silently render the heavy report after the lightweight path fails.
+      if (report === reportRef.current) setError('Não foi possível preparar o modo leve do BI. Reabra o relatório para tentar novamente.')
+      throw mobileError
+    } finally {
+      if (report === reportRef.current) setMobileUpdating(false)
+    }
+  }, [recordDiagnostic])
+  const renderMobileWhenVisible = useCallback(async () => {
+    const report = mobileRenderPendingRef.current
+    if (!report || report !== reportRef.current || !reportLoadedRef.current
+      || frameSizeRef.current.width <= 0 || frameSizeRef.current.height <= 0) return
+    mobileRenderPendingRef.current = null
+    try {
+      await updateMobileReport()
+      if (report === reportRef.current && reportLoadedRef.current) await report.render()
+    } catch (renderError) {
+      recordDiagnostic('mobile_render_failed')
+      console.error('[power-bi:mobile-render]', renderError)
+      if (report === reportRef.current) setError('Não foi possível exibir o modo leve do BI. Reabra o relatório para tentar novamente.')
+    }
+  }, [recordDiagnostic, updateMobileReport])
   const layoutUpdaterRef = useRef(null)
   if (!layoutUpdaterRef.current) {
     layoutUpdaterRef.current = createReportLayoutUpdater(
-      () => reportRef.current,
+      () => mobileOptimizationRef.current ? null : reportRef.current,
       () => reportLoadedRef.current && reportRenderedRef.current && frameSizeRef.current.width > 0 && frameSizeRef.current.height > 0,
       () => reportLayoutSettings(readReportViewport(window).mode, models),
       layoutError => console.error('[power-bi:layout]', layoutError),
@@ -97,6 +149,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     reportRef.current = embeddedReport
     reportLoadedRef.current = false
     reportRenderedRef.current = false
+    mobileRenderPendingRef.current = null
     setReportVisualsReady(false)
   }, [recordDiagnostic])
   const syncReportPageSize = useCallback(async () => {
@@ -265,6 +318,10 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         // Start with a mobile-capable layout even if opened in landscape.
         // The SDK can then switch orientation without resetting its iframe.
         const initialViewport = readReportViewport(window)
+        mobileOptimizationRef.current = shouldOptimizeMobileReport(company.slug, initialViewport.mode)
+        mobileAllowedPagesRef.current = (payload.pages || []).map(page => page.name)
+        mobileRequestRef.current = { pageName: payload.initialPageName || '', mode: 'content', block: 0 }
+        setMobilePlan(null)
         initialLayoutSettingsRef.current = initialReportLayoutSettings(initialViewport.mode, models)
         layoutPageRef.current = payload.initialPageName || ''
         recordDiagnostic('layout_initial', { layoutType: initialLayoutSettingsRef.current.layoutType })
@@ -413,7 +470,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
         try {
           await reportRef.current.setPage(pageName)
           layoutPageRef.current = pageName
-          await layoutUpdaterRef.current()
+          if (mobileOptimizationRef.current) await updateMobileReport()
+          else await layoutUpdaterRef.current()
           if (!pendingPageNameRef.current) setActivePageName(pageName)
         } catch (pageError) {
           console.error(pageError)
@@ -423,7 +481,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       pageNavigationRunningRef.current = false
       if (pendingPageNameRef.current) runPendingPageNavigation()
     }
-  }, [])
+  }, [updateMobileReport])
 
   const handleSelectPage = useCallback(pageName => {
     if (!pageName || (pageMap.size > 0 && !pageMap.has(pageName))) return
@@ -458,7 +516,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
 
   useEffect(() => {
     recordDiagnostic('layout', { mode: viewport.mode })
-  }, [viewport.mode, recordDiagnostic])
+    if (mobileOptimizationRef.current) updateMobileReport().catch(() => {})
+  }, [viewport.mode, recordDiagnostic, updateMobileReport])
 
   // Safari settles its browser bars and iframe dimensions after orientationchange.
   // Apply SDK layout only after that measured area commits, including the first turn.
@@ -467,6 +526,10 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     const timer = window.setTimeout(() => layoutUpdaterRef.current(), 150)
     return () => window.clearTimeout(timer)
   }, [viewport.mode, frameSize.width, frameSize.height])
+
+  useEffect(() => {
+    if (mobileOptimizationRef.current) renderMobileWhenVisible()
+  }, [frameSize.width, frameSize.height, renderMobileWhenVisible])
 
   useEffect(() => {
     const container = reportViewportRef.current
@@ -506,8 +569,9 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     return () => { observer.disconnect(); iframe?.removeEventListener('load', loaded) }
   }, [loading, error, sessionExpired, embedAvailable, recordDiagnostic])
 
-  const canvasWidth = reportCanvasWidth(frameSize.width, frameSize.height, viewport.mode, pageAspectRatio)
-  const effectiveZoom = isLandscape ? reportZoom : 1
+  const canvasWidth = mobileOptimizationRef.current ? frameSize.width
+    : reportCanvasWidth(frameSize.width, frameSize.height, viewport.mode, pageAspectRatio)
+  const effectiveZoom = mobileOptimizationRef.current ? 1 : isLandscape ? reportZoom : 1
   useLayoutEffect(() => {
     const anchor = zoomAnchorRef.current
     const scroller = reportViewportRef.current
@@ -743,7 +807,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                         Axis
                       </span>
                     </div>
-                    {isLandscape ? (
+                    {isLandscape && !mobileOptimizationRef.current ? (
                       <div className="flex shrink-0 items-center gap-1" aria-label="Zoom do BI">
                         <button type="button" className="portal-ghost-button h-8 px-2" aria-label="Diminuir zoom do BI"
                           disabled={reportZoom <= 1} onClick={() => changeReportZoom(reportZoom - 0.25)}>−</button>
@@ -766,6 +830,32 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                     ) : null}
                   </div>
                 </div>
+                {mobileOptimizationRef.current ? (
+                  <div className="shrink-0 border-b border-white/10 px-2 py-1 text-[11px]" style={{ color: companyChrome.foreground }}>
+                    <div className="flex flex-wrap items-center justify-between gap-1">
+                      <div className="flex items-center gap-1" aria-label="Modo leve do BI">
+                        <button type="button" className="portal-ghost-button px-2 py-1" disabled={mobileUpdating || !mobilePlan}
+                          aria-pressed={mobilePlan?.mode === 'content'} onClick={() => updateMobileReport({ mode: 'content', block: 0 }).catch(() => {})}>
+                          Indicadores{mobilePlan ? ` (${mobilePlan.chartCount})` : ''}
+                        </button>
+                        <button type="button" className="portal-ghost-button px-2 py-1" disabled={mobileUpdating || !mobilePlan || !mobilePlan.filterCount}
+                          aria-pressed={mobilePlan?.mode === 'filters'} onClick={() => updateMobileReport({ mode: 'filters', block: 0 }).catch(() => {})}>
+                          Filtros{mobilePlan ? ` (${mobilePlan.filterCount})` : ''}
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1" aria-label="Blocos do modo leve">
+                        <button type="button" className="portal-ghost-button px-2 py-1" aria-label="Bloco anterior"
+                          disabled={mobileUpdating || !mobilePlan || mobilePlan.block === 0}
+                          onClick={() => updateMobileReport({ block: mobilePlan.block - 1 }).catch(() => {})}>‹</button>
+                        <span role="status">{mobileUpdating ? 'Preparando…' : mobilePlan ? `${mobilePlan.block + 1} / ${mobilePlan.blocks}` : 'Modo leve'}</span>
+                        <button type="button" className="portal-ghost-button px-2 py-1" aria-label="Próximo bloco"
+                          disabled={mobileUpdating || !mobilePlan || mobilePlan.block + 1 >= mobilePlan.blocks}
+                          onClick={() => updateMobileReport({ block: mobilePlan.block + 1 }).catch(() => {})}>›</button>
+                      </div>
+                    </div>
+                    {mobilePlan?.visibleCount === 0 ? <p className="py-1">Nenhum {mobilePlan.mode === 'filters' ? 'filtro' : 'indicador'} disponível nesta página.</p> : null}
+                  </div>
+                ) : null}
                 <div className="flex min-h-0 w-full flex-1 flex-col">
                   <div className="relative min-h-0 min-w-0 flex-1">
                   <div ref={reportViewportRef} className="power-bi-report-viewport h-full w-full overflow-auto">
@@ -775,6 +865,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                       transform: effectiveZoom === 1 ? 'none' : `scale(${effectiveZoom})`, transformOrigin: '0 0' }}>
                 <PowerBIEmbed
                   embedConfig={embedConfig}
+                  phasedEmbedding={mobileOptimizationRef.current}
                   cssClassName="power-bi-report-frame h-full w-full"
                   getEmbeddedComponent={captureReport}
                   eventHandlers={
@@ -790,6 +881,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                           try {
                             const currentPage = await reportRef.current.getActivePage()
                             if (currentPage?.name) {
+                              layoutPageRef.current = currentPage.name
                               const configuredPage = pageMap.get(currentPage.name)
                               const previousPage = dashboardPageRef.current
                               dashboardPageRef.current = {
@@ -799,6 +891,10 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                               }
                               setActivePageName(currentPage.name)
                               dashboardHeartbeatRef.current?.()
+                            }
+                            if (mobileOptimizationRef.current) {
+                              mobileRenderPendingRef.current = reportRef.current
+                              await renderMobileWhenVisible()
                             }
                             await syncReportPageSize()
                             if (pendingPageNameRef.current) {
@@ -828,7 +924,8 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                           }
                           setActivePageName(nextName)
                           layoutPageRef.current = nextName
-                          layoutUpdaterRef.current()
+                          if (mobileOptimizationRef.current) updateMobileReport().catch(() => {})
+                          else layoutUpdaterRef.current()
                           syncReportPageSize()
                           dashboardHeartbeatRef.current?.()
                         },
