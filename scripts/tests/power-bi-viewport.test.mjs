@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { readReportViewport, observeReportViewport, reportLayoutSettings, initialReportLayoutSettings, reportCanvasWidth, createReportLayoutUpdater } from '../../lib/power-bi-viewport.mjs';
+import { readReportViewport, observeReportViewport, observeReportFrame, reportLayoutSettings, initialReportLayoutSettings, reportCanvasWidth, createReportLayoutUpdater } from '../../lib/power-bi-viewport.mjs';
 
 test('BI toolbar has no diagnostic button, dialog or UI polling', () => {
   const source = readFileSync(new URL('../../components/company/PowerBiEmbeddedView.jsx', import.meta.url), 'utf8');
@@ -117,7 +117,8 @@ test('BI surface overrides global 100vh and updates settings after frame measure
   assert.match(source, /\[viewport.mode, frameSize.width, frameSize.height\]/);
   assert.match(source, /grid h-full min-h-0/);
   const loaded = source.slice(source.indexOf("recordDiagnostic('sdk_loaded')"));
-  assert.ok(loaded.indexOf('await layoutUpdaterRef.current()') < loaded.indexOf('getActivePage()'));
+  assert.ok(loaded.indexOf('getActivePage()') < loaded.indexOf('reportLoadedRef.current = true'));
+  assert.match(loaded, /if \(phasedEmbeddingRef.current\) await renderControllerRef.current\(\)/);
 });
 
 test('browser pinch does not switch report layout; a real rotation still does', () => {
@@ -211,7 +212,7 @@ test('same-layout viewport resizes are deduplicated but failures and new instanc
 test('mobile report uses compact controls and no empty bottom strip or data-covering hint', () => {
   const source = readFileSync(new URL('../../components/company/PowerBiEmbeddedView.jsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../../app/globals.css', import.meta.url), 'utf8');
-  assert.match(source, /reportLoadedRef.current && reportRenderedRef.current/);
+  assert.match(source, /reportLoadedRef.current && \(reportRenderedRef.current \|\| phasedEmbeddingRef.current\)/);
   assert.doesNotMatch(source, /Mover painel/);
   assert.match(source, /power-bi-report-viewport h-full w-full overflow-auto/);
   assert.match(source, /if \(!reportRenderedRef.current\)/);
@@ -240,7 +241,7 @@ test('base-size iframe avoids CSS transforms and legacy momentum layer', () => {
   assert.match(source, /transform: effectiveZoom === 1 \? 'none' : `scale\(\$\{effectiveZoom\}\)`/);
   assert.match(source, /recordDiagnostic\('iframe_geometry'/);
   assert.match(source, /getBoundingClientRect/);
-  assert.match(source, /landscape-page-sync-v3/);
+  assert.match(source, /full-page-portal-v4/);
   assert.match(css, /\.power-bi-report-viewport\s*\{[^}]*-webkit-overflow-scrolling: auto;/);
 });
 
@@ -289,4 +290,52 @@ test('a rapid round trip to the same page still reapplies its current layout', a
   page = 'b'; update(); page = 'a'; update();
   release(); await running;
   assert.equal(calls,2);
+});
+
+test('unchanged viewport events do not cause host React updates', () => {
+  const phone = browser(390, 844);
+  const views = [];
+  const stop = observeReportViewport(phone, value => views.push(value));
+  for (let i = 0; i < 10; i++) { phone.emit('resize'); phone.flush(); }
+  assert.equal(views.length, 1);
+  phone.innerHeight = 800;
+  phone.emit('resize'); phone.flush();
+  assert.equal(views.length, 2);
+  stop();
+});
+
+test('frame observer measures once per settled resize burst and releases pending work', () => {
+  const phone = browser(390, 844);
+  let observer;
+  let disconnected = false;
+  phone.ResizeObserver = class {
+    constructor(callback) { observer = callback; }
+    observe() { observer(); }
+    disconnect() { disconnected = true; }
+  };
+  const frame = { clientWidth: 390, clientHeight: 700 };
+  const sizes = [];
+  const stop = observeReportFrame(phone, frame, size => sizes.push(size));
+  phone.flush();
+  assert.deepEqual(sizes, [{ width: 390, height: 700 }]);
+  for (const height of [690, 680, 660, 650]) { frame.clientHeight = height; observer(); }
+  assert.equal(sizes.length, 1);
+  assert.equal(phone.timers.size, 1);
+  phone.flush();
+  assert.deepEqual(sizes.at(-1), { width: 390, height: 650 });
+  frame.clientWidth = 844; observer(); stop(); phone.flush();
+  assert.equal(sizes.length, 2);
+  assert.equal(disconnected, true);
+});
+
+test('a zero-size frame receives its first measurable size immediately', () => {
+  const phone = browser(390, 844);
+  let observer;
+  phone.ResizeObserver = class { constructor(fn) { observer = fn; } observe() {} disconnect() {} };
+  const frame = { clientWidth: 0, clientHeight: 0 };
+  const sizes = [];
+  const stop = observeReportFrame(phone, frame, size => sizes.push(size));
+  frame.clientWidth = 390; frame.clientHeight = 700; observer();
+  assert.deepEqual(sizes, [{ width: 0, height: 0 }, { width: 390, height: 700 }]);
+  stop();
 });

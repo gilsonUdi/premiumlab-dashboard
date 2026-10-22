@@ -108,3 +108,24 @@ test('rendered callbacks during restore do not repeat the same transition', asyn
   f.setLayout('horizontal'); await f.update();
   assert.equal(f.calls.filter(([name]) => name === 'restore').length, 1);
 });
+
+test('phased preparation changes layout without capturing unsupported pre-render bookmarks', async () => {
+  let rendered = false;
+  let mode = 2;
+  const calls = [];
+  const report = {
+    updateSettings: async settings => calls.push(['layout', settings.layoutType]),
+    bookmarksManager: {
+      capture: async () => { calls.push(['capture']); return { state: 'selections' }; },
+      applyState: async () => calls.push(['restore']),
+    },
+  };
+  const update = createReportLayoutUpdater(() => report, () => true, () => ({ layoutType: mode }),
+    assert.fail, null, () => 'a', () => rendered);
+  await update();
+  mode = 0; await update();
+  assert.deepEqual(calls, [['layout', 2], ['layout', 0]]);
+  rendered = true;
+  mode = 2; await update();
+  assert.deepEqual(calls.slice(2), [['capture'], ['layout', 2], ['restore']]);
+});

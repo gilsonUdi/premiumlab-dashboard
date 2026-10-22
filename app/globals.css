@@ -496,6 +496,15 @@ select.portal-input:disabled {
   gap: 4px;
 }
 
+/* Do not repeatedly blur/composite the live report behind mobile chrome.
+   Only the portal decoration changes; the report canvas stays untouched. */
+.power-bi-mobile .power-bi-toolbar,
+.power-bi-mobile .power-bi-bottom-navigation {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none !important;
+}
+
 .portal-grid-background {
   background-image:
     linear-gradient(var(--portal-grid) 1px, transparent 1px),

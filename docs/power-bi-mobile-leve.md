@@ -1,4 +1,10 @@
-# Primeira etapa de otimização do BI mobile — 22/10/2026
+# Histórico: modo em blocos do BI mobile — 22/10/2026
+
+**Desativado a pedido do usuário.** O modo abaixo pertence ao commit `472cee5`.
+O cliente precisa visualizar as páginas originais completas. A implementação
+atual está em [Otimização somente no portal](power-bi-mobile-paginas-completas.md).
+Este documento permanece apenas como registro da tentativa anterior, não como
+descrição do comportamento em produção após a atualização seguinte.
 
 ## Escopo
 
