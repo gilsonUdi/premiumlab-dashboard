@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readReportViewport, observeReportViewport, reportLayoutSettings, initialReportLayoutSettings, reportCanvasWidth, createReportLayoutUpdater } from '../../lib/power-bi-viewport.mjs';
 
+test('BI toolbar has no diagnostic button, dialog or UI polling', () => {
+  const source = readFileSync(new URL('../../components/company/PowerBiEmbeddedView.jsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /diagnosticVisible|setDiagnosticText|Copiar diagnóstico|Diagnóstico do BI/);
+  assert.match(source, /recordDiagnostic/);
+});
+
 function browser(width, height, touch = true, orientation = '') {
   const events = new Map();
   const timers = new Map();

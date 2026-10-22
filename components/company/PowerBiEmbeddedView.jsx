@@ -26,8 +26,6 @@ function wait(ms) {
 export default function PowerBiEmbeddedView({ company, reportKey }) {
   const companyChrome = useMemo(() => resolveCompanyChrome(company), [company])
   const [config, setConfig] = useState(null)
-  const [diagnosticVisible, setDiagnosticVisible] = useState(false)
-  const [diagnosticText, setDiagnosticText] = useState('')
   const diagnosticsRef = useRef(null)
   const recordDiagnostic = useCallback((event, details) => diagnosticsRef.current?.record(event, details), [])
   const [error, setError] = useState('')
@@ -229,15 +227,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
       if (diagnosticsRef.current === diagnostic) diagnosticsRef.current = null
     }
   }, [company.slug, reportKey])
-
-  useEffect(() => {
-    if (!diagnosticVisible) return
-    recordFrameGeometry()
-    const update = () => setDiagnosticText(diagnosticsRef.current?.snapshot() || '{}')
-    update()
-    const timer = window.setInterval(update, 1000)
-    return () => window.clearInterval(timer)
-  }, [diagnosticVisible, recordFrameGeometry])
 
   useEffect(() => observeReportViewport(window, setViewport), [])
 
@@ -754,10 +743,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                         Axis
                       </span>
                     </div>
-                    <button type="button" className="portal-ghost-button h-8 px-2 text-[10px]"
-                      onClick={() => { setDiagnosticText(diagnosticsRef.current?.snapshot() || '{}'); setDiagnosticVisible(true) }}>
-                      Diagnóstico
-                    </button>
                     {isLandscape ? (
                       <div className="flex shrink-0 items-center gap-1" aria-label="Zoom do BI">
                         <button type="button" className="portal-ghost-button h-8 px-2" aria-label="Diminuir zoom do BI"
@@ -911,27 +896,6 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
           </div>
         </div>
       </section>
-      {diagnosticVisible ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-3">
-          <section role="dialog" aria-modal="true" aria-label="Diagnóstico do BI"
-            className="flex max-h-[85dvh] w-full max-w-xl flex-col gap-3 rounded-xl bg-[#112345] p-4 text-white">
-            <h2 className="text-sm font-semibold">Diagnóstico do BI</h2>
-            <p className="text-xs">Registro local de carregamentos, conexão e sessão. Não contém senhas, tokens ou dados do relatório.
-              Se o painel reiniciar, copie este registro depois de reabri-lo.</p>
-            <textarea readOnly value={diagnosticText} aria-label="Registro de diagnóstico"
-              className="min-h-0 flex-1 overflow-auto rounded bg-[#0A162B] p-2 font-mono text-xs" rows={9} />
-            <div className="flex justify-end gap-2">
-              <button type="button" className="portal-ghost-button" onClick={() => setDiagnosticVisible(false)}>Fechar</button>
-              <button type="button" className="portal-primary-button"
-                onClick={() => {
-                  const latest = diagnosticsRef.current?.snapshot() || '{}'
-                  setDiagnosticText(latest)
-                  navigator.clipboard?.writeText(latest).catch(() => {})
-                }}>Copiar diagnóstico</button>
-            </div>
-          </section>
-        </div>
-      ) : null}
     </main>
   )
 }
