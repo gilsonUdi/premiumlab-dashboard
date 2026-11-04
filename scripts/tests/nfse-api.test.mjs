@@ -25,6 +25,7 @@ async function api({ role = 'admin', active = true, revoked = false } = {}) {
       getFirebaseAdminDb: () => db,
     },
     '@/lib/nfse-drafts.mjs': domain,
+    '@/lib/nfse/service.mjs': { createNfseService: () => ({ readiness: async () => ({ enabled: false, environment: 'test', blockers: ['Sem configuração de homologação'] }) }), publicOperation: value => value },
   }
   const module = new vm.SourceTextModule(readFileSync(new URL('../../app/api/admin/nfse/route.js', import.meta.url), 'utf8'), { context })
   await module.link(async name => {
@@ -47,8 +48,11 @@ test('GET indica emissão bloqueada, sem cache e verifica revogação', async ()
   assert.equal(response.status, 200); assert.equal(response.data.emissionEnabled, false)
   assert.equal(response.headers['Cache-Control'], 'private, no-store'); assert.equal(instance.revocation(), true)
 })
-test('mesmo administrador não pode emitir nesta etapa', async () => {
-  const instance = await api(); assert.equal((await instance.post({ action: 'emit' })).status, 409); assert.equal(instance.writes(), 0)
+test('mesmo administrador precisa confirmar emissão e ter login recente', async () => {
+  const instance = await api()
+  assert.equal((await instance.post({ action: 'emit' })).status, 400)
+  assert.equal((await instance.post({ action: 'emit', confirmed: true })).status, 403)
+  assert.equal(instance.writes(), 0)
 })
 test('cliente é salvo sem segredos e com ID estável pelo documento', async () => {
   const instance = await api()

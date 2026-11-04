@@ -17,7 +17,7 @@ const code = babel.core().transformSync(source, { filename: 'NfsePanel.jsx', bab
   presets: [[babel.presetReact(), { runtime: 'classic' }]], plugins: [babel.pluginTransformModulesCommonjs()] }).code
 const labelText = node => typeof node === 'string' ? node : (node.children || []).map(labelText).join('')
 
-async function renderPanel({ fail = false } = {}) {
+async function renderPanel({ fail = false, enabled = false } = {}) {
   const customer = { id: 'a'.repeat(64), name: 'Cliente teste', taxId: domain.NFSE_ISSUER.taxId }
   const posts = []
   const modules = { react: React, 'lucide-react': new Proxy({}, { get: () => () => null }),
@@ -30,10 +30,13 @@ async function renderPanel({ fail = false } = {}) {
     require: name => modules[name],
     fetch: async (_url, options) => {
       if (!options.body) return { ok: !fail, json: async () => fail ? { error: 'Acesso negado' } : {
-        issuer: domain.normalizeIssuerSettings({}), customers: [customer], drafts: [], truncated: { customers: false, drafts: false }, emissionEnabled: false } }
+        issuer: domain.normalizeIssuerSettings({}), customers: [customer], drafts: [], operations: [],
+        readiness: { enabled, environment: 'test', blockers: enabled ? [] : ['Configuração pendente'] },
+        truncated: { customers: false, drafts: false, operations: false }, emissionEnabled: enabled } }
       const body = JSON.parse(options.body); posts.push(body)
       if (body.action === 'saveDraft') return { ok: true, json: async () => ({ draft: { ...domain.normalizeInvoiceDraft(body.data),
         id: body.id, customer, revision: 1, updatedAt: '2026-11-04T12:00:00Z' } }) }
+      if (body.action === 'emit') return { ok: true, json: async () => ({ operation: { id: `test-${body.id}`, state: 'uncertain', environment: 'test', customerName: 'Cliente teste', amountCents: 15010, dpsId: 'DPS teste', series: '1', dpsNumber: '1', message: 'Resposta incerta; consultar' } }) }
       throw new Error(`Unexpected action: ${body.action}`)
     },
   })
@@ -69,5 +72,19 @@ test('erro de acesso fica visível sem apresentar formulário de emissão', asyn
   const ui = await renderPanel({ fail: true })
   assert.equal(labelText(ui.renderer.root.findByProps({ role: 'alert' })), 'Acesso negado')
   assert.equal(ui.renderer.root.findAllByType('form').length, 0)
+  await act(async () => ui.renderer.unmount())
+})
+test('emissão habilitada exige rascunho salvo, mantém ambiente confirmado e encaminha resposta incerta para consulta', async () => {
+  const ui = await renderPanel({ enabled: true })
+  await act(async () => ui.button('Novo rascunho').props.onClick())
+  assert.equal(ui.button('Emitir NFS-e').props.disabled, true)
+  await act(async () => ui.field('Cliente fiscal *').props.onChange({ target: { value: 'a'.repeat(64) } }))
+  await act(async () => ui.field('Valor dos serviços').props.onChange({ target: { value: '150,10' } }))
+  await act(async () => ui.renderer.root.findByType('form').props.onSubmit({ preventDefault() {} }))
+  assert.equal(ui.button('Emitir NFS-e').props.disabled, false)
+  await act(async () => ui.button('Emitir NFS-e').props.onClick())
+  assert.equal(ui.posts[1].action, 'emit'); assert.equal(ui.posts[1].environment, 'test'); assert.equal(ui.posts[1].confirmed, true)
+  assert.ok(ui.button('Consultar DPS (sem reenviar)'))
+  assert.equal(ui.posts.filter(body => body.action === 'emit').length, 1)
   await act(async () => ui.renderer.unmount())
 })

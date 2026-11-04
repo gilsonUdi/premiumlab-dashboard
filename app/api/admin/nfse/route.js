@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { getFirebaseAdminAuth, getFirebaseAdminDb } from '@/lib/firebase-admin'
 import { NFSE_BLOCK_REASON, NFSE_ISSUER, normalizeFiscalCustomer, normalizeInvoiceDraft, normalizeIssuerSettings, requireDraftRevision } from '@/lib/nfse-drafts.mjs'
+import { createNfseService, publicOperation } from '@/lib/nfse/service.mjs'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -16,7 +17,7 @@ async function authorize(request) {
   if (!profile.exists || profile.data().role !== 'admin' || profile.data().active !== true) {
     throw Object.assign(new Error('Somente administradores ativos podem acessar as notas fiscais.'), { status: 403 })
   }
-  return decoded.uid
+  return { uid: decoded.uid, authTime: Number(decoded.auth_time || 0) }
 }
 function root() { return getFirebaseAdminDb().collection('axisFiscal').doc('issuer') }
 function json(data, status = 200) { return NextResponse.json(data, { status, headers: { 'Cache-Control': 'private, no-store' } }) }
@@ -31,31 +32,44 @@ function validate(fn, value) {
 export async function GET(request) {
   try {
     await authorize(request)
-    const [issuer, customers, drafts] = await Promise.all([
+    const [issuer, customers, drafts, operations] = await Promise.all([
       root().get(), root().collection('customers').orderBy('name').limit(201).get(),
       root().collection('drafts').orderBy('updatedAt', 'desc').limit(101).get(),
+      root().collection('operations').orderBy('updatedAt', 'desc').limit(101).get(),
     ])
-    return json({ issuer: { ...normalizeIssuerSettings(issuer.data() || {}), ...NFSE_ISSUER },
+    const issuerSettings = { ...normalizeIssuerSettings(issuer.data() || {}), ...NFSE_ISSUER }
+    const readiness = await createNfseService({ db: getFirebaseAdminDb() }).readiness(issuerSettings)
+    return json({ issuer: issuerSettings, readiness,
       customers: customers.docs.slice(0, 200).map(doc => ({ ...doc.data(), id: doc.id })),
-      drafts: drafts.docs.slice(0, 100).map(doc => ({ ...doc.data(), id: doc.id })),
-      truncated: { customers: customers.size > 200, drafts: drafts.size > 100 },
-      emissionEnabled: false, blockReason: NFSE_BLOCK_REASON })
+      drafts: drafts.docs.slice(0, 100).map(doc => ({ ...doc.data(), id: doc.id })).filter(draft => draft.status === 'draft'),
+      operations: operations.docs.slice(0, 100).map(doc => publicOperation(doc.data(), doc.id)),
+      truncated: { customers: customers.size > 200, drafts: drafts.size > 100, operations: operations.size > 100 },
+      emissionEnabled: readiness.enabled, blockReason: readiness.enabled ? '' : readiness.blockers.join(' ') || NFSE_BLOCK_REASON })
   } catch (error) { return failure(error) }
 }
 export async function POST(request) {
   try {
-    const uid = await authorize(request)
+    const { uid, authTime } = await authorize(request)
     const raw = await request.text()
     if (raw.length > 30000) return json({ error: 'Solicitação muito grande.' }, 413)
     let body
     try { body = JSON.parse(raw) } catch { return json({ error: 'Dados inválidos.' }, 400) }
     if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ error: 'Dados inválidos.' }, 400)
-    if (body.action === 'emit') return json({ error: NFSE_BLOCK_REASON }, 409)
+    if (['emit', 'reconcile', 'downloadXml', 'downloadDps'].includes(body.action)) {
+      const service = createNfseService({ db: getFirebaseAdminDb() })
+      if (body.action === 'emit') {
+        if (body.confirmed !== true) return json({ error: 'Confirme explicitamente a emissão e o ambiente.' }, 400)
+        if (Date.now() / 1000 - authTime > 600) return json({ error: 'Entre novamente no portal antes de emitir (login recente de até 10 minutos).' }, 403)
+        return json({ operation: await service.emit({ draftId: body.id, revision: body.revision, environment: body.environment, confirmed: body.confirmed, uid }) })
+      }
+      if (body.action === 'reconcile') return json({ operation: await service.reconcile(body.id) })
+      return json(await service.documents(body.id, body.action === 'downloadXml' ? 'authorized' : 'dps'))
+    }
     const now = new Date().toISOString()
     if (body.action === 'saveIssuer') {
       const issuer = validate(normalizeIssuerSettings, body.data)
       await root().set({ ...issuer, updatedAt: now, updatedBy: uid })
-      return json({ issuer })
+      return json({ issuer, readiness: await createNfseService({ db: getFirebaseAdminDb() }).readiness(issuer) })
     }
     if (body.action === 'saveCustomer') {
       const customer = validate(normalizeFiscalCustomer, body.data)

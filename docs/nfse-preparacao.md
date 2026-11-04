@@ -1,5 +1,7 @@
 # NFS-e Axis — preparação inicial (04/11/2026)
 
+> Registro histórico da primeira entrega. O conector de emissão/consulta, configuração segura do A1 e as instruções atuais estão em [nfse-integracao.md](nfse-integracao.md). Os bloqueios abaixo descrevem a etapa preparatória, não o estado posterior do código. A homologação real continua pendente até configuração do servidor e testes na SEFIN.
+
 ## Disponível
 
 - Administrador → Notas fiscais de serviço: rascunhos, clientes fiscais, configuração do emitente e área reservada ao histórico.
