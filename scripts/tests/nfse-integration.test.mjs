@@ -10,7 +10,7 @@ import forge from 'node-forge'
 import { SignedXml } from 'xml-crypto'
 import { DOMParser } from '@xmldom/xmldom'
 import { normalizeIssuerSettings, NFSE_ISSUER } from '../../lib/nfse-drafts.mjs'
-import { buildDpsXml, dpsId, readAuthorizedXml, NFSE_XML_LAYOUTS } from '../../lib/nfse/xml.mjs'
+import { buildDpsXml, dpsId, formatDpsEmissionTime, readAuthorizedXml, NFSE_XML_LAYOUTS } from '../../lib/nfse/xml.mjs'
 import { loadCertificate, signDps } from '../../lib/nfse/certificate.mjs'
 import { createNfseService } from '../../lib/nfse/service.mjs'
 import { createSefinClient, sefinBase, packDps, unpackFiscalXml } from '../../lib/nfse/sefin.mjs'
@@ -68,6 +68,24 @@ test('DPS usa ambiente separado, identificação determinística e XML escapado,
   assert.throws(() => buildDpsXml({ issuer: normalizeIssuerSettings({}), draft, environment: 'test', series: 1, number: 1, emittedAt: '2026-11-04T12:00:00Z' }))
   assert.throws(() => dpsId('x', '1'))
 })
+test('dhEmi usa Cuiabá preservando o instante, inclusive virada de dia e entrada com outro fuso', () => {
+  for (const [input, expected] of [
+    ['2026-11-04T22:06:13Z', '2026-11-04T18:06:13-04:00'],
+    ['2026-11-04T19:06:13-03:00', '2026-11-04T18:06:13-04:00'],
+    ['2026-11-04T18:06:13-04:00', '2026-11-04T18:06:13-04:00'],
+    ['2026-11-05T02:30:00+00:00', '2026-11-04T22:30:00-04:00'],
+    ['2026-11-04T04:00:00Z', '2026-11-04T00:00:00-04:00'],
+  ]) {
+    assert.equal(formatDpsEmissionTime(input), expected)
+    assert.equal(Date.parse(formatDpsEmissionTime(input)), Date.parse(input))
+    for (const environment of ['test', 'production']) {
+      const { xml } = buildDpsXml({ issuer, draft, environment, series: '1', number: '1', emittedAt: input })
+      assert.ok(xml.includes(`<dhEmi>${expected}</dhEmi>`))
+    }
+  }
+  for (const value of ['invalid', '2026-11-04T22:06:13', '2026-99-99T22:06:13Z']) assert.throws(() => formatDpsEmissionTime(value), /Data de emissão inválida/)
+})
+
 test('NT009 R1 só na homologação: finalidade regular e NBS antes da descrição, mantendo versao 1.01', () => {
   const testXml = built('test')
   const productionXml = built('production')
@@ -116,11 +134,12 @@ test('registra horário original SEFIN na tentativa e no histórico, inclusive e
     const processedAt = '2026-11-04T08:59:59.1234567-03:00'
     const f = fixture({ rejection, processingTime: processedAt })
     const result = await f.emit()
-    const timing = { emittedAt: '2026-11-04T12:00:00Z', processedAt, receivedAt: now.toISOString() }
+    const timing = { emittedAt: '2026-11-04T08:00:00-04:00', processedAt, receivedAt: now.toISOString() }
     assert.deepEqual(result.emissionTiming, timing)
     const path = `axisFiscal/issuer/operations/test-${draftId}`
     assert.deepEqual(f.db.documents.get(path).emissionTiming, timing)
     assert.equal(f.db.documents.get(`${path}/attempts/1`).processedAt, processedAt)
+    assert.ok(f.db.documents.get(`${path}/attempts/1`).xml.includes(`<dhEmi>${timing.emittedAt}</dhEmi>`))
     assert.equal(f.submissions(), 1)
     if (rejection) {
       await assert.rejects(f.service.reconcile(`test-${draftId}`), /DPS ainda não encontrada/)

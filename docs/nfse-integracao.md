@@ -79,6 +79,8 @@ A API antiga de geração de DANFSe foi descontinuada pelo governo. Não impleme
 
 ### Diagnóstico dos horários de emissão
 
+`dhEmi` é representado no fuso IANA `America/Cuiaba`, do emitente (em novembro/2026, `-04:00`), antes da assinatura. Por exemplo, `2026-11-04T22:06:13Z` vira `2026-11-04T18:06:13-04:00`: o mesmo instante, sem margem artificial nem retrocesso. O instante persistido em `emittedAt` usa a mesma representação do XML. A visualização administrativa continua em Brasília. A versão do conector foi incrementada; uma aprovação de homologação de versão anterior não libera produção nesta versão. Essa normalização testa a hipótese de interpretação do fuso na rejeição E0008, não comprova correção na SEFIN sem nova tentativa autorizada pelo usuário.
+
 Novas respostas de emissão preservam `dataHoraProcessamento` da SEFIN (quando for uma data válida com fuso) em `operations/{id}/emissionTiming.processedAt` e em `attempts/{tentativa}/processedAt`. Também são gravados `emittedAt` (instante enviado na DPS) e `receivedAt` (relógio do portal ao receber a resposta). O histórico administrativo mostra os três horários em Brasília com segundos, além do valor original da SEFIN, preservando fuso e frações para diagnóstico de E0008.
 
 Horário ausente/inválido aparece como “Não informado / não registrado”; não se usa o relógio do portal como substituto do processamento SEFIN. Registros antigos não são retroativamente preenchidos. Consultas posteriores não substituem os horários da emissão original. Não há ajuste do relógio, retrocesso artificial da emissão nem mudança nas regras de reenvio.
