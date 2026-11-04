@@ -25,7 +25,8 @@ async function api({ role = 'admin', active = true, revoked = false } = {}) {
       getFirebaseAdminDb: () => db,
     },
     '@/lib/nfse-drafts.mjs': domain,
-    '@/lib/nfse/service.mjs': { createNfseService: () => ({ readiness: async () => ({ enabled: false, environment: 'test', blockers: ['Sem configuração de homologação'] }) }), publicOperation: value => value },
+    '@/lib/nfse/service.mjs': { createNfseService: () => ({ readiness: async () => ({ enabled: false, environment: 'test', blockers: ['Sem configuração de homologação'] }),
+      documents: async (id, type) => ({ id, type, pdfBase64: 'JVBERi0=', fileName: 'DANFSe.pdf' }) }), publicOperation: value => value },
   }
   const module = new vm.SourceTextModule(readFileSync(new URL('../../app/api/admin/nfse/route.js', import.meta.url), 'utf8'), { context })
   await module.link(async name => {
@@ -47,6 +48,18 @@ test('GET indica emissão bloqueada, sem cache e verifica revogação', async ()
   const instance = await api(); const response = await instance.get()
   assert.equal(response.status, 200); assert.equal(response.data.emissionEnabled, false)
   assert.equal(response.headers['Cache-Control'], 'private, no-store'); assert.equal(instance.revocation(), true)
+})
+
+test('ação de PDF exige administrador ativo e delega apenas download sem cache', async () => {
+  for (const role of ['company', 'professional']) {
+    assert.equal((await (await api({ role })).post({ action: 'downloadPdf', id: 'test-id' })).status, 403)
+  }
+  const instance = await api()
+  const result = await instance.post({ action: 'downloadPdf', id: 'test-id' })
+  assert.equal(result.status, 200)
+  assert.equal(result.data.type, 'pdf')
+  assert.equal(result.headers['Cache-Control'], 'private, no-store')
+  assert.equal(instance.writes(), 0)
 })
 test('mesmo administrador precisa confirmar emissão e ter login recente', async () => {
   const instance = await api()

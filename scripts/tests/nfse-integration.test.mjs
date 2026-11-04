@@ -24,7 +24,7 @@ const draft = { status: 'draft', revision: 1, customerId: 'a'.repeat(64),
 const env = { NFSE_ENABLED: 'true', NFSE_ENVIRONMENT: 'test', NFSE_DPS_SERIES_TEST: '1', NFSE_DPS_SERIES_PRODUCTION: '2' }
 const built = (environment = 'test') => buildDpsXml({ issuer, draft, environment, series: '1', number: '1', emittedAt: '2026-11-04T12:00:00Z' })
 const authorizedResponse = (xml, environment = 'test', key = '1'.repeat(50)) => ({ status: 201, payload: { chaveAcesso: key,
-  nfseXmlGZipB64: gzipSync(Buffer.from(`<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse"><infNFSe Id="NFS${key}"><nNFSe>999</nNFSe>${xml.replace(/<\?xml[^>]*\?>/, '')}</infNFSe></NFSe>`)).toString('base64') } })
+  nfseXmlGZipB64: gzipSync(Buffer.from(`<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse"><infNFSe Id="NFS${key}"><nNFSe>999</nNFSe><cStat>100</cStat><dhProc>2026-11-04T09:00:00-03:00</dhProc><valores><vLiq>2500.00</vLiq></valores>${xml.replace(/<\?xml[^>]*\?>/, '')}</infNFSe></NFSe>`)).toString('base64') } })
 
 function memoryDb() {
   const documents = new Map([['axisFiscal/issuer', issuer], [`axisFiscal/issuer/drafts/${draftId}`, draft]])
@@ -133,6 +133,21 @@ test('timeout mantém mesma DPS; recuperação somente GET, sem novo POST ou num
   const recovered = await f.service.reconcile(first.id)
   assert.equal(recovered.state, 'authorized'); assert.equal(f.reads(), 2); assert.equal(f.submissions(), 1)
   assert.equal(f.db.documents.get('axisFiscal/issuer/counters/test-1').lastNumber, '1')
+})
+
+test('download PDF só lê XML autorizado íntegro, não emite nem consulta o governo', async () => {
+  const f = fixture()
+  const op = await f.emit()
+  const result = await f.service.documents(op.id, 'pdf')
+  assert.equal(Buffer.from(result.pdfBase64, 'base64').subarray(0, 5).toString(), '%PDF-')
+  assert.equal(f.submissions(), 1)
+  assert.equal(f.reads(), 0)
+  const path = `axisFiscal/issuer/operations/${op.id}/documents/authorized`
+  f.db.documents.set(path, { ...f.db.documents.get(path), sha256: 'adulterado' })
+  await assert.rejects(f.service.documents(op.id, 'pdf'), /integridade/)
+  const uncertain = fixture({ failure: true })
+  const pending = await uncertain.emit()
+  await assert.rejects(uncertain.service.documents(pending.id, 'pdf'), /Ainda não há XML autorizado/)
 })
 test('produção permanece bloqueada sem liberação explícita e evidência válida de homologação', async () => {
   for (const initialEnv of [{}, { NFSE_PRODUCTION_ENABLED: 'true' }]) {

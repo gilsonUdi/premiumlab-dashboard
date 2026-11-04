@@ -55,7 +55,7 @@ export async function POST(request) {
     let body
     try { body = JSON.parse(raw) } catch { return json({ error: 'Dados inválidos.' }, 400) }
     if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ error: 'Dados inválidos.' }, 400)
-    if (['emit', 'reconcile', 'downloadXml', 'downloadDps'].includes(body.action)) {
+    if (['emit', 'reconcile', 'downloadXml', 'downloadDps', 'downloadPdf'].includes(body.action)) {
       const service = createNfseService({ db: getFirebaseAdminDb() })
       if (body.action === 'emit') {
         if (body.confirmed !== true) return json({ error: 'Confirme explicitamente a emissão e o ambiente.' }, 400)
@@ -63,7 +63,7 @@ export async function POST(request) {
         return json({ operation: await service.emit({ draftId: body.id, revision: body.revision, environment: body.environment, confirmed: body.confirmed, uid }) })
       }
       if (body.action === 'reconcile') return json({ operation: await service.reconcile(body.id, uid) })
-      return json(await service.documents(body.id, body.action === 'downloadXml' ? 'authorized' : 'dps'))
+      return json(await service.documents(body.id, body.action === 'downloadPdf' ? 'pdf' : body.action === 'downloadXml' ? 'authorized' : 'dps'))
     }
     const now = new Date().toISOString()
     if (body.action === 'saveIssuer') {

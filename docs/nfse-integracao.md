@@ -73,7 +73,13 @@ Para uma resposta incerta, abrir Emissões e consultas → Consultar DPS (sem re
 
 ## PDF/DANFSe
 
-A API antiga de geração de DANFSe foi descontinuada pelo governo. Não implementamos dependência desse endpoint nem apresentamos impressão do rascunho como nota autorizada. O histórico permite baixar XML autorizado e abrir a consulta oficial para obter o DANFSe. Geração própria do PDF no leiaute NT 008 e cancelamento/substituição são evoluções posteriores, não funcionalidades já homologadas.
+A API antiga de geração de DANFSe foi descontinuada pelo governo. O histórico agora oferece **Baixar PDF / DANFSe**, com geração local a partir do XML autorizado armazenado, além de XML e consulta oficial. A ação autenticada `downloadPdf` não consulta, transmite ou altera notas: verifica estado autorizado, hash SHA-256, correspondência da DPS/chave/ambiente/cliente/valor e `cStat=100` antes de gerar. Não há PDF fiscal de rascunho, rejeição ou resultado incerto. Nenhum certificado/senha é incorporado ao PDF.
+
+O documento A4 de uma página é baseado na estrutura da NT008: logo nacional, identificação, chave de 50 dígitos, QR Code de consulta, prestador/tomador, descrição, tributos e valores. Homologação tem aviso vermelho **NFS-e SEM VALIDADE JURÍDICA** e nome de arquivo `SEM-VALOR-FISCAL-...`. Dados do prestador vêm de `emit` no XML (podem diferir do cadastro local, pois a SEFIN usa dados cadastrais próprios). Campos ausentes aparecem como traço, nunca como imposto zero presumido. A situação impressa é a do XML armazenado; cancelamentos posteriores só podem ser conferidos pela consulta oficial.
+
+Escopo inicial: perfil atual de ME/EPP, tributos pelo SN, sem regime especial, deduções, retenções federais, grupos IBS/CBS, substituição ou obras/eventos. Grupos ainda não suportados são recusados com orientação de usar a consulta oficial, em vez de omitir tributos. Há limites de texto/reticências e validação de espaço para manter uma página. Fontes padrão PDF Helvetica/Helvetica-Bold são usadas como substitutas tipográficas portáveis; isso não equivale à certificação de reprodução integral da NT008, que especifica Arial/Microsoft Sans Serif. Glifos incompatíveis são recusados, não substituídos em dados fiscais. Campos de município/UF ausentes no XML são exibidos como traço, mantendo o código IBGE/CEP quando disponível. Não há enriquecimento a partir do cadastro atual nem consulta externa para completar dados.
+
+O logo oficial, sem alteração, é distribuído em `public/nfse/logo-nfse.png`; origem: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/logos-da-nfs-e/Logo%20-%20NFS-e%20-%20Horizontal.png/view (licença indicada no portal: CC BY-ND 3.0). Fonte do leiaute: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/rtc/nt-008-se-cgnfse-danfse-20260505.pdf. Não há dependência de navegador/Chrome no servidor. Cancelamento/substituição continuam fora deste módulo; as notas antigas não são importadas automaticamente.
 
 ## Dados privados
 
@@ -95,7 +101,7 @@ Namespace Firestore `axisFiscal/issuer`: configuração, `customers`, `drafts`, 
 
 ## Testes e fontes técnicas
 
-`node --test scripts/tests/nfse-drafts.test.mjs scripts/tests/nfse-integration.test.mjs`
+`node --test scripts/tests/nfse-drafts.test.mjs scripts/tests/nfse-integration.test.mjs scripts/tests/nfse-pdf.test.mjs`
 
 `node --experimental-vm-modules --test scripts/tests/nfse-api.test.mjs`
 

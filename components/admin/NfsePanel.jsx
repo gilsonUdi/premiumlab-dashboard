@@ -138,6 +138,15 @@ export default function NfsePanel({ onNavigationState }) {
       setNotice('XML disponibilizado para download. A DPS não substitui o XML da nota autorizada.')
     })
   }
+  async function downloadPdf(id) {
+    await save('downloadPdf', { id }, result => {
+      const bytes = Uint8Array.from(atob(result.pdfBase64), char => char.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+      const anchor = document.createElement('a'); anchor.href = url; anchor.download = result.fileName; document.body.appendChild(anchor); anchor.click(); anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setNotice('PDF gerado a partir do XML autorizado. Notas de homologação permanecem sem valor fiscal. Nenhuma emissão foi realizada.')
+    })
+  }
 
   return <div className="space-y-6 text-slate-200">
     <header className="flex flex-wrap items-start justify-between gap-4">
@@ -232,7 +241,7 @@ export default function NfsePanel({ onNavigationState }) {
       </form>}
       {tab === 'history' && <div className={`${panel} space-y-4`}>
         <h3 className="font-semibold text-white">Emissões, homologações e consultas por DPS</h3>
-        <p className="text-sm text-slate-400">PDF/DANFSe: a antiga API nacional de PDF foi descontinuada. Use a consulta oficial da nota autorizada para obter o documento. O XML autorizado pode ser baixado aqui. Notas antigas não são importadas automaticamente.</p>
+        <p className="text-sm text-slate-400">Baixe o PDF/DANFSe gerado pelo portal a partir do XML autorizado, sem nova emissão. O XML e a consulta oficial também permanecem disponíveis. Notas antigas não são importadas automaticamente.</p>
         {!data.operations?.length && <p className="text-sm text-slate-400">Nenhuma tentativa registrada por este módulo.</p>}
         {data.truncated.operations && <p className="text-sm text-amber-200">Exibindo as 100 tentativas mais recentes.</p>}
         {(data.operations || []).map(item => <div className="space-y-3 border-t border-white/10 py-4" key={item.id}>
@@ -251,7 +260,7 @@ export default function NfsePanel({ onNavigationState }) {
           <div className="flex flex-wrap gap-2">
             {item.state !== 'authorized' && <button className="portal-ghost-button" disabled={busy} onClick={() => reconcile(item.id)}>Consultar DPS (sem reenviar)</button>}
             <button className="portal-ghost-button" disabled={busy} onClick={() => downloadXml(item.id, 'downloadDps')}>Baixar DPS</button>
-            {item.state === 'authorized' && <><button className="portal-ghost-button" disabled={busy} onClick={() => downloadXml(item.id, 'downloadXml')}>Baixar XML autorizado</button><a className="portal-ghost-button" href={item.consultationUrl} target="_blank" rel="noopener noreferrer">Consulta oficial / DANFSe</a></>}
+            {item.state === 'authorized' && <><button className="portal-primary-button" disabled={busy} onClick={() => downloadPdf(item.id)}>Baixar PDF / DANFSe</button><button className="portal-ghost-button" disabled={busy} onClick={() => downloadXml(item.id, 'downloadXml')}>Baixar XML autorizado</button><a className="portal-ghost-button" href={item.consultationUrl} target="_blank" rel="noopener noreferrer">Consulta oficial / DANFSe</a></>}
           </div>
         </div>)}
       </div>}

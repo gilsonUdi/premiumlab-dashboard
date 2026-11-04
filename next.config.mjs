@@ -6,6 +6,7 @@ const nextConfig = {
   reactStrictMode: true,
   // Do not infer a parent workspace from unrelated package-lock files.
   outputFileTracingRoot: path.dirname(fileURLToPath(import.meta.url)),
+  outputFileTracingIncludes: { '/api/admin/nfse': ['./public/nfse/logo-nfse.png'] },
 }
 
 export default nextConfig
