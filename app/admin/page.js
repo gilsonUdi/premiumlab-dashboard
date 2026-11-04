@@ -54,6 +54,7 @@ import CompanyChromeColorPicker from '@/components/admin/CompanyChromeColorPicke
 import QrCodeGenerator from '@/components/admin/QrCodeGenerator'
 import AccessAnalyticsPanel from '@/components/admin/AccessAnalyticsPanel'
 import PowerBiPageAnalyticsPanel from '@/components/admin/PowerBiPageAnalyticsPanel'
+import NfsePanel from '@/components/admin/NfsePanel'
 import { DEFAULT_COMPANY_APPEARANCE, normalizeCompanyAppearance } from '@/lib/company-appearance'
 
 function createEmptyPowerBiReport() {
@@ -224,7 +225,15 @@ export default function AdminPage() {
   const [isPasswordListModalOpen, setIsPasswordListModalOpen] = useState(false)
   const [passwordBatchMap, setPasswordBatchMap] = useState({})
   const [isGeneratingPasswordList, setIsGeneratingPasswordList] = useState(false)
-  const [activePanel, setActivePanel] = useState('companies')
+  const [activePanel, setActivePanelState] = useState('companies')
+  const [fiscalNavigation, setFiscalNavigation] = useState({ dirty: false, busy: false })
+  const setActivePanel = panel => {
+    if (activePanel === 'nfse' && panel !== 'nfse') {
+      if (fiscalNavigation.busy) return
+      if (fiscalNavigation.dirty && !window.confirm('Há dados fiscais não salvos. Deseja sair sem salvar?')) return
+    }
+    setActivePanelState(panel)
+  }
   const [activeCompanyTab, setActiveCompanyTab] = useState('basic')
   const [activeUserTab, setActiveUserTab] = useState('data')
   const [feedbackItems, setFeedbackItems] = useState([])
@@ -1678,6 +1687,11 @@ export default function AdminPage() {
             </div>
           </nav>
 
+          <div className="px-4 pb-4">
+            <button type="button" onClick={() => setActivePanel('nfse')} className="portal-ghost-button w-full justify-start" style={activePanel === 'nfse' ? { color: '#DAB975', borderColor: '#C9A45C' } : undefined}>
+              <FileDown size={15} /> Notas fiscais de serviço
+            </button>
+          </div>
           {/* Logout */}
           <div className="px-4 py-5" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
             <button
@@ -1821,6 +1835,8 @@ export default function AdminPage() {
                   </div>
                 </section>
               </>
+            ) : activePanel === 'nfse' ? (
+              <NfsePanel onNavigationState={setFiscalNavigation} />
             ) : activePanel === 'qr-code' ? (
               <QrCodeGenerator />
             ) : activePanel === 'accesses' ? (
