@@ -10,7 +10,7 @@ import forge from 'node-forge'
 import { SignedXml } from 'xml-crypto'
 import { DOMParser } from '@xmldom/xmldom'
 import { normalizeIssuerSettings, NFSE_ISSUER } from '../../lib/nfse-drafts.mjs'
-import { buildDpsXml, dpsId, readAuthorizedXml } from '../../lib/nfse/xml.mjs'
+import { buildDpsXml, dpsId, readAuthorizedXml, NFSE_XML_LAYOUTS } from '../../lib/nfse/xml.mjs'
 import { loadCertificate, signDps } from '../../lib/nfse/certificate.mjs'
 import { createNfseService } from '../../lib/nfse/service.mjs'
 import { createSefinClient, sefinBase, packDps, unpackFiscalXml } from '../../lib/nfse/sefin.mjs'
@@ -22,7 +22,7 @@ const draft = { status: 'draft', revision: 1, customerId: 'a'.repeat(64),
   customer: { name: 'Cliente & Companhia', taxId: '52998224725', municipalityCode: '5103403', postalCode: '78025300', street: 'Rua', number: '1', district: 'Porto' },
   serviceCode: '170201', description: 'Controladoria & processos <mensal>', amountCents: 250000, competence: '2026-11-04' }
 const env = { NFSE_ENABLED: 'true', NFSE_ENVIRONMENT: 'test', NFSE_DPS_SERIES_TEST: '1', NFSE_DPS_SERIES_PRODUCTION: '2' }
-const built = () => buildDpsXml({ issuer, draft, environment: 'test', series: '1', number: '1', emittedAt: '2026-11-04T12:00:00Z' })
+const built = (environment = 'test') => buildDpsXml({ issuer, draft, environment, series: '1', number: '1', emittedAt: '2026-11-04T12:00:00Z' })
 const authorizedResponse = (xml, environment = 'test', key = '1'.repeat(50)) => ({ status: 201, payload: { chaveAcesso: key,
   nfseXmlGZipB64: gzipSync(Buffer.from(`<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse"><infNFSe Id="NFS${key}"><nNFSe>999</nNFSe>${xml.replace(/<\?xml[^>]*\?>/, '')}</infNFSe></NFSe>`)).toString('base64') } })
 
@@ -68,6 +68,21 @@ test('DPS usa ambiente separado, identificação determinística e XML escapado,
   assert.throws(() => buildDpsXml({ issuer: normalizeIssuerSettings({}), draft, environment: 'test', series: 1, number: 1, emittedAt: '2026-11-04T12:00:00Z' }))
   assert.throws(() => dpsId('x', '1'))
 })
+test('NT009 R1 só na homologação: finalidade regular e NBS antes da descrição, mantendo versao 1.01', () => {
+  const testXml = built('test')
+  const productionXml = built('production')
+  assert.equal(testXml.layout, 'nt009-r1-20261020')
+  assert.equal(productionXml.layout, 'nt004-007-20260209')
+  assert.ok(testXml.xml.includes('<tpEmit>1</tpEmit><finNFSe>0</finNFSe><cLocEmi>'))
+  assert.ok(!productionXml.xml.includes('<finNFSe>'))
+  assert.ok(testXml.xml.indexOf('<cNBS>') < testXml.xml.indexOf('<xDescServ>'))
+  assert.ok(productionXml.xml.indexOf('<cNBS>') > productionXml.xml.indexOf('<xDescServ>'))
+  for (const { xml } of [testXml, productionXml]) {
+    assert.ok(xml.includes('versao="1.01"'))
+    assert.ok(!xml.includes('<cMotivoEmisTI>'))
+    assert.ok(!xml.includes('<IBSCBS>')) // Não inventar CST, classificações ou tributos fora do perfil SN suportado.
+  }
+})
 test('POST único e reserva transacional impedem duplicação em cliques concorrentes', async () => {
   const f = fixture()
   const results = await Promise.allSettled([f.emit(), f.emit()])
@@ -75,6 +90,8 @@ test('POST único e reserva transacional impedem duplicação em cliques concorr
   assert.equal(f.submissions(), 1)
   assert.equal(f.db.documents.get('axisFiscal/issuer/counters/test-1').lastNumber, '1')
   assert.equal(f.db.documents.get(`axisFiscal/issuer/drafts/${draftId}`).status, 'authorized')
+  assert.equal(f.db.documents.get(`axisFiscal/issuer/operations/test-${draftId}`).xmlLayout, 'nt009-r1-20261020')
+  assert.equal(f.db.documents.get(`axisFiscal/issuer/operations/test-${draftId}/attempts/1`).xmlLayout, 'nt009-r1-20261020')
   assert.ok(Array.from(f.db.documents.keys()).some(key => key.includes('/approvals/')))
 })
 test('timeout mantém mesma DPS; recuperação somente GET, sem novo POST ou numeração', async () => {
@@ -103,6 +120,35 @@ test('rejeição definitiva permite correção manual, reaproveitando DPS após 
   assert.equal(result.state, 'authorized'); assert.equal(result.attempt, 2)
   assert.equal(f.reads(), 1); assert.equal(f.submissions(), 2)
   assert.equal(f.db.documents.get('axisFiscal/issuer/counters/test-1').lastNumber, '1')
+})
+test('GET 404 não converte rejeição definitiva em tentativa incerta nem apaga o motivo original', async () => {
+  const f = fixture({ rejection: true })
+  const rejected = await f.emit()
+  await assert.rejects(f.service.reconcile(rejected.id), /não encontrada/)
+  const stored = f.db.documents.get(`axisFiscal/issuer/operations/${rejected.id}`)
+  assert.equal(stored.state, 'rejected')
+  assert.equal(stored.message, rejected.message)
+  assert.match(stored.lastConsultationMessage, /não encontrada/)
+  assert.equal(f.submissions(), 1)
+})
+test('registro antigo tornado incerto por consulta 404 pode ser corrigido somente com prova de rejeição e novo GET 404', async () => {
+  const f = fixture({ rejection: true })
+  const rejected = await f.emit()
+  const key = `axisFiscal/issuer/operations/${rejected.id}`
+  f.db.documents.set(key, { ...f.db.documents.get(key), state: 'uncertain' })
+  const corrected = await f.service.emit({ draftId, revision: 2, environment: 'test', confirmed: true, uid: 'admin' })
+  assert.equal(corrected.state, 'authorized'); assert.equal(corrected.attempt, 2)
+  assert.equal(f.reads(), 1); assert.equal(f.submissions(), 2)
+  assert.equal(f.db.documents.get('axisFiscal/issuer/counters/test-1').lastNumber, '1')
+})
+test('registro incerto sem rejeição definitiva comprovada continua impedido de reenviar', async () => {
+  const f = fixture({ failure: true })
+  await f.emit()
+  const key = `axisFiscal/issuer/drafts/${draftId}`
+  // Defesa adicional mesmo se um cadastro legado deixasse o rascunho editável.
+  f.db.documents.set(key, { ...f.db.documents.get(key), status: 'draft' })
+  await assert.rejects(f.emit(), /não teve rejeição definitiva/)
+  assert.equal(f.submissions(), 1); assert.equal(f.reads(), 0)
 })
 test('homologação autorizada libera elegibilidade da produção somente com a chave de ambiente e perfil idêntico', async () => {
   const f = fixture()
@@ -179,14 +225,30 @@ test('certificado vencido, CNPJ divergente, senha errada e falta de segredos sã
   await assert.rejects(loadCertificate(makePfx({ taxId: '11111111000191' }), now), /CNPJ/)
   await assert.rejects(loadCertificate({ ...makePfx(), NFSE_A1_PASSWORD: 'wrong' }, now), /senha/)
 })
-test('DPS assinada e não assinada validam no XSD oficial 1.01 sem modificar esquemas', { skip: process.platform !== 'win32' && !process.env.NFSE_TEST_POWERSHELL }, async () => {
+test('DPS de cada ambiente, assinada e não assinada, valida no respectivo XSD oficial sem modificar esquemas', { skip: process.platform !== 'win32' && !process.env.NFSE_TEST_POWERSHELL }, async () => {
   const cert = syntheticCertificate || await loadCertificate(makePfx(), now)
   const root = mkdtempSync(join(tmpdir(), 'nfse-xsd-check-'))
-  for (const [name, xml] of [['unsigned', built().xml], ['signed', signDps(built().xml, cert)]]) {
+  for (const environment of ['test', 'production']) for (const [name, xml] of [['unsigned', built(environment).xml], ['signed', signDps(built(environment).xml, cert)]]) {
     const file = join(root, `${name}.xml`); writeFileSync(file, xml)
     // XmlSchema .NET interpreta o pattern com ^/$ de TSSerieDPS da forma usada pela SEFIN.
     // libxml2 interpreta os anchors como literais e rejeita qualquer série; não alterar o XSD oficial.
-    const result = spawnSync(process.env.NFSE_TEST_POWERSHELL || 'powershell.exe', ['-NoProfile', '-File', resolve('scripts/tests/nfse-xsd-check.ps1'), '-SchemaPath', resolve('infra/nfse/xsd/DPS_v1.01.xsd'), '-XmlPath', file], { encoding: 'utf8' })
-    assert.equal(result.status, 0, result.stderr || result.stdout)
+    const result = spawnSync(process.env.NFSE_TEST_POWERSHELL || 'powershell.exe', ['-NoProfile', '-File', resolve('scripts/tests/nfse-xsd-check.ps1'), '-SchemaPath', resolve(NFSE_XML_LAYOUTS[environment].schemaPath), '-XmlPath', file], { encoding: 'utf8' })
+    assert.equal(result.status, 0, `${environment}/${name}: ${result.stderr || result.stdout}`)
+  }
+})
+test('regressão E1235: XML antigo é rejeitado pelo XSD de homologação, e não misturamos contratos', { skip: process.platform !== 'win32' && !process.env.NFSE_TEST_POWERSHELL }, () => {
+  const root = mkdtempSync(join(tmpdir(), 'nfse-schema-regression-'))
+  const testXml = built('test').xml
+  const nbs = '<cNBS>118065300</cNBS>'
+  const cases = [
+    { name: 'legacy-in-test', xml: built('production').xml.replace('<tpAmb>1</tpAmb>', '<tpAmb>2</tpAmb>'), schema: NFSE_XML_LAYOUTS.test.schemaPath, expected: /finNFSe/ },
+    { name: 'new-in-production', xml: testXml.replace('<tpAmb>2</tpAmb>', '<tpAmb>1</tpAmb>'), schema: NFSE_XML_LAYOUTS.production.schemaPath, expected: /finNFSe/ },
+    { name: 'wrong-nbs-order', xml: testXml.replace(nbs, '').replace('</xDescServ>', `</xDescServ>${nbs}`), schema: NFSE_XML_LAYOUTS.test.schemaPath, expected: /cNBS/ },
+  ]
+  for (const item of cases) {
+    const path = join(root, `${item.name}.xml`); writeFileSync(path, item.xml)
+    const result = spawnSync(process.env.NFSE_TEST_POWERSHELL || 'powershell.exe', ['-NoProfile', '-File', resolve('scripts/tests/nfse-xsd-check.ps1'), '-SchemaPath', resolve(item.schema), '-XmlPath', path], { encoding: 'utf8' })
+    assert.notEqual(result.status, 0, item.name)
+    assert.match(`${result.stderr}${result.stdout}`, item.expected, item.name)
   }
 })

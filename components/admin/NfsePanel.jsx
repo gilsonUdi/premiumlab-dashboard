@@ -147,6 +147,7 @@ export default function NfsePanel({ onNavigationState }) {
       <p className="mt-2">Salvar um rascunho não emite nota. Após transmitir, consulte a mesma DPS se a resposta for incerta; o sistema não reenvia automaticamente.</p>
       {data?.readiness?.blockers?.length > 0 && <ul className="mt-3 list-disc space-y-1 pl-5">{data.readiness.blockers.map(item => <li key={item}>{item}</li>)}</ul>}
       {data?.readiness?.certificate && <p className="mt-2 text-xs">A1 do CNPJ {data.readiness.certificate.taxId} · validade {dateTime(data.readiness.certificate.expiresAt)} · identificação final {data.readiness.certificate.fingerprintSuffix}</p>}
+      {data?.readiness?.xmlLayoutLabel && <p className="mt-2 text-xs">Leiaute XML: {data.readiness.xmlLayoutLabel}</p>}
       <p className="mt-2 text-xs">Integração direta, sem intermediário pago. Produção exige liberação no servidor e homologação autorizada com o mesmo certificado e configuração fiscal.</p>
     </div>
     {error && <div role="alert" className="rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">{error}</div>}
@@ -233,6 +234,7 @@ export default function NfsePanel({ onNavigationState }) {
           <p className="font-semibold text-white">{item.customerName} · {money.format(item.amountCents / 100)}</p>
           <p className={item.environment === 'production' ? 'text-sm text-amber-200' : 'text-sm text-sky-200'}>{item.environment === 'production' ? 'PRODUÇÃO' : 'HOMOLOGAÇÃO — SEM VALOR FISCAL'} · {stateLabel(item.state)}</p>
           <p className="break-all text-xs text-slate-400">DPS: {item.dpsId} · Série {item.series} · Número {item.dpsNumber}{item.invoiceNumber && ` · NFS-e ${item.invoiceNumber}`}</p>
+          {item.xmlLayout && <p className="text-xs text-slate-400">Leiaute: {item.xmlLayout} · Tentativa {item.attempt || 1}</p>}
           {item.message && <p className="whitespace-pre-wrap break-words text-sm text-slate-300">{item.message}</p>}
           <div className="flex flex-wrap gap-2">
             {item.state !== 'authorized' && <button className="portal-ghost-button" disabled={busy} onClick={() => reconcile(item.id)}>Consultar DPS (sem reenviar)</button>}

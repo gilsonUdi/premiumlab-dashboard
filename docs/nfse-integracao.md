@@ -15,6 +15,20 @@ Atualização: 04/11/2026. Substitui as limitações da etapa preparatória desc
 - Homologação e produção separadas. Produção exige flags explícitas E evidência de nota autorizada em homologação com o mesmo conector, A1 e configuração fiscal. Alterações na configuração/certificado invalidam essa elegibilidade até novo teste.
 - Código nacional 170201 e NBS 118065300 foram confirmados pelo usuário com a contabilidade; inscrição municipal 240541 e endereço vêm dos documentos de referência. Conferir endereço na configuração e no cadastro nacional.
 
+## Adaptação de homologação NT009 R1 (04/11/2026)
+
+O retorno real E1235 revelou uma diferença entre os ambientes: produção restrita usa o pacote de 20/10/2026 (NT009 R1), enquanto a produção ainda usa o esquema de 09/02/2026 nesta data. Ambos identificam o documento com `versao="1.01"`; essa string não distingue os contratos.
+
+- **Homologação:** `finNFSe=0` (nota regular) em `infDPS`, depois de `tpEmit` e antes de `cLocEmi`. NBS antes da descrição em `cServ`.
+- **Produção:** mantém a estrutura anterior, sem inserir `finNFSe` nesse ponto e com descrição antes do NBS. Não há fallback automático nem troca por calendário sem nova conferência da publicação oficial.
+- Esquemas de produção preservados em `infra/nfse/xsd/`; homologação em `infra/nfse/xsd/homologacao-20261020/`, copiados sem alterações do pacote oficial. Nenhuma classificação de IBS/CBS foi inventada para corrigir o erro estrutural.
+- A interface mostra o leiaute ativo e cada nova tentativa registra sua identificação junto ao XML. Histórico anterior e contadores não são apagados nem reiniciados.
+- Testes validam XML assinado e não assinado de **cada ambiente no seu XSD**. Testes negativos reproduzem o E1235 do XML legado e verificam que o leiaute novo não invade o contrato de produção.
+- Uma consulta GET com 404 não apaga a rejeição definitiva nem impede a correção do rascunho. Registros antigos marcados como incertos por essa consulta só podem ser retomados se preservarem a evidência `rejectedBySefin=true`, com novo GET 404 antes da tentativa manual. Timeout e incerteza sem essa evidência seguem bloqueados.
+- Versão do conector incrementada: eventuais provas de homologação anteriores não liberam produção com o conector alterado. O teste real na SEFIN deve ser repetido pelo usuário, sem emissão automática na implantação.
+
+Após a implantação: conferir no topo `Homologação NT009 R1 · 20/10/2026`, atualizar, reabrir o rascunho rejeitado, salvar e confirmar uma nova tentativa em homologação. As mensagens antigas continuam no histórico; não confundir uma rejeição anterior com o resultado da tentativa nova. Não é necessário trocar A1, série ou variáveis apenas por esta correção.
+
 ## Escopo fiscal suportado nesta primeira versão
 
 ME/EPP optante pelo Simples Nacional, regime de apuração federal e municipal pelo SN, sem regime especial, serviço 170201/NBS 118065300, operação tributável e prestação em Cuiabá/MT. Sem retenções, deduções, descontos, exportações ou substituição de nota. O administrador deve confirmar esse perfil na configuração.
@@ -80,5 +94,7 @@ A auditoria npm desta instalação ainda sinalizou vulnerabilidade alta no pacot
 - Endereços oficiais: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/apis-prod-restrita-e-producao
 - Leiautes: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual
 - XSDs copiados de: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/nfse-esquemas_xsd-v1-01-20260209.zip (pasta Schemas/1.01). Licenças e avisos originais preservados.
+- XSD de homologação: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita/esquemas_prod_restrita_20261020.zip
+- Publicação NT009 R1 em testes: https://www.gov.br/nfse/pt-br/noticias/cgnfs-e-informa-disponibilizadas-no-ambiente-de-testes-o-release-1-das-evolucoes-da-nota-tecnica-009
 - Padrão de assinatura: https://www.gov.br/nfse/pt-br/biblioteca/manuais-e-tutoriais/manual-integrado-nfse
 - Descontinuação do DANFSe no ADN e disponibilização pela consulta pública: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/atualizacoes-e-implantacoes
