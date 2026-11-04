@@ -22,6 +22,9 @@ test('rejeita cadastro incompleto ou campos inválidos', () => {
 })
 test('emitente único não aceita alteração de CNPJ, município ou regime pelo navegador', () => {
   assert.equal(normalizeIssuerSettings({}).municipalRegistration, '240541')
+  assert.equal(normalizeIssuerSettings({}).sendMunicipalRegistration, false)
+  assert.equal(normalizeIssuerSettings({ sendMunicipalRegistration: true }).sendMunicipalRegistration, true)
+  assert.equal(normalizeIssuerSettings({ sendMunicipalRegistration: 'true' }).sendMunicipalRegistration, false)
   const issuer = normalizeIssuerSettings({ taxId: '111', municipality: 'Outra', taxRegime: 'Outro', municipalRegistration: '123', certificate: 'secret', password: 'secret', emissionEnabled: true })
   assert.equal(issuer.taxId, NFSE_ISSUER.taxId); assert.equal(issuer.municipality, 'Cuiabá'); assert.equal(issuer.taxRegime, 'Simples Nacional')
   assert.equal(issuer.municipalRegistration, '123'); assert.equal(issuer.certificate, undefined); assert.equal(issuer.password, undefined); assert.equal(issuer.emissionEnabled, undefined)

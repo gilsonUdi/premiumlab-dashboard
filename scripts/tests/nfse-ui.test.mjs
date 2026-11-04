@@ -70,6 +70,19 @@ test('interface carrega, abre rascunho e mantém emissão e certificado indispon
   assert.equal(ui.posts.length, 0)
   await act(async () => ui.renderer.unmount())
 })
+
+test('configuração permite habilitar envio da IM sem apagar a inscrição cadastrada', async () => {
+  const ui = await renderPanel()
+  await act(async () => ui.button('Configuração do emitente').props.onClick())
+  const label = ui.renderer.root.findAllByType('label').find(node => labelText(node).includes('Enviar inscrição municipal do emitente'))
+  const checkbox = label.findByType('input')
+  assert.equal(checkbox.props.checked, false)
+  assert.equal(ui.field('Inscrição municipal').props.value, '240541')
+  await act(async () => checkbox.props.onChange({ target: { checked: true } }))
+  assert.equal(label.findByType('input').props.checked, true)
+  assert.equal(ui.field('Inscrição municipal').props.value, '240541')
+  await act(async () => ui.renderer.unmount())
+})
 test('salva rascunho, apresenta confirmação e reutiliza revisão ao editar', async () => {
   const ui = await renderPanel()
   await act(async () => ui.button('Novo rascunho').props.onClick())

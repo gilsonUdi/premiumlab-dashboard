@@ -62,7 +62,7 @@ export async function POST(request) {
         if (Date.now() / 1000 - authTime > 600) return json({ error: 'Entre novamente no portal antes de emitir (login recente de até 10 minutos).' }, 403)
         return json({ operation: await service.emit({ draftId: body.id, revision: body.revision, environment: body.environment, confirmed: body.confirmed, uid }) })
       }
-      if (body.action === 'reconcile') return json({ operation: await service.reconcile(body.id) })
+      if (body.action === 'reconcile') return json({ operation: await service.reconcile(body.id, uid) })
       return json(await service.documents(body.id, body.action === 'downloadXml' ? 'authorized' : 'dps'))
     }
     const now = new Date().toISOString()

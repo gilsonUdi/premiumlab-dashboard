@@ -45,14 +45,14 @@ function memoryDb() {
     return result
   } }
 }
-function fixture({ failure = false, rejection = false, processingTime, environment = 'test', initialEnv = {} } = {}) {
+function fixture({ failure = false, rejection = false, rejectionCode = 'E0123', rejectionMessage = 'Campo inválido para emissão', processingTime, environment = 'test', initialEnv = {} } = {}) {
   const db = memoryDb()
   let submissions = 0; let reads = 0; let sentXml
   const certificate = { fingerprint: 'certificate-fingerprint', taxId: NFSE_ISSUER.taxId, expiresAt: '2027-01-01T00:00:00Z' }
   const runtimeEnv = { ...env, NFSE_ENVIRONMENT: environment, ...initialEnv }
   const service = createNfseService({ db, env: runtimeEnv, clock: () => now,
     loadCertificate: async () => certificate, signDps: xml => xml,
-    createClient: () => ({ close() {}, submit: async xml => { submissions++; sentXml = xml; if (failure) throw new Error('Timeout simulado'); if (rejection && submissions === 1) return { status: 400, payload: { dataHoraProcessamento: processingTime, erros: [{ Codigo: 'E0123', Descricao: 'Campo inválido para emissão' }] } }; const response = authorizedResponse(xml); if (processingTime !== undefined) response.payload.dataHoraProcessamento = processingTime; return response },
+    createClient: () => ({ close() {}, submit: async xml => { submissions++; sentXml = xml; if (failure) throw new Error('Timeout simulado'); if (rejection && submissions === 1) return { status: 400, payload: { dataHoraProcessamento: processingTime, erros: [{ Codigo: rejectionCode, Descricao: rejectionMessage }] } }; const response = authorizedResponse(xml); if (processingTime !== undefined) response.payload.dataHoraProcessamento = processingTime; return response },
       lookupDps: async () => { reads++; return rejection && submissions === 1 ? { status: 404, payload: {} } : { status: 200, payload: { chaveAcesso: '1'.repeat(50) } } },
       lookupInvoice: async () => { reads++; return { ...authorizedResponse(sentXml), status: 200 } } }),
   })
@@ -68,6 +68,19 @@ test('DPS usa ambiente separado, identificação determinística e XML escapado,
   assert.throws(() => buildDpsXml({ issuer: normalizeIssuerSettings({}), draft, environment: 'test', series: 1, number: 1, emittedAt: '2026-11-04T12:00:00Z' }))
   assert.throws(() => dpsId('x', '1'))
 })
+test('IM permanece cadastrada e só aparece no prestador do XML quando explicitamente habilitada', () => {
+  assert.equal(issuer.municipalRegistration, '240541')
+  assert.equal(issuer.sendMunicipalRegistration, false)
+  for (const environment of ['test', 'production']) {
+    for (const sendMunicipalRegistration of [false, true]) {
+      const { xml } = buildDpsXml({ issuer: { ...issuer, sendMunicipalRegistration }, draft, environment, series: '1', number: '1', emittedAt: now.toISOString().replace('.000Z', 'Z') })
+      const doc = new DOMParser().parseFromString(xml, 'text/xml')
+      const provider = doc.getElementsByTagName('prest')[0]
+      assert.equal(provider.getElementsByTagName('IM').length, sendMunicipalRegistration ? 1 : 0)
+    }
+  }
+})
+
 test('dhEmi usa Cuiabá preservando o instante, inclusive virada de dia e entrada com outro fuso', () => {
   for (const [input, expected] of [
     ['2026-11-04T22:06:13Z', '2026-11-04T18:06:13-04:00'],
@@ -154,6 +167,44 @@ test('horário ausente, inválido ou sem fuso não é inventado nem impede proce
     const result = await f.emit()
     assert.equal(result.state, 'authorized')
     assert.equal(result.emissionTiming.processedAt, '')
+  }
+})
+
+const imRejection = 'IM do prestador não deve ser informado, pois não existem informações complementares registradas no CNC NFS-e do município emissor informado na DPS.'
+test('E0120 é rejeição corrigível apesar das palavras existem/registradas; novo POST exige GET e confirmação', async () => {
+  const f = fixture({ rejection: true, rejectionCode: 'E0120', rejectionMessage: imRejection })
+  const rejected = await f.emit()
+  assert.equal(rejected.state, 'rejected')
+  assert.equal(f.submissions(), 1)
+  const next = await f.service.emit({ draftId, revision: 2, environment: 'test', confirmed: true, uid: 'admin' })
+  assert.equal(next.state, 'authorized')
+  assert.equal(next.dpsId, rejected.dpsId)
+  assert.equal(f.reads(), 1)
+  assert.equal(f.submissions(), 2)
+})
+
+test('consulta recupera E0120 legado somente com prova HTTP 400 da tentativa e GET 404, sem transmitir', async () => {
+  for (const proofStatus of [400, 500, undefined]) {
+    const f = fixture({ rejection: true, rejectionCode: 'E0120', rejectionMessage: imRejection })
+    const rejected = await f.emit()
+    const path = `axisFiscal/issuer/operations/${rejected.id}`
+    const stored = f.db.documents.get(path)
+    f.db.documents.set(path, { ...stored, state: 'uncertain', rejectedBySefin: false })
+    const draftPath = `axisFiscal/issuer/drafts/${draftId}`
+    f.db.documents.set(draftPath, { ...draft, status: 'processing', operationId: rejected.id })
+    const attemptPath = `${path}/attempts/1`
+    f.db.documents.set(attemptPath, { ...f.db.documents.get(attemptPath), responseStatus: proofStatus })
+    if (proofStatus === 400) {
+      assert.equal((await f.service.reconcile(rejected.id, 'reviewing-admin')).state, 'rejected')
+      assert.equal(f.db.documents.get(draftPath).status, 'draft')
+      assert.equal(f.db.documents.get(draftPath).updatedBy, 'reviewing-admin')
+      assert.ok(f.db.documents.get(path).rejectionRecoveredAt)
+    } else {
+      await assert.rejects(f.service.reconcile(rejected.id), /não encontrada/)
+      assert.equal(f.db.documents.get(draftPath).status, 'processing')
+    }
+    assert.equal(f.submissions(), 1)
+    assert.equal(f.reads(), 1)
   }
 })
 

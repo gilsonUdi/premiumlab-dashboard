@@ -77,6 +77,12 @@ A API antiga de geração de DANFSe foi descontinuada pelo governo. Não impleme
 
 ## Dados privados
 
+### Inscrição municipal no XML e rejeição E0120
+
+A IM `240541` continua no cadastro. O envio de `prest/IM` é controlado por `sendMunicipalRegistration`, habilitado somente com booleano `true`. Por padrão, inclusive configurações antigas sem essa propriedade, a IM não é enviada: este é o cenário apontado pelo E0120 recebido da SEFIN para o emitente Axis. Em Configuração do emitente, o administrador pode habilitar o envio se o cadastro complementar CNC passar a exigi-lo. A opção não altera IM do tomador nem apaga a inscrição cadastrada. O perfil fiscal/versionamento considera a opção; homologação anterior não libera automaticamente produção com o novo conector.
+
+Uma resposta HTTP 400 contendo exclusivamente código E0120 é rejeição corrigível; os termos “não existem informações” não a tornam incerta. Não há novo POST automático. Para a tentativa antiga presa como incerta, clicar em **Consultar DPS (sem reenviar)**: somente após GET 404 e comprovação da resposta HTTP 400/E0120 arquivada na mesma tentativa, o sistema recupera a rejeição e libera o rascunho. Atualize a lista para editá-lo. A emissão posterior ainda exige confirmação, revisão atual e outra consulta GET 404 da mesma DPS. Sem essa prova, o bloqueio permanece; não há liberação baseada apenas na mensagem exibida ou no 404.
+
 ### Diagnóstico dos horários de emissão
 
 `dhEmi` é representado no fuso IANA `America/Cuiaba`, do emitente (em novembro/2026, `-04:00`), antes da assinatura. Por exemplo, `2026-11-04T22:06:13Z` vira `2026-11-04T18:06:13-04:00`: o mesmo instante, sem margem artificial nem retrocesso. O instante persistido em `emittedAt` usa a mesma representação do XML. A visualização administrativa continua em Brasília. A versão do conector foi incrementada; uma aprovação de homologação de versão anterior não libera produção nesta versão. Essa normalização testa a hipótese de interpretação do fuso na rejeição E0008, não comprova correção na SEFIN sem nova tentativa autorizada pelo usuário.
