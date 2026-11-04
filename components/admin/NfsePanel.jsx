@@ -24,6 +24,10 @@ function localToday() {
 function dateTime(value) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(new Date(value))
 }
+function fiscalTime(value) {
+  if (!value || !Number.isFinite(Date.parse(value))) return 'Não informado / não registrado'
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'medium', timeZone: 'America/Sao_Paulo' }).format(new Date(value))
+}
 const stateLabel = value => ({ reserved: 'Número reservado', transmitting: 'Transmitindo', rejected: 'Rejeição definitiva — rascunho liberado para correção', uncertain: 'Aguardando consulta — não reenviar', authorized: 'Autorizada' }[value] || value)
 
 async function request(body) {
@@ -235,6 +239,13 @@ export default function NfsePanel({ onNavigationState }) {
           <p className={item.environment === 'production' ? 'text-sm text-amber-200' : 'text-sm text-sky-200'}>{item.environment === 'production' ? 'PRODUÇÃO' : 'HOMOLOGAÇÃO — SEM VALOR FISCAL'} · {stateLabel(item.state)}</p>
           <p className="break-all text-xs text-slate-400">DPS: {item.dpsId} · Série {item.series} · Número {item.dpsNumber}{item.invoiceNumber && ` · NFS-e ${item.invoiceNumber}`}</p>
           {item.xmlLayout && <p className="text-xs text-slate-400">Leiaute: {item.xmlLayout} · Tentativa {item.attempt || 1}</p>}
+          <div className="space-y-1 break-words text-xs text-slate-400">
+            <p>Horários da tentativa em Brasília (com segundos):</p>
+            <p>Emissão da DPS: {fiscalTime(item.emissionTiming?.emittedAt || item.emittedAt)}</p>
+            <p>Processamento SEFIN: {fiscalTime(item.emissionTiming?.processedAt)}</p>
+            {item.emissionTiming?.processedAt && <p>Valor original retornado pela SEFIN: {item.emissionTiming.processedAt}</p>}
+            <p>Resposta recebida pelo portal: {fiscalTime(item.emissionTiming?.receivedAt)}</p>
+          </div>
           {item.message && <p className="whitespace-pre-wrap break-words text-sm text-slate-300">{item.message}</p>}
           <div className="flex flex-wrap gap-2">
             {item.state !== 'authorized' && <button className="portal-ghost-button" disabled={busy} onClick={() => reconcile(item.id)}>Consultar DPS (sem reenviar)</button>}

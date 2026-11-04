@@ -17,7 +17,7 @@ const code = babel.core().transformSync(source, { filename: 'NfsePanel.jsx', bab
   presets: [[babel.presetReact(), { runtime: 'classic' }]], plugins: [babel.pluginTransformModulesCommonjs()] }).code
 const labelText = node => typeof node === 'string' ? node : (node.children || []).map(labelText).join('')
 
-async function renderPanel({ fail = false, enabled = false } = {}) {
+async function renderPanel({ fail = false, enabled = false, operations = [] } = {}) {
   const customer = { id: 'a'.repeat(64), name: 'Cliente teste', taxId: domain.NFSE_ISSUER.taxId }
   const posts = []
   const modules = { react: React, 'lucide-react': new Proxy({}, { get: () => () => null }),
@@ -30,7 +30,7 @@ async function renderPanel({ fail = false, enabled = false } = {}) {
     require: name => modules[name],
     fetch: async (_url, options) => {
       if (!options.body) return { ok: !fail, json: async () => fail ? { error: 'Acesso negado' } : {
-        issuer: domain.normalizeIssuerSettings({}), customers: [customer], drafts: [], operations: [],
+        issuer: domain.normalizeIssuerSettings({}), customers: [customer], drafts: [], operations,
         readiness: { enabled, environment: 'test', blockers: enabled ? [] : ['Configuração pendente'] },
         truncated: { customers: false, drafts: false, operations: false }, emissionEnabled: enabled } }
       const body = JSON.parse(options.body); posts.push(body)
@@ -46,6 +46,22 @@ async function renderPanel({ fail = false, enabled = false } = {}) {
   const field = name => renderer.root.findAllByType('label').find(node => labelText(node).includes(name)).findByType(name === 'Cliente fiscal *' ? 'select' : 'input')
   return { renderer, button, field, posts, states }
 }
+test('histórico mostra segundos em Brasília e distingue horário SEFIN ausente de relógio do portal', async () => {
+  const ui = await renderPanel({ operations: [
+    { id: 'test-1', environment: 'test', state: 'rejected', amountCents: 100, customerName: 'Teste', emissionTiming: {
+      emittedAt: '2026-11-04T21:47:25Z', processedAt: '2026-11-04T18:47:24.1234567-03:00', receivedAt: '2026-11-04T21:47:26Z' } },
+    { id: 'test-2', environment: 'test', state: 'rejected', amountCents: 100, customerName: 'Legado' },
+  ] })
+  await act(async () => ui.button('Emissões e consultas').props.onClick())
+  const text = labelText(ui.renderer.toJSON())
+  assert.ok(text.includes('18:47:25'))
+  assert.ok(text.includes('18:47:24'))
+  assert.ok(text.includes('18:47:26'))
+  assert.ok(text.includes('2026-11-04T18:47:24.1234567-03:00'))
+  assert.ok(text.includes('Processamento SEFIN: Não informado / não registrado'))
+  await act(async () => ui.renderer.unmount())
+})
+
 test('interface carrega, abre rascunho e mantém emissão e certificado indisponíveis', async () => {
   const ui = await renderPanel()
   await act(async () => ui.button('Novo rascunho').props.onClick())

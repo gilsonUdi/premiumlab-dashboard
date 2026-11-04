@@ -45,14 +45,14 @@ function memoryDb() {
     return result
   } }
 }
-function fixture({ failure = false, rejection = false, environment = 'test', initialEnv = {} } = {}) {
+function fixture({ failure = false, rejection = false, processingTime, environment = 'test', initialEnv = {} } = {}) {
   const db = memoryDb()
   let submissions = 0; let reads = 0; let sentXml
   const certificate = { fingerprint: 'certificate-fingerprint', taxId: NFSE_ISSUER.taxId, expiresAt: '2027-01-01T00:00:00Z' }
   const runtimeEnv = { ...env, NFSE_ENVIRONMENT: environment, ...initialEnv }
   const service = createNfseService({ db, env: runtimeEnv, clock: () => now,
     loadCertificate: async () => certificate, signDps: xml => xml,
-    createClient: () => ({ close() {}, submit: async xml => { submissions++; sentXml = xml; if (failure) throw new Error('Timeout simulado'); if (rejection && submissions === 1) return { status: 400, payload: { erros: [{ Codigo: 'E0123', Descricao: 'Campo inválido para emissão' }] } }; return authorizedResponse(xml) },
+    createClient: () => ({ close() {}, submit: async xml => { submissions++; sentXml = xml; if (failure) throw new Error('Timeout simulado'); if (rejection && submissions === 1) return { status: 400, payload: { dataHoraProcessamento: processingTime, erros: [{ Codigo: 'E0123', Descricao: 'Campo inválido para emissão' }] } }; const response = authorizedResponse(xml); if (processingTime !== undefined) response.payload.dataHoraProcessamento = processingTime; return response },
       lookupDps: async () => { reads++; return rejection && submissions === 1 ? { status: 404, payload: {} } : { status: 200, payload: { chaveAcesso: '1'.repeat(50) } } },
       lookupInvoice: async () => { reads++; return { ...authorizedResponse(sentXml), status: 200 } } }),
   })
@@ -111,6 +111,33 @@ test('produção permanece bloqueada sem liberação explícita e evidência vá
     await assert.rejects(f.emit()); assert.equal(f.submissions(), 0)
   }
 })
+test('registra horário original SEFIN na tentativa e no histórico, inclusive em rejeição', async () => {
+  for (const rejection of [false, true]) {
+    const processedAt = '2026-11-04T08:59:59.1234567-03:00'
+    const f = fixture({ rejection, processingTime: processedAt })
+    const result = await f.emit()
+    const timing = { emittedAt: '2026-11-04T12:00:00Z', processedAt, receivedAt: now.toISOString() }
+    assert.deepEqual(result.emissionTiming, timing)
+    const path = `axisFiscal/issuer/operations/test-${draftId}`
+    assert.deepEqual(f.db.documents.get(path).emissionTiming, timing)
+    assert.equal(f.db.documents.get(`${path}/attempts/1`).processedAt, processedAt)
+    assert.equal(f.submissions(), 1)
+    if (rejection) {
+      await assert.rejects(f.service.reconcile(`test-${draftId}`), /DPS ainda não encontrada/)
+      assert.deepEqual(f.db.documents.get(path).emissionTiming, timing)
+    }
+  }
+})
+
+test('horário ausente, inválido ou sem fuso não é inventado nem impede processamento da resposta', async () => {
+  for (const processingTime of [undefined, null, 'inválido', '2026-11-04T12:00:00', '<script>']) {
+    const f = fixture({ processingTime })
+    const result = await f.emit()
+    assert.equal(result.state, 'authorized')
+    assert.equal(result.emissionTiming.processedAt, '')
+  }
+})
+
 test('rejeição definitiva permite correção manual, reaproveitando DPS após confirmar ausência por GET', async () => {
   const f = fixture({ rejection: true })
   assert.equal((await f.emit()).state, 'rejected')

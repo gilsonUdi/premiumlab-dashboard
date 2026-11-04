@@ -77,6 +77,12 @@ A API antiga de geração de DANFSe foi descontinuada pelo governo. Não impleme
 
 ## Dados privados
 
+### Diagnóstico dos horários de emissão
+
+Novas respostas de emissão preservam `dataHoraProcessamento` da SEFIN (quando for uma data válida com fuso) em `operations/{id}/emissionTiming.processedAt` e em `attempts/{tentativa}/processedAt`. Também são gravados `emittedAt` (instante enviado na DPS) e `receivedAt` (relógio do portal ao receber a resposta). O histórico administrativo mostra os três horários em Brasília com segundos, além do valor original da SEFIN, preservando fuso e frações para diagnóstico de E0008.
+
+Horário ausente/inválido aparece como “Não informado / não registrado”; não se usa o relógio do portal como substituto do processamento SEFIN. Registros antigos não são retroativamente preenchidos. Consultas posteriores não substituem os horários da emissão original. Não há ajuste do relógio, retrocesso artificial da emissão nem mudança nas regras de reenvio.
+
 Namespace Firestore `axisFiscal/issuer`: configuração, `customers`, `drafts`, `operations`, `counters`, `approvals`. Operações contêm subcoleções `documents` e `attempts`. Deve permanecer negado o acesso direto pelo SDK do navegador, inclusive a documentos aninhados; conferir as regras efetivamente publicadas (não publicar regras antigas indiscriminadamente). O backend usa Firebase Admin após autenticação/autorização. Certificado e senha não são gravados nessas coleções.
 
 ## Testes e fontes técnicas
