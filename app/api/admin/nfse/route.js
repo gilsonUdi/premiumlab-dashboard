@@ -17,7 +17,7 @@ async function authorize(request) {
   if (!profile.exists || profile.data().role !== 'admin' || profile.data().active !== true) {
     throw Object.assign(new Error('Somente administradores ativos podem acessar as notas fiscais.'), { status: 403 })
   }
-  return { uid: decoded.uid, authTime: Number(decoded.auth_time || 0) }
+  return { uid: decoded.uid }
 }
 function root() { return getFirebaseAdminDb().collection('axisFiscal').doc('issuer') }
 function json(data, status = 200) { return NextResponse.json(data, { status, headers: { 'Cache-Control': 'private, no-store' } }) }
@@ -49,7 +49,7 @@ export async function GET(request) {
 }
 export async function POST(request) {
   try {
-    const { uid, authTime } = await authorize(request)
+    const { uid } = await authorize(request)
     const raw = await request.text()
     if (raw.length > 30000) return json({ error: 'Solicitação muito grande.' }, 413)
     let body
@@ -59,7 +59,6 @@ export async function POST(request) {
       const service = createNfseService({ db: getFirebaseAdminDb() })
       if (body.action === 'emit') {
         if (body.confirmed !== true) return json({ error: 'Confirme explicitamente a emissão e o ambiente.' }, 400)
-        if (Date.now() / 1000 - authTime > 600) return json({ error: 'Entre novamente no portal antes de emitir (login recente de até 10 minutos).' }, 403)
         return json({ operation: await service.emit({ draftId: body.id, revision: body.revision, environment: body.environment, confirmed: body.confirmed, uid }) })
       }
       if (body.action === 'reconcile') return json({ operation: await service.reconcile(body.id, uid) })

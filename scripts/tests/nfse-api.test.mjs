@@ -5,10 +5,11 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import * as domain from '../../lib/nfse-drafts.mjs'
 
-async function api({ role = 'admin', active = true, revoked = false } = {}) {
+async function api({ role = 'admin', active = true, revoked = false, authTime } = {}) {
   const docs = new Map()
   let writes = 0
   let checkedRevocation = false
+  const emissions = []
   const snapshot = path => ({ exists: docs.has(path), data: () => docs.get(path) })
   const collection = path => ({
     doc: id => ({ path: `${path}/${id}`, get: async () => snapshot(`${path}/${id}`),
@@ -21,11 +22,12 @@ async function api({ role = 'admin', active = true, revoked = false } = {}) {
   const mocks = {
     'next/server': { NextResponse: { json: (data, options = {}) => ({ status: options.status || 200, data, headers: options.headers }) } },
     '@/lib/firebase-admin': {
-      getFirebaseAdminAuth: () => ({ verifyIdToken: async (_token, checkRevoked) => { checkedRevocation = checkRevoked; if (revoked) throw new Error('revoked'); return { uid: 'admin' } } }),
+      getFirebaseAdminAuth: () => ({ verifyIdToken: async (_token, checkRevoked) => { checkedRevocation = checkRevoked; if (revoked) throw new Error('revoked'); return { uid: 'admin', auth_time: authTime } } }),
       getFirebaseAdminDb: () => db,
     },
     '@/lib/nfse-drafts.mjs': domain,
     '@/lib/nfse/service.mjs': { createNfseService: () => ({ readiness: async () => ({ enabled: false, environment: 'test', blockers: ['Sem configuração de homologação'] }),
+      emit: async args => { emissions.push(args); return { id: 'mock-operation', environment: args.environment, state: 'uncertain' } },
       documents: async (id, type) => ({ id, type, pdfBase64: 'JVBERi0=', fileName: 'DANFSe.pdf' }) }), publicOperation: value => value },
   }
   const module = new vm.SourceTextModule(readFileSync(new URL('../../app/api/admin/nfse/route.js', import.meta.url), 'utf8'), { context })
@@ -35,7 +37,7 @@ async function api({ role = 'admin', active = true, revoked = false } = {}) {
   })
   await module.evaluate()
   const request = (body, token = 'token') => ({ headers: new Headers(token ? { Authorization: `Bearer ${token}` } : {}), text: async () => JSON.stringify(body) })
-  return { post: (body, token) => module.namespace.POST(request(body, token)), get: token => module.namespace.GET(request(null, token)), docs, writes: () => writes, revocation: () => checkedRevocation }
+  return { post: (body, token) => module.namespace.POST(request(body, token)), get: token => module.namespace.GET(request(null, token)), docs, emissions, writes: () => writes, revocation: () => checkedRevocation }
 }
 test('API nega anônimos, empresas, administradores inativos e tokens revogados sem gravar', async () => {
   const anonymous = await api(); assert.equal((await anonymous.get('')).status, 401); assert.equal(anonymous.writes(), 0)
@@ -61,11 +63,37 @@ test('ação de PDF exige administrador ativo e delega apenas download sem cache
   assert.equal(result.headers['Cache-Control'], 'private, no-store')
   assert.equal(instance.writes(), 0)
 })
-test('mesmo administrador precisa confirmar emissão e ter login recente', async () => {
+test('emissão continua exigindo confirmação explícita', async () => {
   const instance = await api()
   assert.equal((await instance.post({ action: 'emit' })).status, 400)
-  assert.equal((await instance.post({ action: 'emit', confirmed: true })).status, 403)
+  assert.equal((await instance.post({ action: 'emit', confirmed: false })).status, 400)
+  assert.equal(instance.emissions.length, 0)
   assert.equal(instance.writes(), 0)
+})
+
+test('administrador com token válido emite sem restrição pela idade do login', async () => {
+  for (const authTime of [undefined, Math.floor(Date.now() / 1000) - 660, Math.floor(Date.now() / 1000) - 86400]) {
+    const instance = await api({ authTime })
+    const response = await instance.post({ action: 'emit', confirmed: true, id: 'saved-draft', revision: 3, environment: 'test' })
+    assert.equal(response.status, 200)
+    assert.equal(instance.emissions.length, 1)
+    assert.equal(instance.emissions[0].draftId, 'saved-draft')
+    assert.equal(instance.emissions[0].uid, 'admin')
+    assert.equal(instance.emissions[0].confirmed, true)
+    assert.equal(instance.revocation(), true)
+  }
+})
+
+test('remoção do limite de 10 minutos não permite emissão por anônimos, perfis não admin ou tokens inválidos', async () => {
+  const body = { action: 'emit', confirmed: true, environment: 'production' }
+  const anonymous = await api()
+  assert.equal((await anonymous.post(body, '')).status, 401)
+  assert.equal(anonymous.emissions.length, 0)
+  for (const options of [{ role: 'company' }, { role: 'professional' }, { active: false }, { revoked: true }]) {
+    const instance = await api(options)
+    assert.ok([401, 403].includes((await instance.post(body)).status))
+    assert.equal(instance.emissions.length, 0)
+  }
 })
 test('cliente é salvo sem segredos e com ID estável pelo documento', async () => {
   const instance = await api()

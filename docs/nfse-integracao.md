@@ -7,7 +7,7 @@ Atualização: 04/11/2026. Substitui as limitações da etapa preparatória desc
 - API direta SEFIN Nacional, sem intermediário pago e sem automação do navegador.
 - DPS 1.01, assinatura XMLDSig com A1, autenticação mútua TLS >= 1.2, GZip/base64. RSA-SHA1 na assinatura XML segue o padrão do manual nacional; não enfraquece a validação TLS. Chaves privadas não são devolvidas pela API.
 - Certificado aberto exclusivamente no servidor; validação local da senha, período de validade, correspondência chave/certificado e CNPJ do emitente no SAN ICP-Brasil (OID 2.16.76.1.3.3). A aceitação da cadeia ICP-Brasil e do cadastro fiscal será confirmada pela SEFIN, não presumida pelo teste local.
-- Emissão sob confirmação explícita, ambiente fixado na confirmação e login administrativo recente (até 10 minutos). API nega perfis não administrativos, inativos e tokens revogados.
+- Emissão sob confirmação explícita e ambiente fixado na confirmação. Não há limite de 10 minutos desde o login: um administrador ativo pode emitir enquanto possuir sessão/token válido. API continua validando o token com verificação de revogação e negando perfis não administrativos e inativos.
 - Reserva transacional de série/número por ambiente no Firestore. O mesmo rascunho tem uma única operação, com histórico das tentativas. Contratos de concorrência protegem cliques repetidos e múltiplas instâncias.
 - Um POST por tentativa. Timeout, erro de conexão, 5xx e resposta não reconhecida ficam incertos: nenhuma repetição automática. Consultar DPS usa somente GET. Notas recuperadas devem corresponder à DPS, ambiente, CNPJ e valor esperados.
 - Rejeição definitiva reconhecida (HTTP 400 com códigos de validação E/RNG e sem indicação de duplicidade) libera o rascunho para correção. Nova tentativa é manual e exige confirmar ausência da mesma DPS por GET 404; conserva série/número, não cria outra nota automaticamente. Erros não reconhecidos permanecem bloqueados para análise.
@@ -67,7 +67,7 @@ As variáveis Firebase Admin já existentes continuam necessárias. Não há tok
 
 ## Uso na interface
 
-Administração → Notas fiscais de serviço → Configuração do emitente. Resolver bloqueios listados no topo e usar Atualizar para verificar a configuração local. Cadastrar cliente, salvar rascunho, confirmar ambiente/dados e emitir. Se o login tiver mais de 10 minutos, entrar novamente e reabrir o rascunho salvo.
+Administração → Notas fiscais de serviço → Configuração do emitente. Resolver bloqueios listados no topo e usar Atualizar para verificar a configuração local. Cadastrar cliente, salvar rascunho, confirmar ambiente/dados e emitir. A emissão não exige sair e entrar a cada 10 minutos. Uma sessão realmente inválida, expirada sem renovação ou revogada ainda exige autenticação válida; o controle de acesso administrativo permanece ativo.
 
 Para uma resposta incerta, abrir Emissões e consultas → Consultar DPS (sem reenviar). Jamais criar outra nota para contornar timeout. A ausência na consulta não é tratada automaticamente como autorização para novo envio.
 
