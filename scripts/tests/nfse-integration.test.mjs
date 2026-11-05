@@ -125,6 +125,26 @@ test('POST único e reserva transacional impedem duplicação em cliques concorr
   assert.equal(f.db.documents.get(`axisFiscal/issuer/operations/test-${draftId}/attempts/1`).xmlLayout, 'nt009-r1-20261020')
   assert.ok(Array.from(f.db.documents.keys()).some(key => key.includes('/approvals/')))
 })
+
+test('validação antes da reserva identifica o campo inválido, sem criar DPS ou transmitir', async () => {
+  const cases = [
+    [{ number: '', street: 'Avenida Brasil, 4493' }, /campos obrigatórios: Número/],
+    [{ street: '', district: '' }, /campos obrigatórios: Logradouro, Bairro/],
+    [{ municipalityCode: '' }, /código IBGE de 7 dígitos/],
+    [{ postalCode: '123' }, /CEP do cliente fiscal deve conter 8 dígitos/],
+    [{ email: 'inválido' }, /e-mail válido do cliente fiscal/],
+    [{ email: 'a'.repeat(72) + '@teste.com' }, /campo E-mail deve ter no máximo 80/],
+  ]
+  for (const [customerPatch, expected] of cases) {
+    const f = fixture()
+    f.db.documents.set(`axisFiscal/issuer/drafts/${draftId}`, { ...draft, customer: { ...draft.customer, ...customerPatch } })
+    await assert.rejects(f.emit(), err => { assert.equal(err.status, 400); assert.match(err.message, expected); return true })
+    assert.equal(f.submissions(), 0)
+    assert.equal(f.db.documents.has(`axisFiscal/issuer/operations/test-${draftId}`), false)
+    assert.equal(f.db.documents.has('axisFiscal/issuer/counters/test-1'), false)
+    assert.equal(f.db.documents.get(`axisFiscal/issuer/drafts/${draftId}`).status, 'draft')
+  }
+})
 test('timeout mantém mesma DPS; recuperação somente GET, sem novo POST ou numeração', async () => {
   const f = fixture({ failure: true })
   const first = await f.emit()

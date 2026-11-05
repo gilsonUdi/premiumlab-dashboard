@@ -83,6 +83,10 @@ O logo oficial, sem alteração, é distribuído em `public/nfse/logo-nfse.png`;
 
 ## Dados privados
 
+### Validações antes de emitir
+
+Erros de dados fiscais controlados retornam HTTP 400 com a orientação correspondente, em vez de mensagem genérica atribuindo o problema ao Firebase. O endereço identifica quais campos obrigatórios estão ausentes (CEP, Logradouro, Número, Bairro); número deve estar em seu próprio campo. Também são identificados código IBGE ausente/inválido, e-mail inválido e campos acima dos limites fiscais. Após corrigir o cliente, salvar o rascunho novamente atualiza a cópia usada na emissão. Essas validações acontecem antes da reserva da DPS e do POST. Falhas internas inesperadas continuam ocultando detalhes técnicos, sem atribuir causa ao Firebase sem diagnóstico, e orientam consultar o histórico antes de repetir uma emissão.
+
 ### Inscrição municipal no XML e rejeição E0120
 
 A IM `240541` continua no cadastro. O envio de `prest/IM` é controlado por `sendMunicipalRegistration`, habilitado somente com booleano `true`. Por padrão, inclusive configurações antigas sem essa propriedade, a IM não é enviada: este é o cenário apontado pelo E0120 recebido da SEFIN para o emitente Axis. Em Configuração do emitente, o administrador pode habilitar o envio se o cadastro complementar CNC passar a exigi-lo. A opção não altera IM do tomador nem apaga a inscrição cadastrada. O perfil fiscal/versionamento considera a opção; homologação anterior não libera automaticamente produção com o novo conector.

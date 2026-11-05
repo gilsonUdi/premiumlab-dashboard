@@ -23,7 +23,7 @@ function root() { return getFirebaseAdminDb().collection('axisFiscal').doc('issu
 function json(data, status = 200) { return NextResponse.json(data, { status, headers: { 'Cache-Control': 'private, no-store' } }) }
 function failure(error) {
   if (!error.status) console.error('[admin-nfse]', error.code || 'internal')
-  return json({ error: error.status ? error.message : 'Não foi possível acessar os dados fiscais. Verifique a configuração do Firebase Admin no servidor.' }, error.status || 500)
+  return json({ error: error.status ? error.message : 'Não foi possível concluir a operação fiscal devido a uma falha interna. Consulte o histórico antes de tentar emitir novamente. Se persistir, contate o suporte.' }, error.status || 500)
 }
 function validate(fn, value) {
   try { return fn(value) }

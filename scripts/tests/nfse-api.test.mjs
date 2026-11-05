@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import * as domain from '../../lib/nfse-drafts.mjs'
 
-async function api({ role = 'admin', active = true, revoked = false, authTime } = {}) {
+async function api({ role = 'admin', active = true, revoked = false, authTime, emitError } = {}) {
   const docs = new Map()
   let writes = 0
   let checkedRevocation = false
@@ -27,7 +27,7 @@ async function api({ role = 'admin', active = true, revoked = false, authTime } 
     },
     '@/lib/nfse-drafts.mjs': domain,
     '@/lib/nfse/service.mjs': { createNfseService: () => ({ readiness: async () => ({ enabled: false, environment: 'test', blockers: ['Sem configuração de homologação'] }),
-      emit: async args => { emissions.push(args); return { id: 'mock-operation', environment: args.environment, state: 'uncertain' } },
+      emit: async args => { emissions.push(args); if (emitError) throw emitError; return { id: 'mock-operation', environment: args.environment, state: 'uncertain' } },
       documents: async (id, type) => ({ id, type, pdfBase64: 'JVBERi0=', fileName: 'DANFSe.pdf' }) }), publicOperation: value => value },
   }
   const module = new vm.SourceTextModule(readFileSync(new URL('../../app/api/admin/nfse/route.js', import.meta.url), 'utf8'), { context })
@@ -82,6 +82,19 @@ test('administrador com token válido emite sem restrição pela idade do login'
     assert.equal(instance.emissions[0].confirmed, true)
     assert.equal(instance.revocation(), true)
   }
+})
+
+test('API mostra validação fiscal controlada e mantém detalhes de falhas internas ocultos', async () => {
+  const message = 'Endereço do cliente fiscal incompleto. Preencha os campos obrigatórios: Número.'
+  const validation = await api({ emitError: new domain.NfseValidationError(message) })
+  const rejected = await validation.post({ action: 'emit', confirmed: true })
+  assert.equal(rejected.status, 400)
+  assert.equal(rejected.data.error, message)
+  const internal = await api({ emitError: new Error('private_key=SEGREDO /app/internal/path') })
+  const failed = await internal.post({ action: 'emit', confirmed: true })
+  assert.equal(failed.status, 500)
+  assert.match(failed.data.error, /falha interna/)
+  assert.doesNotMatch(failed.data.error, /Firebase|SEGREDO|private_key|internal\/path/)
 })
 
 test('remoção do limite de 10 minutos não permite emissão por anônimos, perfis não admin ou tokens inválidos', async () => {
