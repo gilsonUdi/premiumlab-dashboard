@@ -73,6 +73,8 @@ Para uma resposta incerta, abrir Emissões e consultas → Consultar DPS (sem re
 
 ## PDF/DANFSe
 
+O download usa o padrão `Nome do cliente - NFSe NUMERO.pdf`, com nome e número oficial `nNFSe` extraídos do XML autorizado (não o número da DPS). Acentos são preservados; caracteres inválidos em nomes de arquivo são removidos e o tamanho é limitado. Homologação mantém o prefixo `SEM-VALOR-FISCAL-`. A mudança vale também para novos downloads de notas já armazenadas e não altera XML, emissão nem conteúdo fiscal do PDF.
+
 A API antiga de geração de DANFSe foi descontinuada pelo governo. O histórico agora oferece **Baixar PDF / DANFSe**, com geração local a partir do XML autorizado armazenado, além de XML e consulta oficial. A ação autenticada `downloadPdf` não consulta, transmite ou altera notas: verifica estado autorizado, hash SHA-256, correspondência da DPS/chave/ambiente/cliente/valor e `cStat=100` antes de gerar. Não há PDF fiscal de rascunho, rejeição ou resultado incerto. Nenhum certificado/senha é incorporado ao PDF.
 
 O documento A4 de uma página é baseado na estrutura da NT008: logo nacional, identificação, chave de 50 dígitos, QR Code de consulta, prestador/tomador, descrição, tributos e valores. Homologação tem aviso vermelho **NFS-e SEM VALIDADE JURÍDICA** e nome de arquivo `SEM-VALOR-FISCAL-...`. Dados do prestador vêm de `emit` no XML (podem diferir do cadastro local, pois a SEFIN usa dados cadastrais próprios). Campos ausentes aparecem como traço, nunca como imposto zero presumido. A situação impressa é a do XML armazenado; cancelamentos posteriores só podem ser conferidos pela consulta oficial.

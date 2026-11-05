@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { PDFDocument } from 'pdf-lib'
 import { buildDpsXml } from '../../lib/nfse/xml.mjs'
 import { normalizeIssuerSettings } from '../../lib/nfse-drafts.mjs'
-import { buildDanfsePdf, readDanfseData } from '../../lib/nfse/danfse.mjs'
+import { buildDanfsePdf, readDanfseData, danfseFileName } from '../../lib/nfse/danfse.mjs'
 
 function fixture(environment = 'test', description = 'CONTROLADORIA E GOVERNANÇA DE PROCESSOS') {
   const amountCents = 190000
@@ -27,11 +27,20 @@ test('PDF local contém uma página A4; ambiente e valores provêm do XML autori
     const result = await buildDanfsePdf(xml, expected)
     assert.equal(Buffer.from(result.bytes).subarray(0, 5).toString(), '%PDF-')
     assert.equal(result.fileName.startsWith('SEM-VALOR-FISCAL-'), environment === 'test')
+    assert.equal(result.fileName, `${environment === 'test' ? 'SEM-VALOR-FISCAL-' : ''}Cliente teste - NFSe 1.pdf`)
     const pdf = await PDFDocument.load(result.bytes)
     assert.equal(pdf.getPageCount(), 1)
     assert.ok(Math.abs(pdf.getPage(0).getWidth() - 595.28) < 0.1)
     assert.equal(pdf.getTitle().includes('SEM VALOR FISCAL'), environment === 'test')
   }
+})
+
+test('nome do PDF usa cliente e número oficial da nota, preservando acentos e removendo caracteres inseguros', () => {
+  assert.equal(danfseFileName({ test: false, customer: { name: 'Aliança Comércio LTDA' }, number: '18' }), 'Aliança Comércio LTDA - NFSe 18.pdf')
+  assert.equal(danfseFileName({ test: true, customer: { name: ' Cliente: A/B\\C?*<>|"\r\n' }, number: '19' }), 'SEM-VALOR-FISCAL-Cliente A B C - NFSe 19.pdf')
+  assert.equal(danfseFileName({ customer: { name: ' ... ' }, number: '20' }), 'Cliente - NFSe 20.pdf')
+  assert.ok(danfseFileName({ customer: { name: 'A'.repeat(400) }, number: '21' }).length < 170)
+  assert.doesNotMatch(danfseFileName({ customer: { name: '\u202eCliente\u2066' }, number: '22' }), /[\u202e\u2066]/)
 })
 
 test('PDF rejeita chave/ambiente divergentes, DPS sem autorização e grupos não suportados', async () => {
