@@ -11,10 +11,30 @@ gerenciador de capacidade antes da geração do Embed Token.
    o Resume. Os demais recebem `202` e aguardam.
 4. Quando a capacidade fica `Active`, o fluxo original gera o Embed Token.
 5. O navegador envia heartbeat a cada 60 segundos enquanto houver atividade.
-6. A sessão do relatório termina após 10 minutos sem atividade, ao sair da página
+6. A sessão do relatório termina após 30 minutos sem interação, ao sair da página
    ou ao fechar o relatório.
-7. Uma chamada agendada à rota de reconciliação expira sessões abandonadas e,
-   depois de 30 minutos sem sessões, solicita o Suspend.
+7. Uma chamada agendada à rota de reconciliação expira sessões abandonadas e
+   solicita o Suspend quando não houver nenhuma sessão ou reserva de atualização ativa.
+
+## Inatividade (09/11/2026)
+
+Cliques, movimento do ponteiro, teclado, toque e rolagem no portal, além de
+cliques/seleções e navegação de páginas informados pelo SDK do BI, renovam o
+prazo de 30 minutos. Renderizações, renovação de token e heartbeats automáticos
+não contam como interação. Apenas olhar o relatório sem interagir encerra a
+sessão após esse prazo; para reuniões mais longas, interaja antes de 30 minutos.
+
+O heartbeat continua a cada minuto até esse limite, inclusive em abas ocultas,
+mas não registra interação nessas abas. O backend limita a validade de cada
+heartbeat ao menor prazo entre a tolerância de transporte (10 minutos por
+padrão) e o tempo restante de inatividade. Assim, suspender os timers do celular
+não prolonga a sessão além do último prazo informado. Falha de rede superior à
+tolerância de transporte também pode encerrar a sessão.
+
+As reservas de automação não passam pelo heartbeat do navegador e continuam
+protegendo as atualizações. Nenhuma configuração do fluxo de refresh foi alterada.
+Depois da implantação, recarregue as abas antigas para aplicar o novo controle;
+clientes antigos sem `idleMs` mantêm compatibilidade até serem recarregados.
 
 ## Variáveis
 

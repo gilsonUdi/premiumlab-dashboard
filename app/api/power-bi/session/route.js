@@ -54,6 +54,7 @@ export async function POST(request) {
     const context = await authorizeSessionRequest(request, payload)
     const result = await heartbeatPowerBiDashboardSession({
       ...context,
+      idleMs: payload?.idleMs,
       pageName: String(payload?.pageName || '').trim(),
       pageLabel: String(payload?.pageLabel || '').trim(),
       pageSequence: Number(payload?.pageSequence || 0),

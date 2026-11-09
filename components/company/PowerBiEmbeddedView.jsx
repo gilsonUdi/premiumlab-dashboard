@@ -12,6 +12,7 @@ import { observeReportViewport, observeReportFrame, readReportViewport, reportLa
 import { clampReportZoom } from '@/lib/power-bi-gestures.mjs'
 
 import { sendDashboardHeartbeat } from '@/lib/power-bi-session-client.mjs'
+import { createDashboardActivityClock } from '@/lib/power-bi-inactivity.mjs'
 import { createReportDiagnostics } from '@/lib/power-bi-diagnostics.mjs'
 import { createReportRenderController } from '@/lib/power-bi-render.mjs'
 
@@ -138,6 +139,16 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   const dashboardSessionEndedRef = useRef(false)
   const dashboardPageRef = useRef({ name: '', label: '', sequence: 0 })
   const dashboardHeartbeatRef = useRef(null)
+  const dashboardActivityRef = useRef(null)
+  const noteDashboardActivity = useCallback(() => {
+    if (!document.hidden && !dashboardSessionEndedRef.current && dashboardActivityRef.current) {
+      const idleMs = dashboardActivityRef.current.idleMs()
+      // Do not revive an idle session just because a delayed browser event fires.
+      if (dashboardActivityRef.current.expired()) { dashboardHeartbeatRef.current?.(); return }
+      dashboardActivityRef.current.touch()
+      if (idleMs >= DASHBOARD_HEARTBEAT_INTERVAL_MS) dashboardHeartbeatRef.current?.()
+    }
+  }, [])
 
   const fetchEmbedConfig = useCallback(async () => {
     const headers = await getPortalAuthHeaders()
@@ -336,12 +347,18 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
 
     dashboardSessionIdRef.current = sessionId
     dashboardSessionEndedRef.current = false
+    dashboardActivityRef.current = createDashboardActivityClock()
 
     let disposed = false
     let heartbeatRunning = false
     let heartbeatQueued = false
     const heartbeat = async () => {
       if (disposed || dashboardSessionEndedRef.current) return
+      if (dashboardActivityRef.current.expired()) {
+        endDashboardSession('inactivity')
+        setSessionExpired(true)
+        return
+      }
       if (heartbeatRunning) { heartbeatQueued = true; return }
       heartbeatRunning = true
       try {
@@ -350,6 +367,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
           pageName: dashboardPageRef.current.name,
           pageLabel: dashboardPageRef.current.label,
           pageSequence: dashboardPageRef.current.sequence,
+          idleMs: dashboardActivityRef.current.idleMs(),
         })
         if (disposed || dashboardSessionEndedRef.current) return
         recordDiagnostic('heartbeat', { status: result.status, outcome: result.outcome })
@@ -383,15 +401,18 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     const intervalId = window.setInterval(heartbeat, DASHBOARD_HEARTBEAT_INTERVAL_MS)
     window.addEventListener('pagehide', handlePageHide)
     window.addEventListener('pageshow', handlePageShow)
+    const activityEvents = ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'wheel']
+    for (const name of activityEvents) window.addEventListener(name, noteDashboardActivity, { passive: true })
     return () => {
       disposed = true
       window.clearInterval(intervalId)
       window.removeEventListener('pagehide', handlePageHide)
       window.removeEventListener('pageshow', handlePageShow)
+      for (const name of activityEvents) window.removeEventListener(name, noteDashboardActivity)
       if (dashboardHeartbeatRef.current === heartbeat) dashboardHeartbeatRef.current = null
       endDashboardSession('closed')
     }
-  }, [company.slug, config?.capacityManaged, config?.dashboardSessionId, endDashboardSession, recordDiagnostic, reportKey])
+  }, [company.slug, config?.capacityManaged, config?.dashboardSessionId, endDashboardSession, noteDashboardActivity, recordDiagnostic, reportKey])
 
   useEffect(() => {
     if (!tokenExpiration) return undefined
@@ -399,6 +420,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
     let active = true
 
     const checkTokenExpiration = async () => {
+      if (dashboardSessionEndedRef.current || dashboardActivityRef.current?.expired()) return
       const expirationTime = Date.parse(tokenExpiration)
       if (!Number.isFinite(expirationTime)) return
       if (expirationTime - Date.now() > TOKEN_REFRESH_MARGIN_MS) return
@@ -642,11 +664,16 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
   }, [recordDiagnostic, recordFrameGeometry])
 
   const eventHandlers = useMemo(() => new Map([
+    // The cross-origin iframe does not bubble DOM interactions to the portal.
+    ['visualClicked', noteDashboardActivity],
+    ['dataSelected', noteDashboardActivity],
+    ['buttonClicked', noteDashboardActivity],
+    ['selectionChanged', noteDashboardActivity],
     ['loaded', handleSdkLoaded],
-    ['pageChanged', handleSdkPageChanged],
+    ['pageChanged', event => { noteDashboardActivity(); handleSdkPageChanged(event) }],
     ['rendered', handleSdkRendered],
     ['error', event => { recordDiagnostic('sdk_error'); handlePowerBiError(event) }],
-  ]), [handleSdkLoaded, handleSdkPageChanged, handleSdkRendered, handlePowerBiError, recordDiagnostic])
+  ]), [handleSdkLoaded, handleSdkPageChanged, handleSdkRendered, handlePowerBiError, noteDashboardActivity, recordDiagnostic])
 
   const toggleFullscreen = async () => {
     try {
@@ -816,7 +843,7 @@ export default function PowerBiEmbeddedView({ company, reportKey }) {
                 >
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: '#C9A45C' }}>Sessão encerrada</p>
                   <p className="mt-4 text-sm leading-7" style={{ color: '#7E97BC' }}>
-                    Esta janela perdeu a sessão ativa do Power BI. Reabra o painel para continuar.
+                    A sessão foi encerrada por inatividade ou perda de acesso. Após 30 minutos sem interação, reabra o painel para continuar.
                   </p>
                   <button
                     type="button"

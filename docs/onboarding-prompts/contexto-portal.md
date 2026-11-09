@@ -604,5 +604,14 @@ Ativacao concluida em 24/08/2026:
   ativa porque havia uma sessao de dashboard ativa.
 
 Documentacao operacional completa em `docs/power-bi-capacity-on-demand.md`.
+Atualizacao 09/11/2026: restaurado encerramento do BI apos 30 minutos sem
+interacao humana. Heartbeats, renderizacoes e renovacao de token nao renovam
+esse prazo. Eventos DOM do portal e eventos de interacao do SDK renovam.
+Backend limita expiresAt ao prazo restante; reservas de atualizacao continuam
+independentes. Suspender somente quando nao houver outra sessao/reserva ativa.
+Recarregar abas antigas apos implantar. Auditoria ainda encontrou problemas
+independentes no Power BI Update Flow (niwIpOrIYGTSZZ5G): API admin retorna
+PowerBINotAuthorizedException e executionId por data e reutilizado nas tres
+janelas, impedindo reabrir lease encerrada. Nao corrigidos nesta alteracao.
 Build de producao do Next.js 14.2.35 aprovado em copia temporaria limpa; permaneceu
 apenas o aviso preexistente de renderizacao dinamica de `/api/admin/feedback`.
