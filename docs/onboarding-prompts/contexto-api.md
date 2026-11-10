@@ -2,6 +2,64 @@
 
 Voce esta assumindo continuidade tecnica de uma API da GS Gestao usada no ecossistema de laboratorios opticos. Trate este prompt como contexto oficial.
 
+## Ottilab — descoberta do Web Pedidos em 10/11/2026
+
+### Objetivo e evidências
+
+- O usuário solicitou identificar a consulta de clientes/usuários da Ottilab
+  para preparar uma futura IA própria, sem implementar nem ativar a integração.
+- Página fornecida e inspecionada:
+  `https://webpedidos.grupoacert.com.br/auth/login?acesso=ottilab&sistema=otica`.
+- A página respondeu HTTP 200, com título "OTTILAB - WebPedidos" e campos
+  ocultos `acesso=ottilab` e `sistema=otica`. Esses parâmetros selecionam
+  o laboratório no portal; NÃO são credenciais nem provam a URL da API.
+- O JavaScript público `https://webpedidos.grupoacert.com.br/js/usuario.js`
+  contém a função `buscaUsuario(id, ...)`, que monta:
+
+  ```http
+  GET /api/webpedidos/v1/usuario/{USRID}
+  ```
+
+- No navegador, essa rota lógica é passada ao intermediário do portal:
+
+  ```http
+  GET /usuario?metodo=/api/webpedidos/v1/usuario/{USRID}
+  ```
+
+- A rota tem o mesmo padrão observado na Gradual. `USRID` identifica o usuário
+  do Web Pedidos; não deve ser confundido com código/login do cliente.
+- Uma requisição sem sessão a `/usuarios?acesso=ottilab&sistema=otica`
+  respondeu HTTP 302 para `/bloqueio`. Não houve tentativa de contornar o login.
+- Também aparece `GET /buscacliencnpj`, com CNPJ no header `cnpj`, no código
+  público de cadastro. Foi apenas identificada no código, NÃO testada.
+
+### Limites do que foi confirmado
+
+- A descoberta comprova as rotas no frontend compartilhado, NÃO o funcionamento
+  da API de origem da Ottilab, as permissões da conta ou o formato real retornado.
+- Nenhum cliente/USRID da Ottilab foi consultado; nenhum login foi realizado.
+  Não houve alteração de cadastro, publicação de fluxo ou envio de WhatsApp.
+- O domínio público do portal NÃO deve ser assumido como base da API de origem.
+  A URL/porta do servidor, `urlRest` e credenciais da Ottilab não foram descobertas.
+- Não reutilizar credenciais, base, CNPJ, telefones ou a configuração
+  `source=lentes-gradual` como se pertencessem à Ottilab.
+
+### Próximos passos
+
+1. Obter acesso autorizado ao Web Pedidos da Ottilab, preferencialmente
+   administrativo, ou solicitar à Ottilab/Acert a URL da API, identificação da
+   base (`urlRest`) e credenciais de integração. Guardar segredos somente no
+   servidor/gerenciador de credenciais, nunca neste documento.
+2. Obter um USRID conhecido e um cliente de teste autorizado para conferir a
+   consulta, os vínculos cliente/usuário e os telefones efetivamente retornados.
+3. Confirmar separadamente autenticação de integração, consulta de recebíveis
+   e geração de PDF de boletos. O padrão de rota visto no frontend não prova
+   que os endpoints financeiros da Gradual funcionem na Ottilab.
+4. Só depois configurar uma fonte/tenant Ottilab isolada na API GS e planejar
+   a IA, memória, validações e conexão Evolution específicas. O escopo final e
+   as regras de acesso da futura IA ainda precisam ser confirmados.
+
+
 ## Visao Geral
 
 A API atual serve como camada intermediaria para:
